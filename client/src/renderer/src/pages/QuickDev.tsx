@@ -329,7 +329,7 @@ Install via Airdrop Farm marketplace, then create a task using this script.
       const headers = await getMarketplaceHeaders()
 
       // 从 manifest.json 读取 name/version 作为表单字段
-      let formFields: Record<string, string> = {}
+      const formFields: Record<string, string> = {}
       try {
         const m = manifestContent ? parseManifest(manifestContent) : {}
         if (m.name) formFields.name = m.name as string
@@ -558,7 +558,7 @@ Install via Airdrop Farm marketplace, then create a task using this script.
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-text-muted">点击"加载模板列表"获取可用模板</p>
+                <p className="text-xs text-text-muted">点击&quot;加载模板列表&quot;获取可用模板</p>
               )}
             </div>
 

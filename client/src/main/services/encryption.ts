@@ -1,15 +1,15 @@
+import { safeStorage } from 'electron'
 import { createLogger } from '../utils/logger'
 
 const logger = createLogger('encryption')
 
 export class EncryptionService {
   private available: boolean
-  private safeStorage: typeof import('electron').safeStorage | null = null
+  private safeStorage: typeof safeStorage | null = null
 
   constructor() {
     try {
-      const electron = require('electron')
-      this.safeStorage = electron.safeStorage
+      this.safeStorage = safeStorage
       this.available = this.safeStorage?.isEncryptionAvailable() ?? false
     } catch {
       this.available = false

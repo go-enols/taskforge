@@ -47,19 +47,19 @@ export function useTheme(): {
   setPref: (p: ThemePref) => void
 } {
   const [pref, setPrefState] = useState<ThemePref>(() => readPref())
-  const [theme, setTheme] = useState<ResolvedTheme>(() => resolveTheme(readPref()))
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() => getSystemTheme())
 
+  // Apply theme to DOM whenever pref changes (no setState in effect needed since theme is derived)
   useEffect(() => {
-    const resolved = applyTheme(pref)
-    setTheme(resolved)
+    applyTheme(pref)
   }, [pref])
 
   useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = (): void => {
+      setSystemTheme(mql.matches ? 'dark' : 'light')
       if (pref === 'auto') {
-        const resolved = applyTheme('auto')
-        setTheme(resolved)
+        applyTheme('auto')
       }
     }
     mql.addEventListener('change', onChange)
@@ -70,6 +70,9 @@ export function useTheme(): {
     localStorage.setItem(STORAGE_KEY, p)
     setPrefState(p)
   }, [])
+
+  // Derived state - no effect needed
+  const theme: ResolvedTheme = pref === 'auto' ? systemTheme : pref
 
   return { theme, pref, setPref }
 }

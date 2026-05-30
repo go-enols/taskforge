@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { getMarketplaceUrl, setMarketplaceUrl } from '../api'
@@ -22,12 +22,7 @@ export default function LoginPage(): React.ReactElement {
   const [detecting, setDetecting] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(true)
 
-  useEffect(() => {
-    getMarketplaceUrl().then((url) => setServerUrl(url))
-    checkSetup()
-  }, [])
-
-  const checkSetup = async () => {
+  const checkSetup = useCallback(async () => {
     setDetecting(true)
     try {
       const url = await getMarketplaceUrl()
@@ -42,7 +37,13 @@ export default function LoginPage(): React.ReactElement {
     } finally {
       setDetecting(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    getMarketplaceUrl().then((url) => setServerUrl(url))
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    checkSetup()
+  }, [checkSetup])
 
   const handleSaveUrl = async () => {
     if (!serverUrl.trim()) {

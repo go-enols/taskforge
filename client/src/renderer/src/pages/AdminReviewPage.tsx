@@ -45,6 +45,7 @@ export default function AdminReviewPage() {
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPending()
   }, [fetchPending])
 
@@ -71,7 +72,7 @@ export default function AdminReviewPage() {
       const base = await getMarketplaceUrl()
       const url = `${base}${item.downloadUrl}`
       window.open(url, '_blank')
-    } catch (e) {
+    } catch {
       toast.error('获取下载链接失败')
     }
   }

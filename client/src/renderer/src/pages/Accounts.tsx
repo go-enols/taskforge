@@ -145,36 +145,6 @@ const Accounts: React.FC = () => {
     }
   }, [importValid, t, fetchData])
 
-  const handleCreate = useCallback(async () => {
-    if (!form.templateId.trim() || !form.pool.trim()) return
-    // 使用 DynamicForm 的值或手写 JSON
-    const selectedTemplate = templates.find((t) => t.id === form.templateId)
-    let parsedData: Record<string, unknown> = {}
-    if (selectedTemplate?.schema && Object.keys(selectedTemplate.schema).length > 0) {
-      parsedData = { ...form.dynamicFormValues }
-    } else {
-      try {
-        parsedData = JSON.parse(form.data || '{}')
-      } catch {
-        setCreateError(t('common.invalidJson'))
-        return
-      }
-    }
-    // 检查账号池是否存在
-    try {
-      const pools = await accountApi.listPools()
-      const poolName = form.pool.trim()
-      if (!pools.includes(poolName)) {
-        pendingCreateRef.current = parsedData
-        setShowPoolConfirm(true)
-        return
-      }
-    } catch {
-      console.warn('Pool check failed, proceeding anyway')
-    }
-    doCreateAccount(parsedData)
-  }, [form, t, templates, fetchData])
-
   const doCreateAccount = useCallback(
     async (parsedData: Record<string, unknown>) => {
       setCreating(true)
@@ -210,6 +180,36 @@ const Accounts: React.FC = () => {
     },
     [form, t, fetchData]
   )
+
+  const handleCreate = useCallback(async () => {
+    if (!form.templateId.trim() || !form.pool.trim()) return
+    // 使用 DynamicForm 的值或手写 JSON
+    const selectedTemplate = templates.find((t) => t.id === form.templateId)
+    let parsedData: Record<string, unknown> = {}
+    if (selectedTemplate?.schema && Object.keys(selectedTemplate.schema).length > 0) {
+      parsedData = { ...form.dynamicFormValues }
+    } else {
+      try {
+        parsedData = JSON.parse(form.data || '{}')
+      } catch {
+        setCreateError(t('common.invalidJson'))
+        return
+      }
+    }
+    // 检查账号池是否存在
+    try {
+      const pools = await accountApi.listPools()
+      const poolName = form.pool.trim()
+      if (!pools.includes(poolName)) {
+        pendingCreateRef.current = parsedData
+        setShowPoolConfirm(true)
+        return
+      }
+    } catch {
+      console.warn('Pool check failed, proceeding anyway')
+    }
+    doCreateAccount(parsedData)
+  }, [form, t, templates, doCreateAccount])
 
   const handlePoolConfirm = useCallback(async () => {
     setShowPoolConfirm(false)

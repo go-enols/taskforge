@@ -161,7 +161,7 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
     required: true
   }
 
-  const description = (schema as any).description as string | undefined
+  const description = (schema as { description?: string }).description
   if (description) {
     meta.label = description
     meta.description = description
@@ -176,8 +176,8 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
       break
     case 'number': {
       meta.type = 'number'
-      const numSchema = unwrapped as any
-      const checks = numSchema._def?.checks as Array<{ kind: string; value: number }> | undefined
+      const numSchema = unwrapped as unknown as { _def?: { checks?: Array<{ kind: string; value: number }> } }
+      const checks = numSchema._def?.checks
       if (checks?.length) {
         for (const check of checks) {
           if (check.kind === 'min' && meta.min == null) meta.min = check.value
@@ -191,7 +191,7 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
       break
     case 'enum': {
       meta.type = 'select'
-      const values = (unwrapped._def as any).values as string[] | undefined
+      const values = (unwrapped._def as unknown as { values?: string[] }).values
       if (values?.length) {
         meta.options = values.map((v) => ({ label: v, value: v }))
       }
@@ -205,7 +205,7 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
     meta.required = false
   }
 
-  const def = schema._def as any
+  const def = schema._def as unknown as { type?: string; defaultValue?: unknown }
   if (def.type === 'default' && def.defaultValue !== undefined) {
     meta.defaultValue = def.defaultValue
     meta.required = false
@@ -215,15 +215,15 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
 }
 
 function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
-  const def = schema._def as any
-  if (def.type === 'optional' || def.type === 'default') {
+  const def = schema._def as unknown as { type?: string; innerType?: z.ZodTypeAny }
+  if ((def.type === 'optional' || def.type === 'default') && def.innerType) {
     return unwrapSchema(def.innerType)
   }
   return schema
 }
 
 function isOptionalSchema(schema: z.ZodTypeAny): boolean {
-  const def = schema._def as any
+  const def = schema._def as unknown as { type?: string }
   if (def.type === 'optional') return true
   if (def.type === 'default') return true
   return false

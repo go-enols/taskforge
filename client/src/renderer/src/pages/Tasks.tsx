@@ -148,17 +148,19 @@ const Tasks: React.FC = () => {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadInstalledScripts()
   }, [])
 
   useEffect(() => {
     if (showScriptBrowser) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadRemoteScripts()
     }
   }, [showScriptBrowser])
 
   useEffect(() => {
-    const unsubscribe = (window as any).electronAPI?.on?.('task:statusChanged', () => {
+    const unsubscribe = window.electronAPI?.on?.('task:statusChanged', () => {
       refresh()
     })
     return () => {
@@ -168,34 +170,32 @@ const Tasks: React.FC = () => {
 
   useEffect(() => {
     if (!expandedId) return
-    const unsubscribe = (window as any).electronAPI?.on?.(
-      'task:log',
-      (data: {
+    const unsubscribe = window.electronAPI?.on?.('task:log', (rawData) => {
+      const data = rawData as {
         taskId: string
         logs: Array<{ level: string; message: string; timestamp: string }>
-      }) => {
-        if (data.taskId === expandedId) {
-          setLogs((prev) => {
-            const newLogs = data.logs.map((l, i) => ({
-              id: -(prev.length + i),
-              taskId: data.taskId,
-              timestamp: l.timestamp,
-              level: l.level as TaskLog['level'],
-              message: l.message
-            }))
-            const combined = [...prev, ...newLogs]
-            return combined.length > 500 ? combined.slice(-500) : combined
-          })
-        }
       }
-    )
+      if (data.taskId === expandedId) {
+        setLogs((prev) => {
+          const newLogs = data.logs.map((l, i) => ({
+            id: -(prev.length + i),
+            taskId: data.taskId,
+            timestamp: l.timestamp,
+            level: l.level as TaskLog['level'],
+            message: l.message
+          }))
+          const combined = [...prev, ...newLogs]
+          return combined.length > 500 ? combined.slice(-500) : combined
+        })
+      }
+    })
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe()
     }
   }, [expandedId])
 
   useEffect(() => {
-    const unsubscribe = (window as any).electronAPI?.on?.('task:output', () => {
+    const unsubscribe = window.electronAPI?.on?.('task:output', () => {
       refresh()
     })
     return () => {

@@ -29,7 +29,7 @@ describe('IPC Handler Integration', () => {
       store,
       walletService,
       taskService,
-      scriptFetcher: null as any,
+      scriptFetcher: null as unknown as import('../../../src/main/services/script-fetcher').ScriptFetcher,
       walletRepo: store.walletRepo,
       proxyRepo: store.proxyRepo,
       taskRepo: store.taskRepo

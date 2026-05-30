@@ -105,8 +105,14 @@ export default function DebugPage() {
         })
       }
     }
-    const unsub1 = (window as any).electronAPI?.on?.('task:statusChanged', handleStatus)
-    const unsub2 = (window as any).electronAPI?.on?.('task:log', handleLog)
+    const unsub1 = window.electronAPI?.on?.('task:statusChanged', (data) =>
+      handleStatus(data as { id: string; status: string })
+    )
+    const unsub2 = window.electronAPI?.on?.('task:log', (data) =>
+      handleLog(
+        data as { taskId: string; logs: Array<{ level: string; message: string; timestamp: string }> }
+      )
+    )
     return () => {
       if (typeof unsub1 === 'function') unsub1()
       if (typeof unsub2 === 'function') unsub2()

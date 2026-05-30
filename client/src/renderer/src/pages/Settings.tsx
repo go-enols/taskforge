@@ -83,7 +83,7 @@ const Settings: React.FC = () => {
       }
     }
 
-    const unsubscribe = (window as any).electronAPI?.on?.('update:status', handleUpdateStatus)
+    const unsubscribe = window.electronAPI?.on?.('update:status', handleUpdateStatus)
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe()
     }
