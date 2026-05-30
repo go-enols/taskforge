@@ -1,0 +1,33 @@
+# Dependencies and build artifacts (any depth)
+**/node_modules
+**/dist
+**/out
+**/.eslintcache
+**/*.tsbuildinfo
+
+# Logs
+*.log*
+
+# OS
+.DS_Store
+
+# Server runtime data (keep schema, ignore DB state)
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
+
+# Editor / scratch
+tmp.json
+
+# AI tool directories
+.deepseek/
+.omo/
+.sisyphus/
+.dbg/
+
+# IDE settings
+.vscode/
+client/.vscode/
+
+# Dev tools (local development only)
+devtools/

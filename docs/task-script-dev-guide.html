@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Airdrop Farm — 任务脚本开发指南</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --bg-code: #1c2128;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #f78166;
+    --green: #3fb950;
+    --orange: #d2991d;
+    --red: #f85149;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 2rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+  h1 .sub { font-size: 0.95rem; color: var(--text-dim); font-weight: 400; display: block; margin-top: 0.25rem; }
+  h2 {
+    font-size: 1.4rem;
+    margin: 2.5rem 0 1rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 1.15rem; margin: 1.8rem 0 0.6rem; color: var(--accent); }
+  h4 { font-size: 1rem; margin: 1.2rem 0 0.4rem; }
+  p { margin: 0.6rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.88em;
+    background: var(--bg-code);
+    padding: 0.15em 0.35em;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    margin: 0.8rem 0 1.2rem;
+  }
+  pre code { background: none; padding: 0; border: none; font-size: inherit; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.92rem;
+  }
+  th, td {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+  th {
+    background: var(--bg-card);
+    font-weight: 600;
+  }
+  td code { font-size: 0.82rem; }
+  .badge {
+    display: inline-block;
+    padding: 0.1em 0.55em;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .badge-yes { background: #1a3a1a; color: var(--green); }
+  .badge-no  { background: #3a1a1a; color: var(--red); }
+  .badge-opt { background: #2a2a1a; color: var(--orange); }
+  .callout {
+    margin: 1rem 0 1.5rem;
+    padding: 0.8rem 1.2rem;
+    border-radius: 8px;
+    border-left: 4px solid;
+    font-size: 0.92rem;
+  }
+  .callout-info  { background: #0d2c3a; border-color: var(--accent); }
+  .callout-warn  { background: #2e2200; border-color: var(--orange); }
+  .callout-danger { background: #2e0d0d; border-color: var(--red); }
+  .callout-tip   { background: #0d2e0d; border-color: var(--green); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; margin: 1.5rem 0; }
+  .toc h3 { margin: 0 0 0.6rem; color: var(--text); font-size: 1rem; }
+  .toc ol { padding-left: 1.3rem; font-size: 0.92rem; line-height: 2; }
+  .toc a { text-decoration: none; }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 0.8rem; font-weight: 700; margin-right: 0.4rem;
+    flex-shrink: 0;
+  }
+  .flow { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.8rem 0 1.5rem; font-size: 0.88rem; }
+  .flow-box {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.4rem 0.8rem; font-weight: 500;
+  }
+  .flow-arrow { color: var(--text-dim); font-weight: 700; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  .tag {
+    display: inline-block; padding: 0.1em 0.5em; border-radius: 4px;
+    font-size: 0.75rem; font-weight: 600; margin-right: 0.3em;
+  }
+  .tag-node { background: #1e3a1e; color: #73c773; }
+  .tag-ts   { background: #1e2e3a; color: #6db3d6; }
+  .tag-json { background: #3a2e0d; color: #d6b56d; }
+</style>
+</head>
+<body>
+
+<h1>🚀 Airdrop Farm 任务脚本开发指南 <span class="sub">从零编写、测试、发布你的自动化任务脚本</span></h1>
+
+<div class="toc">
+<h3>📑 目录</h3>
+<ol>
+  <li><a href="#overview">概述</a></li>
+  <li><a href="#architecture">系统架构与数据流</a></li>
+  <li><a href="#project-structure">脚本项目结构</a></li>
+  <li><a href="#manifest">manifest.json — 脚本清单文件</a></li>
+  <li><a href="#config">配置注入 — 脚本如何获取参数</a></li>
+  <li><a href="#accounts">访问账户数据</a></li>
+  <li><a href="#proxies">关于代理（重要）</a></li>
+  <li><a href="#logging">日志与输出</a></li>
+  <li><a href="#lifecycle">生命周期与进程控制</a></li>
+  <li><a href="#deps">依赖管理</a></li>
+  <li><a href="#testing">本地测试</a></li>
+  <li><a href="#publish">发布到市场</a></li>
+  <li><a href="#examples">完整示例</a></li>
+  <li><a href="#faq">常见问题</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="overview">1. 概述</h2>
+
+<p>任务脚本是一个 <strong>Node.js 程序</strong>，由 Airdrop Farm 以子进程方式启动，自动化执行区块链交互操作（如领水、签到、跨链桥等）。</p>
+
+<p>一个脚本从开发到运行的完整路径：</p>
+
+<div class="flow">
+  <span class="flow-box">📝 编写脚本</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-box">📦 打包 zip</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-box">📤 上传市场</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-box">⬇️ 用户安装</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-box">⚙️ 填写配置</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-box">▶️ 启动任务</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-box">📋 查看日志</span>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="architecture">2. 系统架构与数据流</h2>
+
+<h3>2.1 整体架构</h3>
+
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                    Airdrop Farm (Electron)                   │
+│                                                             │
+│  ┌──────────┐    IPC/HTTP     ┌──────────────┐              │
+│  │ Renderer │ ◄──────────────► │  Main Process │              │
+│  │ (React)  │                  │              │              │
+│  │          │  task:create     │ TaskService  │              │
+│  │  Tasks   │ ───────────────► │              │              │
+│  │  Page    │                  │  spawn()     │              │
+│  │          │  task:start      │     │        │              │
+│  │          │ ───────────────► │     ▼        │              │
+│  └──────────┘                  │ ┌──────────┐ │              │
+│                                │ │ 子进程    │ │              │
+│                                │ │ (脚本)   │ │              │
+│                                │ └──────────┘ │              │
+│                                └──────────────┘              │
+│                                                             │
+│  ┌──────────────────────────────────────────────────┐       │
+│  │               SQLite (better-sqlite3)             │       │
+│  │  tasks │ task_logs │ accounts │ proxies │ ...     │       │
+│  └──────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+
+<h3>2.2 任务创建与执行流程</h3>
+
+<ol>
+  <li><strong>用户选择脚本</strong>：从已安装列表中选择一个任务模板脚本。</li>
+  <li><strong>表单渲染</strong>：前端读取脚本的 <code>manifest.json</code> → <code>schema</code> 字段，通过 <code>jsonSchemaToFieldMeta()</code> 将其转换为表单字段 <code>FieldMeta[]</code>。嵌套对象会被展平为 <code>parent.child</code> 点号键名。</li>
+  <li><strong>账户选择</strong>：如果 <code>manifest.json</code> 中声明了 <code>requiredAccountTemplateIds</code>，前端会加载匹配模板的账户列表供用户勾选，支持按账号池筛选和批量模式。</li>
+  <li><strong>提交</strong>：前端将表单值通过 <code>unflattenDotNotation()</code> 还原为嵌套对象后，调用 <code>injectAccountData()</code> 将选中的账户数据注入 <code>_accounts</code> 字段，然后调用 <code>taskApi.create()</code>。</li>
+  <li><strong>持久化</strong>：<code>task:create</code> handler 将配置写入 SQLite <code>tasks</code> 表，状态为 <code>idle</code>。</li>
+  <li><strong>启动</strong>：用户点击播放按钮 → <code>task:start</code> → <code>TaskService.startTask()</code>。</li>
+  <li><strong>执行</strong>：<code>TaskService</code> 将 <code>task.config</code> 注入为环境变量（<code>TASK_CONFIG</code> / <code>TASK_{KEY}</code> 等），以 <code>child_process.spawn()</code> 运行脚本入口文件。</li>
+  <li><strong>输出</strong>：stdout → info 日志，stderr → error 日志，实时推送到渲染进程并存入 <code>task_logs</code> 表。</li>
+  <li><strong>结束</strong>：exit code 0 → <code>complete</code>，非 0 → <code>error</code>。</li>
+</ol>
+
+<h3>2.3 关键源文件参考</h3>
+
+<table>
+  <tr><th>文件</th><th>作用</th></tr>
+  <tr><td><code>src/main/services/task.ts</code></td><td>TaskService — 进程生命周期管理</td></tr>
+  <tr><td><code>src/main/services/scheduler.ts</code></td><td>SchedulerService — 定时任务触发</td></tr>
+  <tr><td><code>src/main/services/script-fetcher.ts</code></td><td>ScriptFetcher — 脚本下载/安装</td></tr>
+  <tr><td><code>src/main/ipc/index.ts</code></td><td>IPC handler 注册（task:create 等）</td></tr>
+  <tr><td><code>src/shared/types/index.ts</code></td><td>共享类型定义（Task、Account、Proxy 等）</td></tr>
+  <tr><td><code>src/shared/schemas/task-params.ts</code></td><td>Schema → FieldMeta 转换工具</td></tr>
+  <tr><td><code>src/renderer/src/pages/Tasks.tsx</code></td><td>任务管理页面（含 injectAccountData）</td></tr>
+  <tr><td><code>src/renderer/src/api.ts</code></td><td>前端 API 客户端</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="project-structure">3. 脚本项目结构</h2>
+
+<pre><code>my-airdrop-script/
+├── manifest.json      <span class="tag tag-json">必需</span> 脚本元数据和配置 Schema
+├── index.js           <span class="tag tag-node">必需</span> 入口文件（须与 manifest.entryPoint 一致）
+├── package.json       <span class="tag tag-json">可选</span> npm 依赖声明
+└── utils.js           <span class="tag tag-node">可选</span> 其他辅助文件
+</code></pre>
+
+<div class="callout callout-info">
+  <strong>⚠️ 约束</strong>：<code>manifest.json</code> 和入口文件<strong>必须位于 zip 包根目录</strong>。打包时不要在 zip 中嵌套一层文件夹。
+</div>
+
+<div class="callout callout-warn">
+  <strong>⚠️ 不支持原生 C++ 模块</strong>：由于 Electron 内嵌的 Node.js ABI 与独立 Node.js 不一致，<code>better-sqlite3</code>、<code>canvas</code>、<code>sharp</code>、<code>bcrypt</code> 等含原生编译的包将直接崩溃。请只用纯 JS 包，或使用 <code>esbuild</code> / <code>webpack</code> 打包。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="manifest">4. manifest.json — 脚本清单文件</h2>
+
+<h3>4.1 字段速查表</h3>
+
+<table>
+  <tr><th>字段</th><th>类型</th><th>必需</th><th>说明</th></tr>
+  <tr>
+    <td><code>id</code></td><td>string</td><td><span class="badge badge-yes">是</span></td>
+    <td>全局唯一标识，推荐反向域名风格，如 <code>com.example.my-script</code></td>
+  </tr>
+  <tr>
+    <td><code>name</code></td><td>string</td><td><span class="badge badge-yes">是</span></td>
+    <td>人类可读的显示名称</td>
+  </tr>
+  <tr>
+    <td><code>version</code></td><td>string</td><td><span class="badge badge-yes">是</span></td>
+    <td>语义化版本号，如 <code>"1.0.0"</code></td>
+  </tr>
+  <tr>
+    <td><code>description</code></td><td>string</td><td><span class="badge badge-yes">是</span></td>
+    <td>脚本功能简述</td>
+  </tr>
+  <tr>
+    <td><code>entryPoint</code></td><td>string</td><td><span class="badge badge-yes">是</span></td>
+    <td>入口文件名，相对于脚本目录，如 <code>"index.js"</code></td>
+  </tr>
+  <tr>
+    <td><code>runtime</code></td><td>string</td><td><span class="badge badge-yes">是</span></td>
+    <td>必须是 <code>"node"</code>。暂无其他运行时</td>
+  </tr>
+  <tr>
+    <td><code>schema</code></td><td>object</td><td><span class="badge badge-yes">是</span></td>
+    <td>JSON Schema 格式的配置表单定义。必须包含 <code>"type": "object"</code> 和 <code>"properties": {...}</code></td>
+  </tr>
+  <tr>
+    <td><code>requiredAccountTemplateIds</code></td><td>string[]</td><td><span class="badge badge-opt">可选</span></td>
+    <td>需要的账号模板 ID 列表。<strong>声明后脚本才能获取账户数据。</strong></td>
+  </tr>
+  <tr>
+    <td><code>permissions</code></td><td>string[]</td><td><span class="badge badge-opt">可选</span></td>
+    <td>声明的权限：<code>"network"</code>、<code>"filesystem"</code>。仅供信息展示。</td>
+  </tr>
+  <tr>
+    <td><code>tags</code></td><td>string[]</td><td><span class="badge badge-opt">可选</span></td>
+    <td>市场分类标签</td>
+  </tr>
+  <tr>
+    <td><code>changelog</code></td><td>string</td><td><span class="badge badge-opt">可选</span></td>
+    <td>版本更新日志</td>
+  </tr>
+</table>
+
+<h3>4.2 Schema → 表单的转换规则</h3>
+
+<table>
+  <tr><th>JSON Schema 字段</th><th>生成的表单控件</th></tr>
+  <tr><td><code>type: "string"</code> + <code>enum</code></td><td>下拉选择框</td></tr>
+  <tr><td><code>type: "string"</code>（无 enum）</td><td>文本输入框</td></tr>
+  <tr><td><code>type: "number"</code> / <code>"integer"</code></td><td>数字输入框（支持 <code>minimum</code> / <code>maximum</code>）</td></tr>
+  <tr><td><code>type: "boolean"</code></td><td>复选框</td></tr>
+  <tr><td><code>type: "object"</code> 含 <code>properties</code></td><td>子属性被展平为 <code>parent.child</code> 点号键名</td></tr>
+  <tr><td><code>title</code></td><td>字段标签</td></tr>
+  <tr><td><code>default</code></td><td>默认值</td></tr>
+  <tr><td><code>description</code></td><td>帮助文本</td></tr>
+  <tr><td>顶层 <code>required</code> 数组</td><td>必填校验</td></tr>
+  <tr><td><code>pattern</code></td><td>正则校验</td></tr>
+</table>
+
+<h3>4.3 完整 manifest.json 示例</h3>
+
+<pre><code>{
+  "id": "com.example.testnet-faucet",
+  "name": "Testnet 领水",
+  "version": "1.0.0",
+  "description": "自动从各个测试网水龙头领取测试币",
+  "entryPoint": "index.js",
+  "runtime": "node",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "rpcUrl": {
+        "type": "string",
+        "title": "RPC 地址",
+        "description": "区块链 RPC 端点 URL",
+        "default": "https://sepolia.infura.io/v3/...your-key"
+      },
+      "chainId": {
+        "type": "number",
+        "title": "链 ID",
+        "default": 11155111,
+        "minimum": 1
+      },
+      "waitBetweenTx": {
+        "type": "number",
+        "title": "交易间隔（秒）",
+        "default": 5,
+        "minimum": 1,
+        "maximum": 300
+      },
+      "headless": {
+        "type": "boolean",
+        "title": "无头模式",
+        "default": true
+      },
+      "faucetType": {
+        "type": "string",
+        "title": "水龙头类型",
+        "enum": ["alchemy", "infura", "quicknode", "自定义"],
+        "default": "alchemy"
+      },
+      "proxy": {
+        "type": "object",
+        "title": "代理配置",
+        "properties": {
+          "host": { "type": "string", "title": "主机" },
+          "port": { "type": "number", "title": "端口", "minimum": 1, "maximum": 65535 },
+          "username": { "type": "string", "title": "用户名" },
+          "password": { "type": "string", "title": "密码" }
+        },
+        "required": ["host", "port"]
+      }
+    },
+    "required": ["rpcUrl"]
+  },
+  "requiredAccountTemplateIds": ["tpl-evm-wallet"],
+  "permissions": ["network"],
+  "tags": ["faucet", "testnet", "evm"],
+  "changelog": "首个版本：支持 Sepolia 领水"
+}</code></pre>
+
+<h3>4.4 嵌套对象被展平后的效果</h3>
+
+<p>上述 <code>proxy</code> 对象在表单中会显示为：</p>
+
+<table>
+  <tr><th>表单字段名</th><th>标签</th><th>类型</th></tr>
+  <tr><td><code>rpcUrl</code></td><td>RPC 地址</td><td>文本</td></tr>
+  <tr><td><code>chainId</code></td><td>链 ID</td><td>数字</td></tr>
+  <tr><td><code>waitBetweenTx</code></td><td>交易间隔（秒）</td><td>数字</td></tr>
+  <tr><td><code>headless</code></td><td>无头模式</td><td>复选框</td></tr>
+  <tr><td><code>faucetType</code></td><td>水龙头类型</td><td>下拉</td></tr>
+  <tr><td><code>proxy.host</code></td><td>Proxy Config › 主机</td><td>文本</td></tr>
+  <tr><td><code>proxy.port</code></td><td>Proxy Config › 端口</td><td>数字</td></tr>
+  <tr><td><code>proxy.username</code></td><td>Proxy Config › 用户名</td><td>文本</td></tr>
+  <tr><td><code>proxy.password</code></td><td>Proxy Config › 密码</td><td>文本</td></tr>
+</table>
+
+<p><code>unflattenDotNotation()</code> 在提交时自动将它们还原为嵌套对象：</p>
+
+<pre><code>// 用户填写表单后，提交给后端的 config 对象：
+{
+  "rpcUrl": "https://...",
+  "chainId": 11155111,
+  "waitBetweenTx": 5,
+  "headless": true,
+  "faucetType": "alchemy",
+  "proxy": {
+    "host": "127.0.0.1",
+    "port": 7890,
+    "username": "",
+    "password": ""
+  },
+  "_accounts": [ ... ]   // 前端自动注入
+}</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="config">5. 配置注入 — 脚本如何获取参数</h2>
+
+<p>脚本通过<strong>环境变量</strong>接收配置：</p>
+
+<table>
+  <tr><th>环境变量</th><th>说明</th></tr>
+  <tr>
+    <td><code>TASK_CONFIG</code></td>
+    <td><strong>完整配置 JSON 字符串。</strong>保留了类型（数字就是数字，布尔就是布尔）。这是推荐方式。</td>
+  </tr>
+  <tr>
+    <td><code>TASK_{KEY}</code></td>
+    <td>每个配置键的大写形式。<strong>值始终是字符串。</strong>如 <code>TASK_RPCURL</code>、<code>TASK_CHAINID</code>。<br>嵌套键展开为单层：<code>TASK_PROXY.HOST</code> 不存在，只有 <code>proxy.host</code> 键展开为 <code>TASK_PROXY_HOST</code>。</td>
+  </tr>
+  <tr>
+    <td><code>TASK_ID</code></td>
+    <td>当前任务的 UUID</td>
+  </tr>
+  <tr>
+    <td><code>NODE_PATH</code></td>
+    <td>指向脚本目录下的 <code>node_modules</code></td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <strong>⚠️ 重要</strong>：始终使用 <code>TASK_CONFIG</code> 而非单独的 <code>TASK_*</code> 变量！后者将所有值强制转为字符串（<code>"3"</code> 而非 <code>3</code>，<code>"true"</code> 而非 <code>true</code>）。
+</div>
+
+<h3>读取配置的标准写法</h3>
+
+<pre><code>// ✅ 推荐：使用 TASK_CONFIG，类型完整
+const config = JSON.parse(process.env.TASK_CONFIG || '{}')
+
+const rpcUrl = config.rpcUrl          // string
+const chainId = config.chainId        // number
+const headless = config.headless      // boolean
+const waitBetween = config.waitBetweenTx  // number
+const proxyHost = config.proxy?.host  // string（嵌套对象还原了）
+
+console.log(`连接到 ${rpcUrl}，链 ID: ${chainId}`)
+
+// ❌ 避免：单独的环境变量丢失类型
+const count = process.env.TASK_WAITBETWEENTX  // "5" — 字符串！
+const num = parseInt(count, 10)               // 必须手动解析
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="accounts">6. 访问账户数据</h2>
+
+<p>如果你的脚本需要操作用户的账户（钱包地址、私钥等），需要通过以下机制获取：</p>
+
+<h3>6.1 前置条件</h3>
+
+<ol>
+  <li>在 <code>manifest.json</code> 中声明 <code>requiredAccountTemplateIds</code>，指定需要的账号模板 ID。</li>
+  <li>用户必须在「账户管理」页面中基于对应模板创建了账号，并将它们分配到某个账号池。</li>
+  <li>用户在创建任务时勾选要使用的账号。</li>
+</ol>
+
+<h3>6.2 单任务模式 — 所有账号在一个任务中</h3>
+
+<p>用户勾选多个账号后，前端 <code>injectAccountData()</code> 将它们注入到 <code>config._accounts</code> 数组中：</p>
+
+<pre><code>const config = JSON.parse(process.env.TASK_CONFIG || '{}')
+const accounts = config._accounts || []
+
+for (const account of accounts) {
+  console.log(`账号 ID: ${account.id}`)
+  console.log(`账号池: ${account.pool}`)
+  console.log(`标签: ${account.labels.join(', ')}`)
+
+  // account.data 包含模板定义的字段（地址、私钥等）
+  const { address, privateKey } = account.data
+  console.log(`地址: ${address}`)
+
+  // 使用 ethers.js 签名交易
+  const { Wallet, JsonRpcProvider } = require('ethers')
+  const provider = new JsonRpcProvider(config.rpcUrl)
+  const wallet = new Wallet(privateKey, provider)
+  // ...
+}
+
+console.log(`共处理 ${accounts.length} 个账号`)
+process.exit(0)
+</code></pre>
+
+<h3>6.3 批量模式 — 每个账号一个独立任务</h3>
+
+<p>用户在创建任务时开启批量模式，前端为每个账号创建一个独立任务，将单个账号数据注入 <code>_account_id</code>、<code>_account_data</code>、<code>_account_pool</code>：</p>
+
+<pre><code>const config = JSON.parse(process.env.TASK_CONFIG || '{}')
+
+const accountId = config._account_id        // string
+const accountData = config._account_data    // object（私钥等）
+const accountPool = config._account_pool    // string
+
+console.log(`正在为账号 ${accountId} (池: ${accountPool}) 执行任务`)
+const { address, privateKey } = accountData
+// ...
+process.exit(0)
+</code></pre>
+
+<h3>6.4 账户对象的字段</h3>
+
+<table>
+  <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+  <tr><td><code>id</code></td><td>string</td><td>账户 UUID</td></tr>
+  <tr><td><code>templateId</code></td><td>string</td><td>所属模板 ID</td></tr>
+  <tr><td><code>data</code></td><td>object</td><td>模板定义的字段（如 <code>address</code>、<code>privateKey</code>、<code>mnemonic</code>）</td></tr>
+  <tr><td><code>pool</code></td><td>string</td><td>账号池名称</td></tr>
+  <tr><td><code>labels</code></td><td>string[]</td><td>标签列表</td></tr>
+  <tr><td><code>notes</code></td><td>string</td><td>备注</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="proxies">7. 关于代理 ⚠️ 重要限制</h2>
+
+<div class="callout callout-danger">
+  <strong>⚠️ 当前限制</strong>：系统<strong>不会</strong>自动将用户配置的代理列表注入到任务脚本的配置中。脚本无法通过 <code>_proxies</code> 或类似机制获取用户在「代理管理」中保存的代理。
+</div>
+
+<h3>目前脚本获取代理的两种方式：</h3>
+
+<h4>方式一：通过 Schema 让用户手动填写代理参数（推荐）</h4>
+
+<p>在你的 <code>manifest.json</code> 的 schema 中定义一个嵌套的 proxy 对象字段，让用户在前端表单中手动输入代理参数：</p>
+
+<pre><code>{
+  "schema": {
+    "type": "object",
+    "properties": {
+      "proxy": {
+        "type": "object",
+        "title": "代理配置",
+        "properties": {
+          "host": { "type": "string", "title": "代理主机" },
+          "port": { "type": "number", "title": "代理端口", "minimum": 1, "maximum": 65535 },
+          "username": { "type": "string", "title": "用户名" },
+          "password": { "type": "string", "title": "密码" }
+        }
+      }
+    }
+  }
+}</code></pre>
+
+<p>脚本中读取：</p>
+
+<pre><code>const config = JSON.parse(process.env.TASK_CONFIG || '{}')
+const proxy = config.proxy
+if (proxy?.host) {
+  const proxyUrl = `http://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`
+  // 配置 puppeteer / playwright / axios 等使用此代理
+}</code></pre>
+
+<h4>方式二：通过 <code>package.json</code> 依赖数据库直连（高级）</h4>
+
+<p>脚本如果打包了 <code>better-sqlite3</code>（注意：<strong>需要静态编译版本</strong>，不能用标准 npm 包），可以直接读取 Airdrop Farm 的 SQLite 数据库查询代理表：</p>
+
+<pre><code>// ⚠️ 高级用法，需要处理跨平台和 Electron ABI 问题
+const Database = require('better-sqlite3')
+const { app } = require('electron')  // 脚本运行在 Electron 环境中
+const { join } = require('path')
+
+const db = new Database(join(app.getPath('userData'), 'airdrop-farm.db'))
+const proxies = db.prepare('SELECT * FROM proxies WHERE status = ?').all('active')
+console.log(`找到 ${proxies.length} 个活跃代理`)
+</code></pre>
+
+<div class="callout callout-warn">
+  <strong>⚠️ 风险提示</strong>：方式二存在严重的跨平台兼容性问题，因为 <code>better-sqlite3</code> 包含原生 C++ 模块，在 Electron 环境中通常无法正常加载。不推荐此方式。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="logging">8. 日志与输出</h2>
+
+<h3>8.1 基本规则</h3>
+
+<ul>
+  <li><strong>stdout</strong> → <code>info</code> 级别日志。每个 <code>console.log()</code> 产生一条。</li>
+  <li><strong>stderr</strong> → <code>error</code> 级别日志。每个 <code>console.error()</code> 产生一条。</li>
+  <li><strong>行缓冲</strong>：输出按行拆分，每行一条日志。</li>
+  <li>日志<strong>实时</strong>显示在任务详情面板中。</li>
+  <li>日志持久化到 SQLite <code>task_logs</code> 表，可通过 API 查询。</li>
+  <li>前端保留最近 <strong>500 条</strong>日志在内存中滚动显示。</li>
+  <li>stdout/stderr 完整内容在任务结束后保留最后 <strong>10,000 字符</strong>，可通过 <code>task:getOutput</code> 获取。</li>
+</ul>
+
+<h3>8.2 退出码</h3>
+
+<table>
+  <tr><th>Exit Code</th><th>任务状态</th></tr>
+  <tr><td><code>0</code></td><td><code>complete</code> — 成功完成</td></tr>
+  <tr><td>任何非零值</td><td><code>error</code> — 异常终止</td></tr>
+  <tr><td>被信号杀死</td><td><code>error</code> — 进程被终止</td></tr>
+</table>
+
+<h3>8.3 进度报告（无专用 API）</h3>
+
+<p>当前系统<strong>没有</strong>结构化的进度 API（<code>TaskProgress</code> 接口虽定义了 <code>percent</code> 和 <code>message</code> 字段，但未曾从脚本侧填充）。用日志消息模拟进度：</p>
+
+<pre><code>const total = 100
+for (let i = 0; i < total; i++) {
+  await doWork()
+  if (i % 10 === 0) {
+    console.log(`[进度] ${Math.round(((i + 1) / total) * 100)}%`)
+  }
+}
+console.log('[进度] 100% — 完成')
+process.exit(0)
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="lifecycle">9. 生命周期与进程控制</h2>
+
+<h3>9.1 状态转换</h3>
+
+<table>
+  <tr><th>操作</th><th>实际行为</th><th>Linux/macOS</th><th>Windows</th></tr>
+  <tr>
+    <td><strong>启动</strong></td>
+    <td>以<code>spawn()</code> 子进程方式运行入口文件。自动安装 npm 依赖。</td>
+    <td colspan="2"><code>idle</code> → <code>running</code></td>
+  </tr>
+  <tr>
+    <td><strong>暂停</strong></td>
+    <td>冻结进程 / 暂停输出流</td>
+    <td>SIGSTOP（真冻结）</td>
+    <td>软暂停（输出流暂停，进程继续运行）</td>
+  </tr>
+  <tr>
+    <td><strong>恢复</strong></td>
+    <td>恢复进程 / 恢复输出流</td>
+    <td>SIGCONT</td>
+    <td>恢复流</td>
+  </tr>
+  <tr>
+    <td><strong>停止</strong></td>
+    <td>SIGTERM → 5 秒后 SIGKILL</td>
+    <td colspan="2"><code>running</code> / <code>paused</code> → <code>stopped</code></td>
+  </tr>
+</table>
+
+<h3>9.2 优雅退出</h3>
+
+<pre><code>let shuttingDown = false
+
+process.on('SIGTERM', () => {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log('收到停止信号，正在优雅退出...')
+  // 关闭数据库连接、清理临时文件等
+  process.exit(0)
+})
+
+// 如果有未捕获异常，确保输出有意义的信息然后退出
+process.on('uncaughtException', (err) => {
+  console.error(`未捕获异常: ${err.message}`)
+  process.exit(1)
+})
+</code></pre>
+
+<div class="callout callout-warn">
+  <strong>⚠️ 暂停行为不可靠</strong>：Windows 上 SIGSTOP 不可用，系统仅暂停输出流的捕获，你的脚本<strong>仍然在内部继续执行</strong>。不要依赖暂停来精确控制执行时机。将脚本设计为可被 SIGTERM 终止即可。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="deps">10. 依赖管理</h2>
+
+<h3>10.1 npm 安装时机</h3>
+
+<p>如果脚本目录包含 <code>package.json</code>，<code>TaskService.startTask()</code> 在首次启动时自动执行 <code>npm install --omit=dev --no-audit --no-fund</code>（180 秒超时）。</p>
+
+<p><strong>后续启动跳过安装</strong>，除非：</p>
+<ul>
+  <li><code>node_modules</code> 不存在</li>
+  <li><code>package.json</code> 比 <code>node_modules</code> 更新（修改过）</li>
+  <li>某个声明的依赖在 <code>node_modules</code> 中缺失（不完整检测）</li>
+</ul>
+
+<h3>10.2 推荐的可用的包</h3>
+
+<p>纯 JavaScript 包均可安全使用：</p>
+
+<table>
+  <tr><th>用途</th><th>推荐包</th></tr>
+  <tr><td>EVM 交互</td><td><code>ethers</code>、<code>viem</code>、<code>web3</code></td></tr>
+  <tr><td>Solana 交互</td><td><code>@solana/web3.js</code>、<code>@solana/spl-token</code></td></tr>
+  <tr><td>SUI 交互</td><td><code>@mysten/sui</code></td></tr>
+  <tr><td>HTTP 请求</td><td><code>axios</code>、<code>node-fetch</code>（Node 18+ 内置 <code>fetch</code>）</td></tr>
+  <tr><td>加密 / 助记词</td><td><code>bip39</code>、<code>@noble/hashes</code>、<code>ethereum-cryptography</code></td></tr>
+  <tr><td>CLI 美化</td><td><code>chalk</code>、<code>ora</code>（注意 stdout 捕获影响）</td></tr>
+  <tr><td>定时 / 重试</td><td><code>p-retry</code>、<code>p-limit</code></td></tr>
+</table>
+
+<div class="callout callout-tip">
+  <strong>💡 最佳实践</strong>：使用 <code>esbuild</code> 或 <code>webpack</code> 将脚本和所有依赖打包为单个 <code>.js</code> 文件。这样无需 <code>package.json</code>，彻底规避 npm install 和原生模块问题。
+</div>
+
+<h3>10.3 esbuild 打包示例</h3>
+
+<pre><code># 安装 esbuild
+npm install -D esbuild
+
+# 打包为单文件
+npx esbuild src/index.js --bundle --platform=node --outfile=dist/index.js --external:electron
+
+# 打包后的 dist/index.js 可以直接作为入口点
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="testing">11. 本地测试</h2>
+
+<h3>11.1 脱离 App 测试</h3>
+
+<p>设置 <code>TASK_CONFIG</code> 环境变量，直接运行入口文件：</p>
+
+<pre><code># 基础测试 — 仅配置参数
+TASK_CONFIG='{"rpcUrl":"https://sepolia.infura.io/v3/YOUR-KEY","chainId":11155111}' node index.js
+
+# 带账户数据的测试 — 模拟 _accounts 注入
+TASK_CONFIG='{
+  "_accounts": [
+    {
+      "id": "test-1",
+      "templateId": "tpl-evm-wallet",
+      "data": {
+        "address": "0xBd71b672398Cad2427052c14709fC49824AfD553",
+        "privateKey": "0xabc123...你的测试私钥"
+      },
+      "pool": "test",
+      "labels": [],
+      "notes": ""
+    }
+  ],
+  "rpcUrl": "https://sepolia.infura.io/v3/YOUR-KEY",
+  "chainId": 11155111
+}' node index.js
+
+# TypeScript 脚本 — 使用 tsx
+TASK_CONFIG='{"rpcUrl":"https://..."}' npx tsx index.ts
+</code></pre>
+
+<h3>11.2 在 App 中测试</h3>
+
+<ol>
+  <li>将脚本打包为 zip（<code>manifest.json</code> 在根目录）。</li>
+  <li>上传到你的市场服务器。</li>
+  <li>在 App 的市场页面安装脚本。</li>
+  <li>进入「任务」页面，点击「创建任务」，选择你刚安装的脚本。</li>
+  <li>填写配置表单，选择要用到的账户（如果有）。</li>
+  <li>启动任务，在日志面板中观察输出。</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="publish">12. 发布到市场</h2>
+
+<h3>12.1 打包</h3>
+
+<pre><code>cd my-airdrop-script/
+zip -r ../my-script.zip manifest.json index.js package.json
+
+# 验证 zip 结构（manifest.json 必须在根目录）
+unzip -l ../my-script.zip
+# 应输出：
+#   manifest.json
+#   index.js
+#   package.json
+</code></pre>
+
+<h3>12.2 上传</h3>
+
+<pre><code># 首次发布
+curl -X POST http://localhost:3400/api/scripts \
+  -H "Authorization: Bearer airdrop-farm-dev-key" \
+  -F "name=Testnet 领水" \
+  -F "version=1.0.0" \
+  -F "description=自动从测试网水龙头领取测试币" \
+  -F "entryPoint=index.js" \
+  -F 'tags=["faucet","testnet"]' \
+  -F "changelog=Initial release" \
+  -F "file=@my-script.zip"
+
+# 更新版本
+curl -X PUT http://localhost:3400/api/scripts/com.example.testnet-faucet \
+  -H "Authorization: Bearer airdrop-farm-dev-key" \
+  -F "version=1.1.0" \
+  -F "changelog=添加 Base Sepolia 支持" \
+  -F "file=@my-script-v2.zip"
+</code></pre>
+
+<h3>12.3 服务端验证</h3>
+
+<p>市场上传接口会自动验证 zip 包中的 <code>manifest.json</code>：</p>
+<ul>
+  <li>文件存在于 zip 根目录</li>
+  <li>合法 JSON 格式</li>
+  <li>必需字段存在：<code>id</code>、<code>name</code>、<code>version</code>、<code>description</code>、<code>entryPoint</code>、<code>runtime</code>、<code>schema</code></li>
+  <li><code>runtime</code> 为 <code>"node"</code></li>
+  <li><code>schema</code> 包含 <code>"type": "object"</code></li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="examples">13. 完整示例</h2>
+
+<h3>13.1 简单的 HTTP 检查脚本</h3>
+
+<p><strong>manifest.json</strong></p>
+<pre><code>{
+  "id": "com.example.ping-checker",
+  "name": "Ping 检查器",
+  "version": "1.0.0",
+  "description": "定时检查 URL 的可达性并记录响应时间",
+  "entryPoint": "index.js",
+  "runtime": "node",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "targetUrl": {
+        "type": "string",
+        "title": "目标 URL",
+        "description": "要检测的网址"
+      },
+      "intervalSec": {
+        "type": "number",
+        "title": "检查间隔（秒）",
+        "default": 60,
+        "minimum": 10,
+        "maximum": 3600
+      },
+      "maxChecks": {
+        "type": "number",
+        "title": "最大检查次数",
+        "default": 10,
+        "minimum": 1
+      }
+    },
+    "required": ["targetUrl"]
+  },
+  "permissions": ["network"],
+  "tags": ["utility", "monitoring"]
+}</code></pre>
+
+<p><strong>index.js</strong></p>
+<pre><code>const config = JSON.parse(process.env.TASK_CONFIG || '{}')
+const targetUrl = config.targetUrl
+const interval = (config.intervalSec || 60) * 1000
+const maxChecks = config.maxChecks || 10
+
+let checkCount = 0
+let shuttingDown = false
+
+process.on('SIGTERM', () => {
+  shuttingDown = true
+  console.log('收到停止信号，完成当前检查后退出...')
+})
+
+async function check() {
+  const start = Date.now()
+  try {
+    const res = await fetch(targetUrl, { signal: AbortSignal.timeout(10000) })
+    const elapsed = Date.now() - start
+    console.log(`[${new Date().toISOString()}] ✅ ${targetUrl} — HTTP ${res.status} — ${elapsed}ms`)
+  } catch (err) {
+    const elapsed = Date.now() - start
+    console.error(`[${new Date().toISOString()}] ❌ ${targetUrl} — ${err.message} — ${elapsed}ms`)
+  }
+}
+
+async function main() {
+  console.log(`开始监控 ${targetUrl}，间隔 ${interval / 1000}s，最多 ${maxChecks} 次`)
+  for (let i = 0; i < maxChecks && !shuttingDown; i++) {
+    await check()
+    checkCount++
+    if (i < maxChecks - 1 && !shuttingDown) {
+      await new Promise(r => setTimeout(r, interval))
+    }
+  }
+  console.log(`监控结束。共执行 ${checkCount} 次检查。`)
+  process.exit(0)
+}
+
+main()
+</code></pre>
+
+<h3>13.2 EVM 钱包批量领水脚本</h3>
+
+<p><strong>manifest.json</strong></p>
+<pre><code>{
+  "id": "com.example.evm-faucet",
+  "name": "EVM 批量领水",
+  "version": "1.0.0",
+  "description": "为多个 EVM 钱包批量领取测试币",
+  "entryPoint": "index.js",
+  "runtime": "node",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "rpcUrl": {
+        "type": "string",
+        "title": "RPC 地址",
+        "default": "https://sepolia.infura.io/v3/"
+      },
+      "faucetUrl": {
+        "type": "string",
+        "title": "水龙头 API 地址",
+        "default": "https://sepolia-faucet.example.com/api/claim"
+      },
+      "amount": {
+        "type": "number",
+        "title": "领取数量",
+        "default": 0.1,
+        "minimum": 0.001
+      },
+      "delaySec": {
+        "type": "number",
+        "title": "每次间隔(秒)",
+        "default": 10,
+        "minimum": 5,
+        "maximum": 300
+      }
+    },
+    "required": ["rpcUrl", "faucetUrl"]
+  },
+  "requiredAccountTemplateIds": ["tpl-evm-wallet"],
+  "permissions": ["network"],
+  "tags": ["faucet", "testnet", "evm"]
+}</code></pre>
+
+<p><strong>index.js</strong></p>
+<pre><code>const config = JSON.parse(process.env.TASK_CONFIG || '{}')
+const accounts = config._accounts || []
+
+if (accounts.length === 0) {
+  console.error('没有选择任何账户！请在创建任务时勾选要使用的 EVM 钱包账户。')
+  process.exit(1)
+}
+
+async function claimFromFaucet(address, faucetUrl, amount) {
+  console.log(`正在为 ${address} 申请 ${amount} ETH...`)
+  const res = await fetch(faucetUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ address, amount })
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+  const data = await res.json()
+  console.log(`  ✅ ${address} 领取成功 — txHash: ${data.txHash || 'N/A'}`)
+  return data
+}
+
+async function main() {
+  console.log(`=== EVM 批量领水开始 ===`)
+  console.log(`钱包数量: ${accounts.length}`)
+  console.log(`RPC: ${config.rpcUrl}`)
+  console.log(`水龙头: ${config.faucetUrl}`)
+  console.log(`数量: ${config.amount} ETH/钱包`)
+  console.log('')
+
+  let success = 0
+  let failed = 0
+
+  for (let i = 0; i < accounts.length; i++) {
+    const account = accounts[i]
+    const { address } = account.data
+    console.log(`[${i + 1}/${accounts.length}] 处理 ${address} (池: ${account.pool})`)
+
+    try {
+      await claimFromFaucet(address, config.faucetUrl, config.amount)
+      success++
+    } catch (err) {
+      console.error(`  ❌ 失败: ${err.message}`)
+      failed++
+    }
+
+    if (i < accounts.length - 1) {
+      await new Promise(r => setTimeout(r, config.delaySec * 1000))
+    }
+  }
+
+  console.log('')
+  console.log(`=== 完成 ===`)
+  console.log(`成功: ${success}, 失败: ${failed}`)
+  process.exit(failed > 0 ? 1 : 0)
+}
+
+main()
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="faq">14. 常见问题</h2>
+
+<h3>Q: 为什么我的脚本获取不到账户数据？</h3>
+<div class="callout callout-info">
+  <p>检查以下几点：</p>
+  <ol>
+    <li><code>manifest.json</code> 中是否声明了 <code>requiredAccountTemplateIds</code>？</li>
+    <li>用户是否在「账户管理」中基于对应模板创建了账号？</li>
+    <li>用户在创建任务时是否勾选了要使用的账号？</li>
+    <li>在脚本中通过 <code>config._accounts</code> 读取（而非 <code>config.accounts</code> —— 注意下划线前缀）。</li>
+  </ol>
+</div>
+
+<h3>Q: 为什么我的脚本获取不到代理？</h3>
+<div class="callout callout-warn">
+  <p>这是<strong>已知限制</strong>。当前系统不会将用户在「代理管理」中保存的代理自动注入到脚本配置中。目前只能通过以下方式解决：</p>
+  <ol>
+    <li><strong>推荐</strong>：在 <code>manifest.json</code> 的 schema 中定义代理参数字段，让用户手动填写。</li>
+    <li>未来计划：系统可能会增加自动注入代理的功能。如有需求，请向开发团队反馈。</li>
+  </ol>
+</div>
+
+<h3>Q: 脚本能访问文件系统吗？</h3>
+<p>可以。脚本<strong>没有沙箱</strong>，拥有与 Electron 主进程相同的系统权限。它可以读写文件、发起网络请求、执行其他进程。</p>
+
+<h3>Q: 脚本之间能通信吗？</h3>
+<p>不能。每个任务在独立的子进程中运行，相互隔离。</p>
+
+<h3>Q: 能串联多个任务吗？</h3>
+<p>目前不支持工作流编排。没有内置的任务依赖或串联机制。可以通过定时任务（cron）进行时间上的协调。</p>
+
+<h3>Q: npm install 失败怎么办？</h3>
+<p>常见原因：</p>
+<ul>
+  <li>依赖了原生 C++ 模块（如 <code>better-sqlite3</code>）→ 换成纯 JS 替代方案或使用 esbuild 打包</li>
+  <li>网络问题 → 检查是否能访问 npm registry</li>
+  <li>磁盘空间不足 → 清理后重试</li>
+</ul>
+
+<h3>Q: 如何调试脚本？</h3>
+<p>最佳方式是<strong>脱离 App 本地运行</strong>（见<a href="#testing">第 11 节</a>）。设置 <code>TASK_CONFIG</code> 环境变量后直接 <code>node index.js</code>，使用你熟悉的调试工具。在 App 内运行时，只能通过日志输出排查问题。</p>
+
+<h3>Q: TypeScript 脚本可以用吗？</h3>
+<p>可以。入口文件以 <code>.ts</code> 结尾时，TaskService 会自动使用 <code>npx tsx</code> 运行。但需确保脚本目录的 <code>node_modules</code> 中有 <code>tsx</code>（通过 <code>package.json</code> 声明依赖）。建议打包为 <code>.js</code> 后再发布，减少运行时依赖。</p>
+
+<h3>Q: 定时任务 (Scheduled Task) 是如何工作的？</h3>
+<p>SchedulerService 每 <strong>10 秒</strong> tick 一次，检查所有启用中的定时任务的 cron 表达式是否与当前时间匹配。匹配时自动创建新 Task 并启动。cron 表达式支持 5 字段标准格式（分 时 日 月 星期）。</p>
+
+<hr>
+
+<p style="text-align:center; color: var(--text-dim); margin-top: 3rem; font-size: 0.88rem;">
+  Airdrop Farm Task Script Development Guide &nbsp;·&nbsp; 版本 1.0 &nbsp;·&nbsp; 最后更新 2025-01
+</p>
+
+</body>
+</html>

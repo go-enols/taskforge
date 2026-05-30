@@ -1,0 +1,4 @@
+provider: github
+owner: go-enols
+repo: airdrop-farm
+updaterCacheDirName: airdrop-farm-updater

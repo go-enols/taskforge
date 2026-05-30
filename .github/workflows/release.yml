@@ -1,0 +1,135 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2 libgbm-dev
+
+      - name: Install client dependencies
+        working-directory: ./client
+        run: npm ci
+
+      - name: Type check (client)
+        working-directory: ./client
+        run: npm run typecheck
+
+      - name: Lint (client)
+        working-directory: ./client
+        run: npm run lint
+
+      - name: Build marketplace server
+        working-directory: ./server
+        run: |
+          npm ci
+          npm run build
+
+      - name: Clear electron-builder cache (Unix)
+        if: runner.os != 'Windows'
+        run: rm -rf ~/.cache/electron-builder
+
+      - name: Fix app-builder permissions (Linux)
+        if: runner.os == 'Linux'
+        run: chmod +x client/node_modules/app-builder-bin/linux/x64/app-builder
+
+      - name: Build Electron app
+        working-directory: ./client
+        shell: bash
+        run: |
+          rm -f .npmrc
+          npx electron-vite build
+          npx electron-builder --${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'windows-latest' && 'win' || 'mac' }} --publish never
+
+      - name: Verify output
+        shell: bash
+        working-directory: ./client
+        run: |
+          echo "=== dist contents ==="
+          ls -la dist/
+          echo "=== yml files ==="
+          ls -la dist/*.yml 2>/dev/null || echo "WARNING: no yml files found!"
+          echo "=== blockmap files ==="
+          ls -la dist/*.blockmap 2>/dev/null || echo "no blockmap files"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-build
+          path: client/dist/
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: List files
+        run: |
+          echo "=== workspace root ==="
+          ls -la
+          echo "=== subdirectories ==="
+          ls -la */ || true
+          echo "=== yml files ==="
+          find . -name '*.yml' -type f || echo "no yml files found"
+          echo "=== blockmap files ==="
+          find . -name '*.blockmap' -type f || echo "no blockmap files found"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            */*.exe
+            */*.zip
+            */*.dmg
+            */*.AppImage
+            */*.deb
+            */*.snap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload yml and blockmap files
+        shell: bash
+        run: |
+          for f in $(find . -name '*.yml' -o -name '*.blockmap' | sort); do
+            echo "Uploading $f"
+            gh release upload ${{ github.ref_name }} "$f" --repo ${{ github.repository }} --clobber
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

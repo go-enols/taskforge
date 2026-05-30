@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Electron</title>
+    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:34116 http://127.0.0.1:34117 http://127.0.0.1:34118 http://127.0.0.1:34119 http://127.0.0.1:34120 http://127.0.0.1:34121 http://127.0.0.1:34122 http://127.0.0.1:34123 http://127.0.0.1:34124 http://127.0.0.1:34125 http://127.0.0.1:34126 http://localhost:* http://127.0.0.1:*"
+    />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
