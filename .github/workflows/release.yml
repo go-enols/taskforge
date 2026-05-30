@@ -37,7 +37,7 @@ jobs:
 
       - name: Install client dependencies
         working-directory: ./client
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Type check (client)
         working-directory: ./client
@@ -50,7 +50,7 @@ jobs:
       - name: Build marketplace server
         working-directory: ./server
         run: |
-          npm ci
+          npm install --no-audit --no-fund
           npm run build
 
       - name: Clear electron-builder cache (Unix)
