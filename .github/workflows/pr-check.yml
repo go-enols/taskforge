@@ -22,7 +22,7 @@ jobs:
 
       - name: Install client dependencies
         working-directory: ./client
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Type check (client)
         working-directory: ./client
@@ -41,7 +41,7 @@ jobs:
 
       - name: Install server dependencies
         working-directory: ./server
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Type check (server)
         working-directory: ./server
