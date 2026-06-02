@@ -1,0 +1,96 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0B0B1F"/>
+      <stop offset="50%" stop-color="#161636"/>
+      <stop offset="100%" stop-color="#070714"/>
+    </linearGradient>
+
+    <linearGradient id="wingLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="50%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+
+    <linearGradient id="wingRight" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="50%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+
+    <linearGradient id="bodyTop" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#C4B5FD"/>
+      <stop offset="50%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+
+    <linearGradient id="bodyLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+
+    <linearGradient id="bodyRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EC4899"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+
+    <linearGradient id="tailGrad" x1="100%" y1="0%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+
+    <linearGradient id="headGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#FBBF24"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#A78BFA" stop-opacity="0.45"/>
+      <stop offset="50%" stop-color="#EC4899" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="200" fill="url(#bg)"/>
+
+  <g opacity="0.85">
+    <circle cx="150" cy="200" r="2" fill="#FFFFFF" opacity="0.6"/>
+    <circle cx="850" cy="180" r="1.5" fill="#FFFFFF" opacity="0.5"/>
+    <circle cx="200" cy="380" r="1" fill="#FFFFFF" opacity="0.4"/>
+    <circle cx="900" cy="400" r="1.5" fill="#FFFFFF" opacity="0.4"/>
+    <circle cx="120" cy="540" r="1" fill="#FFFFFF" opacity="0.3"/>
+    <circle cx="780" cy="320" r="1" fill="#FFFFFF" opacity="0.3"/>
+    <circle cx="880" cy="600" r="1.2" fill="#FFFFFF" opacity="0.35"/>
+    <circle cx="140" cy="780" r="1" fill="#FFFFFF" opacity="0.3"/>
+    <circle cx="820" cy="800" r="1.5" fill="#FFFFFF" opacity="0.4"/>
+    <circle cx="240" cy="170" r="1" fill="#FFFFFF" opacity="0.3"/>
+  </g>
+
+  <circle cx="512" cy="512" r="400" fill="url(#glow)"/>
+
+  <g transform="translate(512, 512)">
+    <path d="M 0 -240 L -360 -300 L -200 -20 Z" fill="url(#wingLeft)"/>
+    <path d="M 0 -240 L 360 -300 L 200 -20 Z" fill="url(#wingRight)"/>
+
+    <path d="M 0 -240 L 200 -20 L 80 -100 Z" fill="#FFFFFF" opacity="0.18"/>
+    <path d="M 0 -240 L -200 -20 L -80 -100 Z" fill="#FFFFFF" opacity="0.12"/>
+
+    <path d="M 0 -240 L 200 -20 L 0 200 Z" fill="url(#bodyRight)"/>
+    <path d="M 0 -240 L 0 200 L -200 -20 Z" fill="url(#bodyLeft)"/>
+
+    <path d="M 0 -240 L 100 -130 L 0 -20 L -100 -130 Z" fill="#FFFFFF" opacity="0.15"/>
+
+    <path d="M -200 -20 L -380 40 L -300 -60 Z" fill="url(#tailGrad)"/>
+    <path d="M -200 -20 L -300 -60 L -240 -30 Z" fill="#FFFFFF" opacity="0.15"/>
+
+    <path d="M 200 -20 L 340 -40 L 340 20 L 300 30 Z" fill="url(#headGrad)"/>
+    <path d="M 340 0 L 410 -10 L 410 10 Z" fill="#FBBF24"/>
+    <path d="M 410 -8 L 430 0 L 410 8 Z" fill="#F59E0B"/>
+
+    <circle cx="290" cy="-10" r="9" fill="#0B0B1F"/>
+    <circle cx="293" cy="-13" r="3" fill="#FFFFFF"/>
+
+    <path d="M 0 -240 L -200 -20 L 0 200 L 200 -20 Z" fill="none" stroke="#0B0B1F" stroke-width="2" opacity="0.25"/>
+    <line x1="0" y1="-240" x2="0" y2="200" stroke="#0B0B1F" stroke-width="1.5" opacity="0.18"/>
+  </g>
+</svg>
