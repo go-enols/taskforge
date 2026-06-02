@@ -190,6 +190,11 @@ export const windowApi = {
   platform: () => call<string>('window:platform')
 }
 
+export const shellApi = {
+  openPath: (path: string) =>
+    call<{ success: boolean; error?: string }>('shell:openPath', [path])
+}
+
 export const dialogApi = {
   openFile: (filters?: { name: string; extensions: string[] }[]) =>
     call<{ canceled: boolean; filePath: string | null; content: string | null }>(
@@ -301,6 +306,82 @@ export const marketplaceApi = {
     call<{ id: string; username: string; displayName: string; role: string } | null>(
       'market:getUser'
     ),
+
+  getMe: async () => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/users/me`, { headers })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const json = await resp.json()
+    return json.data as {
+      id: string
+      username: string
+      displayName: string
+      role: string
+      apiKey: string
+      createdAt: string
+      updatedAt: string
+    }
+  },
+
+  updateMe: async (data: {
+    displayName?: string
+    currentPassword?: string
+    newPassword?: string
+  }) => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/users/me`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(data)
+    })
+    if (!resp.ok) {
+      const errBody = await resp.text()
+      let msg = errBody
+      try {
+        const parsed = JSON.parse(errBody)
+        const e = parsed.error
+        msg =
+          (typeof e === 'object' && e !== null ? e.message : null) ??
+          parsed.message ??
+          (typeof e === 'string' ? e : null) ??
+          errBody
+      } catch {
+        /* keep errBody */
+      }
+      throw new Error(msg)
+    }
+    return (await resp.json()) as { data: unknown; updated: string[] }
+  },
+
+  regenerateMyKey: async () => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/users/me/regenerate-key`, {
+      method: 'POST',
+      headers
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const json = await resp.json()
+    return json.data as {
+      id: string
+      username: string
+      displayName: string
+      role: string
+      apiKey: string
+      createdAt: string
+      updatedAt: string
+    }
+  },
+
+  testConnection: async (url?: string) => {
+    const base = url || (await getMarketplaceUrl())
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/health`, { headers })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return (await resp.json()) as { status: string; needsSetup: boolean; timestamp: string }
+  },
 
   logout: () => call<null>('market:logout'),
 

@@ -550,6 +550,21 @@ export function registerIpcHandlers(services: Services): void {
   register('window:isMaximized', () => BrowserWindow.getFocusedWindow()?.isMaximized() ?? false)
   register('window:platform', () => process.platform)
 
+  // Shell: open a local path in OS file manager (Explorer/Finder/xdg-open)
+  register('shell:openPath', async (...args: unknown[]) => {
+    const p = args[0]
+    if (typeof p !== 'string' || !p) {
+      return { success: false, error: 'Invalid path' }
+    }
+    try {
+      const errMsg = await shell.openPath(p)
+      if (errMsg) return { success: false, error: errMsg }
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: (err as Error).message }
+    }
+  })
+
   // Marketplace user system
   register('market:login', async (username, password) => {
     const serverUrl = store.getSetting('marketplace_server_url') || 'http://localhost:3400'

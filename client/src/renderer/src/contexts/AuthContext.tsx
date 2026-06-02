@@ -18,6 +18,8 @@ interface AuthState {
   register: (username: string, password: string, displayName: string) => Promise<void>
   setup: (username: string, password: string, displayName: string) => Promise<void>
   logout: () => void
+  refresh: () => Promise<void>
+  role: UserRole | null
   isAdmin: boolean
   isDeveloper: boolean
 }
@@ -107,6 +109,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const refresh = useCallback(async () => {
+    const savedToken = localStorage.getItem('marketplace_jwt')
+    if (!savedToken) return
+    try {
+      const userData = await marketplaceApi.getUser()
+      if (userData) {
+        const next: User = {
+          id: userData.id,
+          username: userData.username,
+          displayName: userData.displayName,
+          role: (userData.role as UserRole) || 'user'
+        }
+        setUser(next)
+        setToken(savedToken)
+        localStorage.setItem('marketplace_user', JSON.stringify(next))
+      } else {
+        setUser(null)
+        setToken(null)
+        localStorage.removeItem('marketplace_jwt')
+        localStorage.removeItem('marketplace_user')
+      }
+    } catch {
+      /* keep current state on transient failure */
+    }
+  }, [])
+
   const logout = useCallback(() => {
     setToken(null)
     setUser(null)
@@ -125,6 +153,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         setup,
         logout,
+        refresh,
+        role: user?.role ?? null,
         isAdmin: user?.role === 'admin',
         isDeveloper: user?.role === 'developer' || user?.role === 'admin'
       }}

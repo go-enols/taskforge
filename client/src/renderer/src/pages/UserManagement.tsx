@@ -86,7 +86,13 @@ export default function UserManagement() {
       let msg: string
       try {
         const parsed = JSON.parse(errBody)
-        msg = parsed.error || parsed.message || errBody
+        // Server returns error as { error: { message: "...", code: "..." } }
+        // Safely extract the inner message string, not the error object itself
+        const e = parsed.error
+        msg = ((typeof e === 'object' && e !== null ? e.message : null) as string | null)
+          ?? parsed?.message
+          ?? (typeof e === 'string' ? e : null)
+          ?? errBody
       } catch {
         msg = errBody || `HTTP ${resp.status}`
       }
