@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { UserPlus, Copy, Eye, EyeOff, Trash2, RotateCcw, Check, Loader2, Edit3 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 import { getMarketplaceUrl, getMarketplaceHeaders } from '../api'
 import { ConfirmDialog } from '../components/common'
 import { useAuth } from '../contexts/AuthContext'

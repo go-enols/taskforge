@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { getMarketplaceUrl, setMarketplaceUrl } from '../api'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 import { Server, UserPlus, LogIn, Shield } from 'lucide-react'
 import TitleBar from '../components/TitleBar'
 

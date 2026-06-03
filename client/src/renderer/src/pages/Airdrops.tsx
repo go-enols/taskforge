@@ -21,7 +21,7 @@ import {
   DollarSign,
   ListChecks
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 import { usePaginatedList } from '../hooks'
 import { SearchInput, Pagination, Modal, ConfirmDialog } from '../components/common'
 

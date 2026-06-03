@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { marketplaceApi } from '../api'
 import { useAuth } from '../contexts/AuthContext'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 import { Clock, FileText, Zap, CheckCircle, XCircle, MessageSquare } from 'lucide-react'
 import type { RemoteScript, RemoteTemplate } from '../types'
 

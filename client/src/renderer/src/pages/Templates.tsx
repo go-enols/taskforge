@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { templateApi, marketplaceApi, getMarketplaceUrl, scriptApi, dialogApi } from '../api'
 import { useAuth } from '../contexts/AuthContext'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 import TemplateEditor from './TemplateEditor'
 import type { Template, RemoteTemplate, RemoteScript, InstalledScript } from '../types'
 import {

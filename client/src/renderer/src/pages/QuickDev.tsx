@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { fileApi, zipApi, serverApi, getMarketplaceUrl, getMarketplaceHeaders, dialogApi } from '../api'
 import { call } from '../transport'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 
 function validateManifest(manifest: Record<string, unknown>): string[] {
   const required = ['id', 'name', 'version', 'description', 'entryPoint', 'runtime', 'schema']

@@ -32,7 +32,7 @@ import {
 } from '../../../shared/schemas/task-params'
 import { usePaginatedList } from '../hooks'
 import { SearchInput, Pagination, Modal, DynamicForm } from '../components/common'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 
 const PAGE_SIZE = 20
 

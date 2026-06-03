@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { marketplaceApi, getMarketplaceUrl } from '../api'
 import { useAuth } from '../contexts/AuthContext'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 import { Check, X, Clock, FileText, Zap, ChevronDown, ChevronRight, Download } from 'lucide-react'
 import type { RemoteScript, RemoteTemplate } from '../types'
 

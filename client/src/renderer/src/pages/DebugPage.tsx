@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { taskApi, fileApi, accountApi } from '../api'
 import type { TaskLog, Task, Account } from '../types'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 
 const parseManifest = (raw: string): Record<string, unknown> => {
   const stripped = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')

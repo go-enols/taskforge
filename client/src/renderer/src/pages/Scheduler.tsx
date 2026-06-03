@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { schedulerApi, taskTemplateApi } from '../api'
-import type { ScheduledTask, TaskTemplate } from '../types'
+import type { ScheduledTask, TaskTemplate, ListResponse } from '../types'
 import type { FieldMeta } from '../../../shared/schemas/task-params'
 import {
   jsonSchemaToFieldMeta,
@@ -9,7 +9,8 @@ import {
   unflattenDotNotation
 } from '../../../shared/schemas/task-params'
 import { Plus, Trash2, Clock, Edit3, ToggleLeft, ToggleRight } from 'lucide-react'
-import { Modal, DynamicForm } from '../components/common'
+import { Modal, DynamicForm, Skeleton } from '../components/common'
+import { useApi } from '../hooks'
 
 const PRESETS: { label: string; cron: string }[] = [
   { label: 'scheduler.preset30min', cron: '*/30 * * * *' },
@@ -45,12 +46,22 @@ const Scheduler: React.FC = () => {
   const [formFields, setFormFields] = useState<FieldMeta[]>([])
   const [formValues, setFormValues] = useState<Record<string, unknown>>({})
 
+  const {
+    loading: taskTemplatesLoading,
+    execute: fetchTaskTemplates
+  } = useApi(
+    ((page?: number, pageSize?: number, search?: string) =>
+      taskTemplateApi.list(page, pageSize, search)) as unknown as (
+      ...args: unknown[]
+    ) => Promise<ListResponse<TaskTemplate>>
+  )
+
   useEffect(() => {
-    taskTemplateApi
-      .list(1, 999)
-      .then((res) => setTaskTemplates(res.items || []))
-      .catch(() => setError(t('common.error')))
-  }, [])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchTaskTemplates(1, 999).then((res) => {
+      if (res) setTaskTemplates(res.items || [])
+    })
+  }, [fetchTaskTemplates])
 
   const getTemplateName = (id: string): string =>
     taskTemplates.find((tt) => tt.id === id)?.name || id
@@ -219,9 +230,9 @@ const Scheduler: React.FC = () => {
         </div>
       )}
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20 text-text-muted">
-          <span>{t('common.loading')}</span>
+      {loading || taskTemplatesLoading ? (
+        <div className="space-y-3 py-8">
+          <Skeleton lines={5} className="h-10" />
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-text-muted">

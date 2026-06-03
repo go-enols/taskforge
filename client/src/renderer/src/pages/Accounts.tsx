@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 import { accountApi, dialogApi, templateApi } from '../api'
 import type { Account } from '../types'
 import { Plus, Trash2, Edit3, Search, Upload, Download, FileDown } from 'lucide-react'

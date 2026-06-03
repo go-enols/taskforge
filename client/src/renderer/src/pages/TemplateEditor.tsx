@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Upload, Download, FileJson } from 'lucide-react'
 import { dialogApi, fileApi, getMarketplaceUrl, getMarketplaceHeaders } from '../api'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 
 type FieldType = 'text' | 'number' | 'boolean' | 'select' | 'object'
 

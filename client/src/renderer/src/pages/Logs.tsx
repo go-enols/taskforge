@@ -5,7 +5,7 @@ import type { AppLog, ListResponse } from '../types'
 import { RefreshCw, Download, Trash2, Calendar } from 'lucide-react'
 import { SearchInput } from '../components/common'
 import { useDebounce } from '../hooks'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 
 const INITIAL_LIMIT = 50
 

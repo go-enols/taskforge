@@ -35,7 +35,7 @@ import {
   RotateCcw,
   X
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 import ThemeToggle from '../components/ThemeToggle'
 import { Modal, ConfirmDialog } from '../components/common'
 

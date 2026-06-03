@@ -14,7 +14,7 @@ import {
   Square
 } from 'lucide-react'
 import { statusLabel } from '../utils/i18n-status'
-import { toast } from 'sonner'
+import { toast } from '../utils/toast'
 
 const PAGE_SIZE = 20
 

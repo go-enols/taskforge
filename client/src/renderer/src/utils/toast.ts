@@ -1,4 +1,6 @@
+// Re-export the underlying sonner toast so callers can use toast.promise(...) etc.
 import { toast } from 'sonner'
+export { toast }
 
 export const toastSuccess = (msg: string): string | number => toast.success(msg)
 export const toastError = (msg: string): string | number => toast.error(msg)
