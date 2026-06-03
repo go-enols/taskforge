@@ -348,26 +348,34 @@
     @apply outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-card;
   }
 
-  /* Standardized button base — opt-in for new code; existing buttons unchanged */
-  .btn-base {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150 focus-ring disabled:opacity-50 disabled:cursor-not-allowed;
+  /* Standardized button base + variants. Tailwind v4 @apply cannot resolve
+     custom @layer utilities, so each variant inlines the base styles. */
+  .btn-base,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-card disabled:opacity-50 disabled:cursor-not-allowed;
   }
-  .btn-base:not(:disabled):active {
+  .btn-base:not(:disabled):active,
+  .btn-primary:not(:disabled):active,
+  .btn-secondary:not(:disabled):active,
+  .btn-danger:not(:disabled):active,
+  .btn-ghost:not(:disabled):active {
     transform: scale(0.98);
   }
 
-  /* Variant helpers (composable with .btn-base) */
   .btn-primary {
-    @apply btn-base bg-primary text-white hover:bg-primary-hover shadow-sm;
+    @apply bg-primary text-white hover:bg-primary-hover shadow-sm;
   }
   .btn-secondary {
-    @apply btn-base bg-bg-tertiary text-text-primary border border-border-light hover:bg-bg-card-hover hover:border-border-hover;
+    @apply bg-bg-tertiary text-text-primary border border-border-light hover:bg-bg-card-hover hover:border-border-hover;
   }
   .btn-danger {
-    @apply btn-base bg-danger text-white hover:bg-danger/90 shadow-sm;
+    @apply bg-danger text-white hover:bg-danger/90 shadow-sm;
   }
   .btn-ghost {
-    @apply btn-base text-text-secondary hover:bg-bg-tertiary hover:text-text-primary;
+    @apply text-text-secondary hover:bg-bg-tertiary hover:text-text-primary;
   }
   .btn-sm {
     @apply text-xs px-2.5 py-1.5;
