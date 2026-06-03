@@ -150,10 +150,15 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </button>
           </div>
         </aside>
-        <main
-          key={location.pathname}
-          className="flex-1 overflow-auto p-6 bg-bg-page animate-fade-in"
-        >
+        <main className="flex-1 overflow-auto p-6 bg-bg-page">
+          {/*
+            No `key={pathname}` here: pages are kept mounted across
+            navigation by <KeepAliveOutlet /> in App.tsx, so we do not
+            want to remount the whole <main> on every URL change. The
+            per-page fade-in animation lives on the active page wrapper
+            inside KeepAliveOutlet, so it runs on the first visit to
+            each page and not on subsequent returns.
+          */}
           {children}
         </main>
       </div>
