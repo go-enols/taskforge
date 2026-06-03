@@ -189,6 +189,8 @@ function SectionContent({
       return <AppearanceSection />
     case 'taskDefaults':
       return marketUser ? <TaskDefaultsSection /> : null
+    case 'updates':
+      return <UpdatesSection />
     case 'marketplace':
       return marketUser ? <MarketplaceSection /> : null
     case 'security':
@@ -936,21 +938,13 @@ const SecuritySection: React.FC = () => {
 }
 
 /* ════════════════════════════════════════════════════════════
-   SYSTEM — admin only (log level, updates)
+   SYSTEM — admin only (log level, data directory)
    ════════════════════════════════════════════════════════════ */
 
 const SystemSection: React.FC = () => {
   const { t } = useTranslation()
   const [logLevel, setLogLevel] = useState('info')
   const [saving, setSaving] = useState(false)
-
-  // Updates state
-  const [updateStatus, setUpdateStatus] = useState<
-    'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
-  >('idle')
-  const [updateInfo, setUpdateInfo] = useState<{ version: string } | null>(null)
-  const [updateError, setUpdateError] = useState('')
-  const [progress, setProgress] = useState({ percent: 0, transferred: 0, total: 0 })
 
   useEffect(() => {
     logApi
@@ -960,6 +954,61 @@ const SystemSection: React.FC = () => {
         toastError(err instanceof Error ? err.message : t('common.error'))
       })
   }, [t])
+
+  const handleSaveLogLevel = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      await logApi.setLevel(logLevel)
+      toast.success(t('settings.logLevelSaved'))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('common.operationFailed'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <SectionCard title={t('settings.sections.system')} subtitle={t('settings.system.subtitle')}>
+      <Field label={t('settings.system.logLevel')} hint={t('settings.system.logLevelHint')}>
+        <div className="flex items-center gap-2">
+          <select
+            value={logLevel}
+            onChange={(e) => setLogLevel(e.target.value)}
+            className="w-40 px-3 py-2 text-sm border border-border-light rounded-lg bg-bg-card focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {LOG_LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {t(`settings.system.logLevels.${l}`)}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleSaveLogLevel}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
+          >
+            <Save size={14} />
+            {saving ? t('common.loading') : t('common.save')}
+          </button>
+        </div>
+      </Field>
+    </SectionCard>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════
+   UPDATES — visible to ALL 3 roles
+   (every computer should be able to control its own updates)
+   ════════════════════════════════════════════════════════════ */
+
+const UpdatesSection: React.FC = () => {
+  const { t } = useTranslation()
+  const [updateStatus, setUpdateStatus] = useState<
+    'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
+  >('idle')
+  const [updateInfo, setUpdateInfo] = useState<{ version: string } | null>(null)
+  const [updateError, setUpdateError] = useState('')
+  const [progress, setProgress] = useState({ percent: 0, transferred: 0, total: 0 })
 
   useEffect(() => {
     const handler = (...args: unknown[]): void => {
@@ -974,18 +1023,6 @@ const SystemSection: React.FC = () => {
       if (typeof unsub === 'function') unsub()
     }
   }, [])
-
-  const handleSaveLogLevel = async (): Promise<void> => {
-    setSaving(true)
-    try {
-      await logApi.setLevel(logLevel)
-      toast.success(t('settings.logLevelSaved'))
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('common.operationFailed'))
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const checkUpdates = async (): Promise<void> => {
     setUpdateStatus('checking')
@@ -1012,99 +1049,80 @@ const SystemSection: React.FC = () => {
     try {
       await window.electronAPI?.invoke?.('update:install')
     } catch (err: unknown) {
-      // The app is about to restart; no UI to update. Log for diagnostics.
       console.warn('[settings] update:install failed:', err)
     }
   }
 
   return (
-    <>
-      <SectionCard title={t('settings.sections.system')} subtitle={t('settings.system.subtitle')}>
-        <Field label={t('settings.system.logLevel')} hint={t('settings.system.logLevelHint')}>
-          <div className="flex items-center gap-2">
-            <select
-              value={logLevel}
-              onChange={(e) => setLogLevel(e.target.value)}
-              className="w-40 px-3 py-2 text-sm border border-border-light rounded-lg bg-bg-card focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              {LOG_LEVELS.map((l) => (
-                <option key={l} value={l}>
-                  {t(`settings.system.logLevels.${l}`)}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleSaveLogLevel}
-              disabled={saving}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
-            >
-              <Save size={14} />
-              {saving ? t('common.loading') : t('common.save')}
-            </button>
-          </div>
-        </Field>
-
-        <div className="pt-2 border-t border-border-light">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="text-sm font-medium text-text-primary">{t('settings.updates')}</h3>
-              <p className="text-xs text-text-muted mt-0.5">{t('settings.system.updatesHint')}</p>
-            </div>
-            <button
-              onClick={checkUpdates}
-              disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border-light rounded-lg hover:bg-bg-card-hover disabled:opacity-50 transition-colors"
-            >
-              <RefreshCw size={14} className={updateStatus === 'checking' ? 'animate-spin' : ''} />
-              {t('updates.checkNow')}
-            </button>
-          </div>
-          {updateError && (
-            <div className="px-3 py-2 text-sm text-danger bg-danger-light rounded-lg">{updateError}</div>
-          )}
-          {(updateStatus === 'available' || updateStatus === 'downloading') && updateInfo && (
-            <div className="px-3 py-3 bg-primary-light border border-primary/30 rounded-lg space-y-2">
-              <p className="text-sm text-primary">
-                <strong>{t('updates.updateAvailable')}</strong> {t('updates.version')}: <span className="font-mono">{updateInfo.version}</span>
+    <SectionCard
+      title={t('settings.sections.updates')}
+      subtitle={t('settings.descriptions.updates')}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-text-primary">
+          {t('updates.checkNow')}
+        </h3>
+        <button
+          onClick={checkUpdates}
+          disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border-light rounded-lg hover:bg-bg-card-hover disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw
+            size={14}
+            className={updateStatus === 'checking' ? 'animate-spin' : ''}
+          />
+          {t('updates.checkNow')}
+        </button>
+      </div>
+      {updateError && (
+        <div className="px-3 py-2 text-sm text-danger bg-danger-light rounded-lg">
+          {updateError}
+        </div>
+      )}
+      {(updateStatus === 'available' || updateStatus === 'downloading') && updateInfo && (
+        <div className="px-3 py-3 bg-primary-light border border-primary/30 rounded-lg space-y-2">
+          <p className="text-sm text-primary">
+            <strong>{t('updates.updateAvailable')}</strong> {t('updates.version')}:{' '}
+            <span className="font-mono">{updateInfo.version}</span>
+          </p>
+          <button
+            onClick={downloadUpdate}
+            disabled={updateStatus === 'downloading'}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
+          >
+            <Download size={14} />
+            {t('updates.downloadUpdate')}
+          </button>
+          {updateStatus === 'downloading' && progress.total > 0 && (
+            <div className="w-full bg-bg-tertiary rounded-full h-2 mt-1">
+              <div
+                className="bg-primary h-2 rounded-full transition-all"
+                style={{ width: `${progress.percent}%` }}
+              />
+              <p className="text-xs text-primary mt-1">
+                {Math.round(progress.percent)}% —{' '}
+                {(progress.transferred / 1024 / 1024).toFixed(1)}MB /{' '}
+                {(progress.total / 1024 / 1024).toFixed(1)}MB
               </p>
-              <button
-                onClick={downloadUpdate}
-                disabled={updateStatus === 'downloading'}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
-              >
-                <Download size={14} />
-                {t('updates.downloadUpdate')}
-              </button>
-              {updateStatus === 'downloading' && progress.total > 0 && (
-                <div className="w-full bg-bg-tertiary rounded-full h-2 mt-1">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all"
-                    style={{ width: `${progress.percent}%` }}
-                  />
-                  <p className="text-xs text-primary mt-1">
-                    {Math.round(progress.percent)}% — {(progress.transferred / 1024 / 1024).toFixed(1)}MB / {(progress.total / 1024 / 1024).toFixed(1)}MB
-                  </p>
-                </div>
-              )}
             </div>
-          )}
-          {updateStatus === 'downloaded' && (
-            <div className="px-3 py-3 bg-success-light border border-success/30 rounded-lg">
-              <p className="text-sm text-success mb-2">{t('updates.updateReady')}</p>
-              <button
-                onClick={installUpdate}
-                className="px-3 py-1.5 text-sm bg-success text-white rounded-lg hover:bg-success-hover transition-colors"
-              >
-                {t('updates.restartInstall')}
-              </button>
-            </div>
-          )}
-          {updateStatus === 'not-available' && (
-            <p className="text-sm text-text-muted">{t('updates.noUpdates')}</p>
           )}
         </div>
-      </SectionCard>
-    </>
+      )}
+      {updateStatus === 'downloaded' && (
+        <div className="px-3 py-3 bg-success-light border border-success/30 rounded-lg">
+          <p className="text-sm text-success mb-2">{t('updates.updateReady')}</p>
+          <button
+            onClick={installUpdate}
+            className="px-3 py-1.5 text-sm bg-success text-white rounded-lg hover:bg-success-hover transition-colors"
+          >
+            {t('updates.restartInstall')}
+          </button>
+        </div>
+      )}
+      {updateStatus === 'not-available' && (
+        <p className="text-sm text-text-muted">{t('updates.noUpdates')}</p>
+      )}
+    </SectionCard>
   )
 }
 

@@ -7,6 +7,7 @@ import {
   Server,
   Database,
   Info,
+  RefreshCw,
   type LucideIcon
 } from 'lucide-react'
 
@@ -19,6 +20,7 @@ export type SectionId =
   | 'profile'
   | 'appearance'
   | 'taskDefaults'
+  | 'updates'
   | 'marketplace'
   | 'security'
   | 'system'
@@ -84,6 +86,17 @@ export const SECTIONS: SectionDef[] = [
     // BUG FIX: previously excluded admin. Admin computers also run tasks
     // (admin can see/edit everything in this app), so they should also have
     // task defaults configured.
+    roles: ['admin', 'developer', 'user']
+  },
+  {
+    id: 'updates',
+    icon: RefreshCw,
+    labelKey: 'settings.sections.updates',
+    descriptionKey: 'settings.descriptions.updates',
+    scope: 'computer',
+    // Per-computer concern (you update the app on THIS machine). Every role
+    // should be able to check for / install / restart for updates, because
+    // the running process on each user's computer is the thing being updated.
     roles: ['admin', 'developer', 'user']
   },
   {

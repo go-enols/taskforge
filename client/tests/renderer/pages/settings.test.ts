@@ -7,7 +7,7 @@ import {
 } from '../../../src/renderer/src/pages/settings-sections'
 
 describe('Settings sections — role visibility (terminal model)', () => {
-  it('SECTIONS exposes the 9 known section ids', () => {
+  it('SECTIONS exposes the 10 known section ids (updates is now its own section)', () => {
     const ids = SECTIONS.map((s) => s.id).sort()
     expect(ids).toEqual(
       [
@@ -19,7 +19,8 @@ describe('Settings sections — role visibility (terminal model)', () => {
         'profile',
         'security',
         'system',
-        'taskDefaults'
+        'taskDefaults',
+        'updates'
       ].sort()
     )
   })
@@ -40,14 +41,41 @@ describe('Settings sections — role visibility (terminal model)', () => {
     }
   })
 
-  it('admin sees ALL 9 sections (including taskDefaults — bug fix)', () => {
+  it('admin sees ALL 10 sections (including taskDefaults + updates)', () => {
     const visible = getVisibleSections('admin')
     const ids = visible.map((s) => s.id)
     expect(ids).toContain('taskDefaults') // the fix: previously excluded admin
+    expect(ids).toContain('updates') // the fix: previously hidden inside admin-only System
     expect(ids).toContain('marketplace')
     expect(ids).toContain('security')
     expect(ids).toContain('system')
     expect(ids).toContain('advanced')
+  })
+
+  it('developer sees 6 sections (no admin-only server config)', () => {
+    const visible = getVisibleSections('developer')
+    const ids = visible.map((s) => s.id)
+    expect(ids).toContain('taskDefaults')
+    expect(ids).toContain('updates') // NEW: updates is now its own section visible to all roles
+    expect(ids).not.toContain('marketplace')
+    expect(ids).not.toContain('security')
+    expect(ids).not.toContain('system')
+    expect(ids).not.toContain('advanced')
+  })
+
+  it('user sees 6 sections (personal + task defaults + updates)', () => {
+    const visible = getVisibleSections('user')
+    const ids = visible.map((s) => s.id)
+    expect(ids).toContain('profile')
+    expect(ids).toContain('appearance')
+    expect(ids).toContain('taskDefaults')
+    expect(ids).toContain('data')
+    expect(ids).toContain('about')
+    expect(ids).toContain('updates') // NEW: updates is now its own section visible to all roles
+    expect(ids).not.toContain('marketplace')
+    expect(ids).not.toContain('security')
+    expect(ids).not.toContain('system')
+    expect(ids).not.toContain('advanced')
   })
 
   it('developer sees 6 sections (no admin-only server config)', () => {
@@ -102,13 +130,14 @@ describe('Settings sections — per-role exact sections', () => {
       'data',
       'about',
       'taskDefaults',
+      'updates',
       'marketplace',
       'security',
       'system',
       'advanced'
     ],
-    developer: ['profile', 'appearance', 'data', 'about', 'taskDefaults'],
-    user: ['profile', 'appearance', 'data', 'about', 'taskDefaults']
+    developer: ['profile', 'appearance', 'data', 'about', 'taskDefaults', 'updates'],
+    user: ['profile', 'appearance', 'data', 'about', 'taskDefaults', 'updates']
   }
 
   for (const role of ['admin', 'developer', 'user'] as UserRole[]) {
