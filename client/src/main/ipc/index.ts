@@ -1,4 +1,4 @@
-import { ipcMain, IpcMainInvokeEvent, app, dialog, BrowserWindow } from 'electron'
+import { ipcMain, IpcMainInvokeEvent, app, dialog, BrowserWindow, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { StoreService } from '../services/store'
 import { WalletService } from '../services/wallet'
