@@ -552,6 +552,29 @@
       "advanced": "高级",
       "about": "关于"
     },
+    "descriptions": {
+      "profile": "在此电脑上显示的用户名与密码。",
+      "appearance": "主题外观偏好（自动/浅色/深色）。",
+      "data": "数据目录、导出、清除日志与备份。",
+      "about": "应用版本与技术栈信息。",
+      "taskDefaults": "创建新任务时使用的默认值，可在创建任务时单独调整。",
+      "marketplace": "连接 marketplace 服务器的 URL 与 API Key。",
+      "security": "应用锁定、自动锁屏等安全选项。",
+      "system": "服务端口、日志级别、数据存储设置。",
+      "advanced": "实验性功能、调试选项与重置。",
+      "data": "数据目录、导出、清除日志与备份。"
+    },
+    "context": {
+      "loggedInAs": "已登录为",
+      "role": {
+        "admin": "管理员 · 此电脑管理 marketplace 服务器与脚本/模板",
+        "developer": "开发者 · 此电脑用于开发与调试任务",
+        "user": "用户 · 此电脑用于日常任务运行"
+      }
+    },
+    "divider": {
+      "computerOnly": "此电脑专属"
+    },
     "profile": {
       "username": "用户名",
       "usernameReadonly": "用户名不可修改",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   settingApi,
@@ -13,14 +13,6 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import type { AppInfo, CaptchaKey, ListResponse } from '../types'
 import {
-  User,
-  Palette,
-  Zap,
-  Globe,
-  Shield,
-  Server,
-  Database,
-  Info,
   Save,
   Copy,
   RefreshCw,
@@ -37,39 +29,11 @@ import {
 } from 'lucide-react'
 import { toast, toastError } from '../utils/toast'
 import ThemeToggle from '../components/ThemeToggle'
-import { Modal, ConfirmDialog } from '../components/common'
+import { Modal, ConfirmDialog, StaggeredFadeIn } from '../components/common'
+import { getVisibleSections, type SectionId, type UserRole } from './settings-sections'
 
-/* ── Section definitions ── */
-
-type SectionId =
-  | 'profile'
-  | 'appearance'
-  | 'taskDefaults'
-  | 'marketplace'
-  | 'security'
-  | 'system'
-  | 'data'
-  | 'advanced'
-  | 'about'
-
-interface SectionDef {
-  id: SectionId
-  icon: React.ElementType
-  labelKey: string
-  roles: Array<'admin' | 'developer' | 'user'>
-}
-
-const SECTIONS: SectionDef[] = [
-  { id: 'profile', icon: User, labelKey: 'settings.sections.profile', roles: ['admin', 'developer', 'user'] },
-  { id: 'appearance', icon: Palette, labelKey: 'settings.sections.appearance', roles: ['admin', 'developer', 'user'] },
-  { id: 'taskDefaults', icon: Zap, labelKey: 'settings.sections.taskDefaults', roles: ['developer', 'user'] },
-  { id: 'marketplace', icon: Globe, labelKey: 'settings.sections.marketplace', roles: ['admin', 'developer'] },
-  { id: 'security', icon: Shield, labelKey: 'settings.sections.security', roles: ['admin'] },
-  { id: 'system', icon: Server, labelKey: 'settings.sections.system', roles: ['admin'] },
-  { id: 'data', icon: Database, labelKey: 'settings.sections.data', roles: ['admin', 'developer', 'user'] },
-  { id: 'advanced', icon: Zap, labelKey: 'settings.sections.advanced', roles: ['admin'] },
-  { id: 'about', icon: Info, labelKey: 'settings.sections.about', roles: ['admin', 'developer', 'user'] }
-]
+/* ── Section definitions live in ./settings-sections.ts (separated to keep
+ *  this module's exports purely components, so React Fast Refresh is happy). ── */
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const
 
@@ -84,13 +48,22 @@ const roleBadgeClass: Record<string, string> = {
 const SectionCard: React.FC<{
   title: string
   subtitle?: string
+  icon?: React.ElementType
+  tone?: 'personal' | 'computer'
   children: React.ReactNode
   footer?: React.ReactNode
-}> = ({ title, subtitle, children, footer }) => (
-  <div className="bg-bg-card border border-border-light rounded-xl">
-    <div className="px-5 pt-5 pb-3 border-b border-border-light">
-      <h2 className="text-base font-semibold text-text-primary">{title}</h2>
-      {subtitle && <p className="text-xs text-text-muted mt-1">{subtitle}</p>}
+}> = ({ title, subtitle, icon: Icon, tone = 'personal', children, footer }) => (
+  <div
+    className={`bg-bg-card border rounded-xl ${
+      tone === 'computer' ? 'border-primary/20' : 'border-border-light'
+    }`}
+  >
+    <div className="px-5 pt-5 pb-3 border-b border-border-light flex items-center gap-3">
+      {Icon && <Icon size={18} className="text-text-muted shrink-0" aria-hidden="true" />}
+      <div className="min-w-0">
+        <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+        {subtitle && <p className="text-xs text-text-muted mt-0.5">{subtitle}</p>}
+      </div>
     </div>
     <div className="px-5 py-4 space-y-4">{children}</div>
     {footer && (
@@ -101,76 +74,137 @@ const SectionCard: React.FC<{
   </div>
 )
 
-/* ── Main component ── */
+/* ── Main component (terminal model: single page, all visible sections stacked) ── */
 
 const Settings: React.FC = () => {
   const { t } = useTranslation()
   const { user: marketUser, role, logout } = useAuth()
-  const roleKey = role ?? 'user'
+  const roleKey: UserRole = role ?? 'user'
 
-  const availableSections = useMemo(
-    () => SECTIONS.filter((s) => s.roles.includes(roleKey)),
-    [roleKey]
-  )
-
-  const [activeId, setActiveId] = useState<SectionId>(availableSections[0]?.id ?? 'profile')
-
-  // If role changes (e.g. login), ensure active section is allowed
-  useEffect(() => {
-    if (!availableSections.find((s) => s.id === activeId)) {
-      // Fallback when the current section is no longer available (e.g. role change).
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveId(availableSections[0]?.id ?? 'profile')
-    }
-  }, [availableSections, activeId])
+  const personalSections = getVisibleSections(roleKey).filter((s) => s.scope === 'personal')
+  const computerSections = getVisibleSections(roleKey).filter((s) => s.scope === 'computer')
 
   return (
-    <div className="flex gap-6 h-full">
-      {/* ── Sidebar nav ── */}
-      <aside className="w-56 shrink-0">
-        <h1 className="text-xl font-bold text-text-primary mb-4 px-1">
-          {t('settings.title')}
-        </h1>
-        <nav className="space-y-0.5">
-          {availableSections.map(({ id, icon: Icon, labelKey }) => {
-            const active = activeId === id
-            return (
-              <button
-                key={id}
-                onClick={() => setActiveId(id)}
-                className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-colors text-left ${
-                  active
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-text-secondary hover:bg-bg-tertiary'
-                }`}
-              >
-                <Icon size={16} />
-                <span>{t(labelKey)}</span>
-              </button>
-            )
-          })}
-        </nav>
-      </aside>
+    <div className="max-w-3xl mx-auto space-y-5 pb-8">
+      <header className="pt-1">
+        <h1 className="text-2xl font-bold text-text-primary">{t('settings.title')}</h1>
+      </header>
 
-      {/* ── Content area ── */}
-      <div className="flex-1 min-w-0 space-y-4 overflow-y-auto pb-6">
-        {activeId === 'profile' && <ProfileSection />}
-        {activeId === 'appearance' && <AppearanceSection />}
-        {activeId === 'taskDefaults' && marketUser && <TaskDefaultsSection />}
-        {activeId === 'marketplace' && marketUser && <MarketplaceSection />}
-        {activeId === 'security' && <SecuritySection />}
-        {activeId === 'system' && <SystemSection />}
-        {activeId === 'data' && <DataSection />}
-        {activeId === 'advanced' && <AdvancedSection />}
-        {activeId === 'about' && <AboutSection onLogout={logout} />}
+      <UserContextHeader user={marketUser} role={roleKey} />
+
+      <StaggeredFadeIn className="space-y-4" delayStep={50}>
+        {personalSections.map((s) => (
+          <SectionCard
+            key={s.id}
+            title={t(s.labelKey)}
+            subtitle={t(s.descriptionKey)}
+            icon={s.icon}
+            tone="personal"
+          >
+            <SectionContent id={s.id} marketUser={marketUser} onLogout={logout} />
+          </SectionCard>
+        ))}
+      </StaggeredFadeIn>
+
+      {computerSections.length > 0 && (
+        <>
+          <DividerLabel label={t('settings.divider.computerOnly')} />
+          <StaggeredFadeIn className="space-y-4" delayStep={50}>
+            {computerSections.map((s) => (
+              <SectionCard
+                key={s.id}
+                title={t(s.labelKey)}
+                subtitle={t(s.descriptionKey)}
+                icon={s.icon}
+                tone="computer"
+              >
+                <SectionContent id={s.id} marketUser={marketUser} onLogout={logout} />
+              </SectionCard>
+            ))}
+          </StaggeredFadeIn>
+        </>
+      )}
+    </div>
+  )
+}
+
+/* ── User context header (top of the page) ── */
+
+const UserContextHeader: React.FC<{
+  user: ReturnType<typeof useAuth>['user']
+  role: UserRole
+}> = ({ user, role }) => {
+  const { t } = useTranslation()
+  const initial = user?.displayName?.[0]?.toUpperCase() ?? user?.username?.[0]?.toUpperCase() ?? '?'
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 bg-bg-card border border-border-light rounded-xl">
+      <div
+        className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0"
+        aria-hidden="true"
+      >
+        {initial}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm text-text-secondary">
+          {t('settings.context.loggedInAs')}{' '}
+          <span className="font-medium text-text-primary">
+            {user?.displayName ?? user?.username ?? '—'}
+          </span>
+        </div>
+        <div className="text-xs text-text-muted mt-0.5">
+          {t(`settings.context.role.${role}`)}
+        </div>
       </div>
     </div>
   )
 }
 
-/* ════════════════════════════════════════════════════════════
-   PROFILE — available to all roles
-   ════════════════════════════════════════════════════════════ */
+/* ── Divider label between personal and computer groups ── */
+
+const DividerLabel: React.FC<{ label: string }> = ({ label }) => (
+  <div className="flex items-center gap-3 pt-1" role="separator" aria-label={label}>
+    <div className="flex-1 h-px bg-border-light" />
+    <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted">
+      {label}
+    </span>
+    <div className="flex-1 h-px bg-border-light" />
+  </div>
+)
+
+/* ── Dispatch each SectionId to its concrete component ── */
+
+function SectionContent({
+  id,
+  marketUser,
+  onLogout
+}: {
+  id: SectionId
+  marketUser: ReturnType<typeof useAuth>['user']
+  onLogout: () => void
+}): React.ReactNode {
+  switch (id) {
+    case 'profile':
+      return <ProfileSection />
+    case 'appearance':
+      return <AppearanceSection />
+    case 'taskDefaults':
+      return marketUser ? <TaskDefaultsSection /> : null
+    case 'marketplace':
+      return marketUser ? <MarketplaceSection /> : null
+    case 'security':
+      return <SecuritySection />
+    case 'system':
+      return <SystemSection />
+    case 'data':
+      return <DataSection />
+    case 'advanced':
+      return <AdvancedSection />
+    case 'about':
+      return <AboutSection onLogout={onLogout} />
+    default:
+      return null
+  }
+}
 
 const ProfileSection: React.FC = () => {
   const { t } = useTranslation()
