@@ -23,7 +23,8 @@
     "postinstall": "electron-builder install-app-deps",
     "test": "npm run rebuild:node && vitest run",
     "test:watch": "npm run rebuild:node && vitest",
-    "test:coverage": "npm run rebuild:node && vitest run --coverage"
+    "test:coverage": "npm run rebuild:node && vitest run --coverage",
+    "i18n:check": "node scripts/check-i18n.cjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

@@ -108,7 +108,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
             data-testid="log-export"
             onClick={() => onExport(logs)}
             className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-text-secondary border border-border-light rounded hover:bg-bg-tertiary transition-colors"
-            aria-label={t('tasks.exportLogs')}
+            aria-label={t('logs.exportLogs')}
           >
             <Download size={11} />
             {t('common.export')}
