@@ -140,57 +140,60 @@ const DebugPage: React.FC = () => {
 
   // -------- Folder selection + manifest parse --------
   const handleSelectFolder = useCallback(async () => {
-    const result = await fileApi.selectFolder()
-    if (result.canceled || !result.folderPath) return
-    const dir = result.folderPath
-    setFolderPath(dir)
-    setFolderInfo(emptyFolderInfo(dir))
-    reset()
+    try {
+      const result = await fileApi.selectFolder()
+      if (!result || result.canceled || !result.folderPath) return
+      const dir = result.folderPath
+      setFolderPath(dir)
+      setFolderInfo(emptyFolderInfo(dir))
+      reset()
 
-    // Try manifest.json first, then meta.json (legacy / installed scripts)
-    let manifest: Record<string, unknown> | null = null
-    for (const filename of [MANIFEST_FILENAME, META_FILENAME]) {
-      try {
-        const res = await fileApi.readFile(`${dir}/${filename}`)
-        if (res.success && res.content) {
-          manifest = tryParseJson(res.content)
-          if (manifest) break
+      let manifest: Record<string, unknown> | null = null
+      for (const filename of [MANIFEST_FILENAME, META_FILENAME]) {
+        try {
+          const res = await fileApi.readFile(`${dir}/${filename}`)
+          if (res.success && res.content) {
+            manifest = tryParseJson(res.content)
+            if (manifest) break
+          }
+        } catch (err) {
+          console.error(`[Debug] Failed to read ${filename}:`, err)
         }
-      } catch (err) {
-        console.error(`[Debug] Failed to read ${filename}:`, err)
       }
-    }
 
-    const info = emptyFolderInfo(dir)
-    if (manifest) {
-      info.name = (manifest.name as string) || info.name
-      info.entry = (manifest.entryPoint as string) || 'index.js'
-      info.hasManifest = 'schema' in manifest
-      if (Array.isArray(manifest.requiredAccountTemplateIds)) {
-        info.requiredTemplates = manifest.requiredAccountTemplateIds as string[]
+      const info = emptyFolderInfo(dir)
+      if (manifest) {
+        info.name = (manifest.name as string) || info.name
+        info.entry = (manifest.entryPoint as string) || 'index.js'
+        info.hasManifest = 'schema' in manifest
+        if (Array.isArray(manifest.requiredAccountTemplateIds)) {
+          info.requiredTemplates = manifest.requiredAccountTemplateIds as string[]
+        }
+        if (Array.isArray(manifest.permissions)) {
+          info.permissions = manifest.permissions as string[]
+        }
+        if (manifest.schema && typeof manifest.schema === 'object') {
+          info.schema = manifest.schema as Record<string, unknown>
+        }
       }
-      if (Array.isArray(manifest.permissions)) {
-        info.permissions = manifest.permissions as string[]
-      }
-      if (manifest.schema && typeof manifest.schema === 'object') {
-        info.schema = manifest.schema as Record<string, unknown>
-      }
-    }
-    setFolderInfo(info)
+      setFolderInfo(info)
 
-    // Auto-match accounts by requiredAccountTemplateIds
-    if (info.requiredTemplates.length > 0) {
-      try {
-        const res = await accountApi.list(1, 9999)
-        const all = res.items || []
-        const matched = all.filter((a) => info.requiredTemplates.includes(a.templateId))
-        setMatchedAccounts(matched)
-        if (matched.length > 0) setSelectedAccountId(matched[0].id)
-      } catch (err) {
-        console.error('[Debug] Failed to load matched accounts:', err)
+      if (info.requiredTemplates.length > 0) {
+        try {
+          const res = await accountApi.list(1, 9999)
+          const all = res.items || []
+          const matched = all.filter((a) => info.requiredTemplates.includes(a.templateId))
+          setMatchedAccounts(matched)
+          if (matched.length > 0) setSelectedAccountId(matched[0].id)
+        } catch (err) {
+          console.error('[Debug] Failed to load matched accounts:', err)
+        }
       }
+    } catch (err) {
+      console.error('[Debug] handleSelectFolder failed:', err)
+      toast.error(err instanceof Error ? err.message : t('common.operationFailed'))
     }
-  }, [reset])
+  }, [reset, t])
 
   // -------- IPC push subscriptions (status, logs) --------
   useEffect(() => {
