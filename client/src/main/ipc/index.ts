@@ -24,6 +24,32 @@ import { createLogger } from '../utils/logger'
 
 const logger = createLogger('ipc')
 
+/**
+ * 恢复原生对话框关闭后的窗口状态
+ *
+ * Windows 平台原生 IFileDialog/IFileSaveDialog 关闭后，父 HWND 偶尔会停留在
+ * WS_DISABLED 状态，导致后续所有鼠标点击在到达 renderer 之前被 OS 丢弃，
+ * 表现为"页面看起来正常但所有按钮都点不动"。
+ *
+ * 此辅助函数强制清除该状态，恢复窗口可交互。失败安全（窗口已销毁时静默跳过）。
+ *
+ * @param win - 触发原生对话框的 BrowserWindow
+ */
+function restoreWindowAfterDialog(win: BrowserWindow): void {
+  try {
+    if (win.isDestroyed()) return
+    if (win.isMinimized()) win.restore()
+    // 显式重新启用窗口（清除 WS_DISABLED）
+    win.setEnabled(true)
+    // 重新聚焦 OS 窗口
+    win.focus()
+    // 重新聚焦 webContents（renderer 进程）
+    win.webContents.focus()
+  } catch (err) {
+    logger.warn('Failed to restore window after native dialog:', { error: err instanceof Error ? err.message : String(err) })
+  }
+}
+
 /** 所有需要注入到 IPC 处理器的服务与仓库实例集合 */
 interface Services {
   /** 数据库存储服务 */
@@ -409,15 +435,23 @@ export function registerIpcHandlers(services: Services): void {
     const _filters = args[0] as { name: string; extensions: string[] }[] | undefined
     const win = BrowserWindow.getFocusedWindow()
     if (!win) return { canceled: true, filePath: null, content: null }
-    const result = await dialog.showOpenDialog(win, {
-      properties: ['openFile'],
-      filters: _filters ?? [{ name: 'JSON', extensions: ['json'] }]
-    })
-    if (result.canceled || result.filePaths.length === 0)
-      return { canceled: true, filePath: null, content: null }
-    const fs = await import('fs')
-    const content = fs.readFileSync(result.filePaths[0], 'utf-8')
-    return { canceled: false, filePath: result.filePaths[0], content }
+    try {
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openFile'],
+        filters: _filters ?? [{ name: 'JSON', extensions: ['json'] }]
+      })
+      if (result.canceled || result.filePaths.length === 0)
+        return { canceled: true, filePath: null, content: null }
+      const fs = await import('fs')
+      const content = fs.readFileSync(result.filePaths[0], 'utf-8')
+      return { canceled: false, filePath: result.filePaths[0], content }
+    } finally {
+      // Windows-specific fix: native IFileDialog sometimes leaves the parent
+      // HWND in WS_DISABLED state after returning, which silently drops all
+      // subsequent mouse clicks on the BrowserWindow. Restoring focus and
+      // re-enabling the window forces the OS to clear the disabled state.
+      restoreWindowAfterDialog(win)
+    }
   })
 
   register('dialog:saveFile', async (...args: unknown[]) => {
@@ -425,26 +459,34 @@ export function registerIpcHandlers(services: Services): void {
     const _content = args[1] as string
     const win = BrowserWindow.getFocusedWindow()
     if (!win) return { canceled: true, filePath: null }
-    const result = await dialog.showSaveDialog(win, {
-      defaultPath: _defaultName,
-      filters: [{ name: 'JSON', extensions: ['json'] }]
-    })
-    if (result.canceled || !result.filePath) return { canceled: true, filePath: null }
-    const fs = await import('fs')
-    fs.writeFileSync(result.filePath, _content, 'utf-8')
-    return { canceled: false, filePath: result.filePath }
+    try {
+      const result = await dialog.showSaveDialog(win, {
+        defaultPath: _defaultName,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      })
+      if (result.canceled || !result.filePath) return { canceled: true, filePath: null }
+      const fs = await import('fs')
+      fs.writeFileSync(result.filePath, _content, 'utf-8')
+      return { canceled: false, filePath: result.filePath }
+    } finally {
+      restoreWindowAfterDialog(win)
+    }
   })
 
-  // Dialog: Folder Selection
+
   register('dialog:selectFolder', async () => {
     const win = BrowserWindow.getFocusedWindow()
     if (!win) return { canceled: true, folderPath: null }
-    const result = await dialog.showOpenDialog(win, {
-      properties: ['openDirectory']
-    })
-    if (result.canceled || result.filePaths.length === 0)
-      return { canceled: true, folderPath: null }
-    return { canceled: false, folderPath: result.filePaths[0] }
+    try {
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openDirectory']
+      })
+      if (result.canceled || result.filePaths.length === 0)
+        return { canceled: true, folderPath: null }
+      return { canceled: false, folderPath: result.filePaths[0] }
+    } finally {
+      restoreWindowAfterDialog(win)
+    }
   })
 
   register('fs:readFile', async (...args: unknown[]) => {
