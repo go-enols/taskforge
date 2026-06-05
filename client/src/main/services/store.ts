@@ -1,3 +1,12 @@
+/**
+ * @file StoreService — SQLite 数据访问层（核心持久层）
+ * @description 封装所有数据表的 CRUD 操作，采用 better-sqlite3 同步 API + 预编译语句。
+ *              JSON 字段自动序列化/反序列化，提供钱包、账户、代理、任务、空投项目、
+ *              模板、设置、验证码密钥、代理提供商、应用日志等实体的统一数据访问接口。
+ *              内部维护 WalletRepository / ProxyRepository / TaskRepository 三个子仓库。
+ * @module main/services
+ */
+
 import Database from 'better-sqlite3'
 import { v4 as uuidv4 } from 'uuid'
 import type {
@@ -53,13 +62,19 @@ export type {
   WeeklyTrend
 }
 
+/** JSON 字段类型：数据库中存储 JSON 的列使用 TEXT 或 NULL */
 type JsonField = string | null
 
+/** 内部辅助：将任意值序列化为 JSON 字符串（undefined/null 返回 null） */
 function toJson(val: unknown): JsonField {
   if (val === undefined || val === null) return null
   return JSON.stringify(val)
 }
 
+/**
+ * 内部辅助：从 JSON 字符串解析为对象
+ * - 解析失败时返回 null（不抛错，容错处理）
+ */
 function fromJson<T>(val: JsonField): T | null {
   if (val === null) return null
   try {
@@ -69,6 +84,10 @@ function fromJson<T>(val: JsonField): T | null {
   }
 }
 
+/**
+ * 内部辅助：从 JSON 字符串解析为数组
+ * - 解析失败或 null 时返回空数组（不抛错）
+ */
 function fromJsonArray<T>(val: JsonField): T[] {
   if (val === null) return []
   try {
@@ -78,17 +97,45 @@ function fromJsonArray<T>(val: JsonField): T[] {
   }
 }
 
+/** 内部辅助：生成 ISO 8601 格式的当前时间字符串 */
 function nowISO(): string {
   return new Date().toISOString()
 }
 
+/**
+ * 数据访问服务（单例模式，通过构造函数传入 dbPath 初始化）
+ *
+ * 职责范围：
+ * - 初始化 SQLite 数据库（WAL 模式 + 外键约束）
+ * - 自动建表与迁移（向后兼容）
+ * - 预编译所有 SQL 语句以提升性能
+ * - 提供每个实体类型的完整 CRUD + 分页搜索
+ * - 聚合/统计查询（Dashboard 数据）
+ * - 委托子仓库处理特定逻辑（钱包、代理、任务）
+ *
+ * @example
+ * ```ts
+ * const store = new StoreService('path/to/airdrop-farm.db')
+ * const wallets = store.walletRepo.listWallets()
+ * const accounts = store.listAccounts(1, 20, 'search term')
+ * ```
+ */
 export class StoreService {
+  /** SQLite 数据库连接实例 */
   private db: Database.Database
+  /** 预编译语句缓存（名称 → PreparedStatement） */
   private stmts: Map<string, Database.Statement>
+  /** 钱包子仓库 */
   private _walletRepo: WalletRepository
+  /** 代理子仓库 */
   private _proxyRepo: ProxyRepository
+  /** 任务子仓库 */
   private _taskRepo: TaskRepository
 
+  /**
+   * @param dbPath - SQLite 数据库文件路径
+   * @param encryption - 可选的加密服务实例，用于钱包私钥加密存储
+   */
   constructor(dbPath: string, encryption?: import('./encryption').EncryptionService) {
     this.db = new Database(dbPath)
     this.stmts = new Map()
@@ -104,18 +151,22 @@ export class StoreService {
     })
   }
 
+  /** 获取钱包子仓库（委托模式） */
   get walletRepo(): WalletRepository {
     return this._walletRepo
   }
 
+  /** 获取代理子仓库（委托模式） */
   get proxyRepo(): ProxyRepository {
     return this._proxyRepo
   }
 
+  /** 获取任务子仓库（委托模式） */
   get taskRepo(): TaskRepository {
     return this._taskRepo
   }
 
+  /** 数据库初始化：创建所有表和索引，执行向后兼容的数据库迁移 */
   private initialize(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS wallets (
@@ -273,6 +324,7 @@ export class StoreService {
     this.migrateProxies()
   }
 
+  /** 迁移：为 airdrop_projects 表添加后续新增的字段（website, script_template_id, account_pool） */
   private migrateAirdropProjects(): void {
     const cols = this.db.prepare("PRAGMA table_info('airdrop_projects')").all() as Array<{
       name: string
@@ -290,6 +342,7 @@ export class StoreService {
     }
   }
 
+  /** 迁移：为 proxies 表添加 format 字段（V1.1 新增代理格式类型） */
   private migrateProxies(): void {
     const cols = this.db.prepare("PRAGMA table_info('proxies')").all() as Array<{ name: string }>
     const names = new Set(cols.map((c) => c.name))
@@ -298,6 +351,7 @@ export class StoreService {
     }
   }
 
+  /** 预编译所有 SQL 语句并缓存到 this.stmts Map 中 */
   private prepareStatements(): void {
     const s = this.stmts
     const db = this.db
@@ -423,12 +477,20 @@ export class StoreService {
     )
   }
 
+  /**
+   * 从缓存中获取预编译语句
+   *
+   * @param name - 语句名称（prepareStatements 中注册的 key）
+   * @returns 缓存的 PreparedStatement
+   * @throws 未找到时抛出 Error
+   */
   private stmt(name: string): Database.Statement {
     const s = this.stmts.get(name)
     if (!s) throw new Error(`Prepared statement not found: ${name}`)
     return s
   }
 
+  /** 行映射：数据库行 → Account 对象（自动反序列化 data/labels JSON 字段） */
   private rowToAccount(row: Record<string, unknown>): Account {
     return {
       id: row.id as string,
@@ -442,6 +504,7 @@ export class StoreService {
     }
   }
 
+  /** 行映射：数据库行 → Template 对象（自动反序列化 schema JSON 字段） */
   private rowToTemplate(row: Record<string, unknown>): Template {
     return {
       id: row.id as string,
@@ -454,6 +517,7 @@ export class StoreService {
     }
   }
 
+  /** 行映射：数据库行 → TaskTemplate 对象（自动反序列化 manifest JSON 字段） */
   private rowToTaskTemplate(row: Record<string, unknown>): TaskTemplate {
     return {
       id: row.id as string,
@@ -469,6 +533,7 @@ export class StoreService {
     }
   }
 
+  /** 行映射：数据库行 → ScheduledTask 对象（自动反序列化 config JSON 字段） */
   private rowToScheduledTask(row: Record<string, unknown>): ScheduledTask {
     return {
       id: row.id as string,
@@ -482,6 +547,7 @@ export class StoreService {
     }
   }
 
+  /** 行映射：数据库行 → AirdropProject 对象（反序列化 links/tasks/earnings/tags/labels JSON 字段） */
   private rowToAirdropProject(row: Record<string, unknown>): AirdropProject {
     return {
       id: row.id as string,
@@ -504,6 +570,7 @@ export class StoreService {
     }
   }
 
+  /** 行映射：数据库行 → CaptchaKey 对象 */
   private rowToCaptchaKey(row: Record<string, unknown>): CaptchaKey {
     return {
       id: row.id as string,
@@ -514,6 +581,7 @@ export class StoreService {
     }
   }
 
+  /** 行映射：数据库行 → ProxyProvider 对象（自动反序列化 labels JSON 字段） */
   private rowToProxyProvider(row: Record<string, unknown>): ProxyProvider {
     return {
       id: row.id as string,
@@ -528,6 +596,7 @@ export class StoreService {
     }
   }
 
+  /** 行映射：数据库行 → AppLog 对象（自动反序列化 fields JSON 字段） */
   private rowToAppLog(row: Record<string, unknown>): AppLog {
     return {
       id: row.id as number,
@@ -539,6 +608,19 @@ export class StoreService {
     }
   }
 
+  /**
+   * 通用分页查询工具
+   *
+   * 封装 count + list 两条预编译语句的分页逻辑，自动计算 totalPages。
+   *
+   * @param countStmt - COUNT(*) 语句
+   * @param listStmt  - LIMIT/OFFSET 查询语句
+   * @param page      - 页码（从 1 开始）
+   * @param pageSize  - 每页条数
+   * @param mapper    - 行到实体的映射函数
+   * @param searchParams - 可选的搜索参数数组（传给两条语句的前 N 个参数）
+   * @returns 分页结果集
+   */
   private paginate<T>(
     countStmt: Database.Statement,
     listStmt: Database.Statement,
@@ -564,6 +646,12 @@ export class StoreService {
     }
   }
 
+  /**
+   * 创建账号
+   *
+   * @param data - 账号数据（无需提供 id/createdAt/updatedAt，自动生成）
+   * @returns 创建的 Account 对象
+   */
   createAccount(data: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>): Account {
     const id = uuidv4()
     const now = nowISO()
@@ -580,11 +668,25 @@ export class StoreService {
     return this.getAccount(id)!
   }
 
+  /**
+   * 根据 ID 获取账号
+   *
+   * @param id - 账号 UUID
+   * @returns Account 对象，不存在时返回 null
+   */
   getAccount(id: string): Account | null {
     const row = this.stmt('account.getById').get(id) as Record<string, unknown> | undefined
     return row ? this.rowToAccount(row) : null
   }
 
+  /**
+   * 分页查询账号列表（支持按 pool 或 notes 模糊搜索）
+   *
+   * @param page     - 页码（默认 1）
+   * @param pageSize - 每页条数（默认 20）
+   * @param search   - 可选搜索关键词
+   * @returns 分页结果
+   */
   listAccounts(page = 1, pageSize = 20, search?: string): ListResponse<Account> {
     if (search) {
       const countStmt = this.db.prepare(
@@ -605,6 +707,13 @@ export class StoreService {
     return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToAccount(r))
   }
 
+  /**
+   * 更新账号信息
+   *
+   * @param id   - 账号 UUID
+   * @param data - 要更新的字段（部分更新）
+   * @returns 更新后的 Account 对象，不存在时返回 null
+   */
   updateAccount(
     id: string,
     data: Partial<Omit<Account, 'id' | 'createdAt' | 'updatedAt'>>
@@ -624,11 +733,22 @@ export class StoreService {
     return this.getAccount(id)
   }
 
+  /**
+   * 删除账号
+   *
+   * @param id - 账号 UUID
+   * @returns 是否成功删除
+   */
   deleteAccount(id: string): boolean {
     const result = this.stmt('account.delete').run(id)
     return result.changes > 0
   }
 
+  /**
+   * 获取所有不重复的账号池名称
+   *
+   * @returns 账号池名称数组（已排序）
+   */
   listAccountPools(): string[] {
     const rows = this.db
       .prepare(
@@ -638,6 +758,12 @@ export class StoreService {
     return rows.map((r) => r.pool)
   }
 
+  /**
+   * 创建账户模板
+   *
+   * @param data - 模板数据（id 可选，不提供时自动生成 UUID）
+   * @returns 创建的 Template 对象
+   */
   createTemplate(data: Omit<Template, 'id' | 'updatedAt'> & { id?: string }): Template {
     const id = data.id ?? uuidv4()
     const updatedAt = nowISO()
@@ -678,6 +804,13 @@ export class StoreService {
     return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToTemplate(r))
   }
 
+  /**
+   * 更新账户模板
+   *
+   * @param id   - 模板 UUID
+   * @param data - 要更新的字段
+   * @returns 更新后的 Template 对象，不存在时返回 null
+   */
   updateTemplate(id: string, data: Partial<Omit<Template, 'id' | 'updatedAt'>>): Template | null {
     const existing = this.getTemplate(id)
     if (!existing) return null
@@ -694,16 +827,34 @@ export class StoreService {
     return this.getTemplate(id)
   }
 
+  /**
+   * 删除账户模板
+   *
+   * @param id - 模板 UUID
+   * @returns 是否成功删除
+   */
   deleteTemplate(id: string): boolean {
     const result = this.stmt('template.delete').run(id)
     return result.changes > 0
   }
 
+  /**
+   * 统计使用指定模板的账号数量
+   *
+   * @param templateId - 模板 UUID
+   * @returns 账号数量
+   */
   countAccountsByTemplate(templateId: string): number {
     const row = this.db.prepare('SELECT COUNT(*) as cnt FROM accounts WHERE template_id = ?').get(templateId) as { cnt: number }
     return row.cnt
   }
 
+  /**
+   * 创建任务脚本模板
+   *
+   * @param data - 任务脚本模板数据（id 可选，不提供时自动生成 UUID）
+   * @returns 创建的 TaskTemplate 对象
+   */
   createTaskTemplate(data: Omit<TaskTemplate, 'id' | 'downloadedAt' | 'updatedAt'> & { id?: string }): TaskTemplate {
     const id = data.id ?? uuidv4()
     const now = nowISO()
@@ -722,11 +873,25 @@ export class StoreService {
     return this.getTaskTemplate(id)!
   }
 
+  /**
+   * 根据 ID 获取任务脚本模板
+   *
+   * @param id - 任务脚本模板 UUID
+   * @returns TaskTemplate 对象，不存在时返回 null
+   */
   getTaskTemplate(id: string): TaskTemplate | null {
     const row = this.stmt('taskTemplate.getById').get(id) as Record<string, unknown> | undefined
     return row ? this.rowToTaskTemplate(row) : null
   }
 
+  /**
+   * 分页查询任务脚本模板列表（支持按名称或描述模糊搜索）
+   *
+   * @param page     - 页码（默认 1）
+   * @param pageSize - 每页条数（默认 20）
+   * @param search   - 可选搜索关键词
+   * @returns 分页结果
+   */
   listTaskTemplates(page = 1, pageSize = 20, search?: string): ListResponse<TaskTemplate> {
     if (search) {
       const countStmt = this.db.prepare(
@@ -747,6 +912,13 @@ export class StoreService {
     return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToTaskTemplate(r))
   }
 
+  /**
+   * 更新任务脚本模板
+   *
+   * @param id   - 任务脚本模板 UUID
+   * @param data - 要更新的字段
+   * @returns 更新后的 TaskTemplate 对象，不存在时返回 null
+   */
   updateTaskTemplate(
     id: string,
     data: Partial<Omit<TaskTemplate, 'id' | 'downloadedAt' | 'updatedAt'>>
@@ -769,11 +941,23 @@ export class StoreService {
     return this.getTaskTemplate(id)
   }
 
+  /**
+   * 删除任务脚本模板
+   *
+   * @param id - 任务脚本模板 UUID
+   * @returns 是否成功删除
+   */
   deleteTaskTemplate(id: string): boolean {
     const result = this.stmt('taskTemplate.delete').run(id)
     return result.changes > 0
   }
 
+  /**
+   * 创建定时任务
+   *
+   * @param data - 定时任务数据
+   * @returns 创建的 ScheduledTask 对象
+   */
   createScheduledTask(data: Omit<ScheduledTask, 'id' | 'createdAt'>): ScheduledTask {
     const id = uuidv4()
     const createdAt = nowISO()
@@ -790,11 +974,25 @@ export class StoreService {
     return this.getScheduledTask(id)!
   }
 
+  /**
+   * 根据 ID 获取定时任务
+   *
+   * @param id - 定时任务 UUID
+   * @returns ScheduledTask 对象，不存在时返回 null
+   */
   getScheduledTask(id: string): ScheduledTask | null {
     const row = this.stmt('scheduledTask.getById').get(id) as Record<string, unknown> | undefined
     return row ? this.rowToScheduledTask(row) : null
   }
 
+  /**
+   * 分页查询定时任务列表（支持按 Cron 表达式模糊搜索）
+   *
+   * @param page     - 页码（默认 1）
+   * @param pageSize - 每页条数（默认 20）
+   * @param search   - 可选搜索关键词
+   * @returns 分页结果
+   */
   listScheduledTasks(page = 1, pageSize = 20, search?: string): ListResponse<ScheduledTask> {
     if (search) {
       const countStmt = this.db.prepare(
@@ -814,6 +1012,13 @@ export class StoreService {
     return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToScheduledTask(r))
   }
 
+  /**
+   * 更新定时任务
+   *
+   * @param id   - 定时任务 UUID
+   * @param data - 要更新的字段
+   * @returns 更新后的 ScheduledTask 对象，不存在时返回 null
+   */
   updateScheduledTask(
     id: string,
     data: Partial<Omit<ScheduledTask, 'id' | 'createdAt'>>
@@ -838,6 +1043,12 @@ export class StoreService {
     return result.changes > 0
   }
 
+  /**
+   * 创建空投项目
+   *
+   * @param data - 空投项目数据（links/tasks/earnings/tags/labels 等 JSON 字段自动序列化）
+   * @returns 创建的 AirdropProject 对象
+   */
   createAirdrop(data: Omit<AirdropProject, 'id' | 'createdAt' | 'updatedAt'>): AirdropProject {
     const id = uuidv4()
     const now = nowISO()
@@ -863,11 +1074,25 @@ export class StoreService {
     return this.getAirdrop(id)!
   }
 
+  /**
+   * 根据 ID 获取空投项目
+   *
+   * @param id - 空投项目 UUID
+   * @returns AirdropProject 对象，不存在时返回 null
+   */
   getAirdrop(id: string): AirdropProject | null {
     const row = this.stmt('airdrop.getById').get(id) as Record<string, unknown> | undefined
     return row ? this.rowToAirdropProject(row) : null
   }
 
+  /**
+   * 分页查询空投项目列表（支持按名称/描述/链模糊搜索）
+   *
+   * @param page     - 页码（默认 1）
+   * @param pageSize - 每页条数（默认 20）
+   * @param search   - 可选搜索关键词
+   * @returns 分页结果
+   */
   listAirdrops(page = 1, pageSize = 20, search?: string): ListResponse<AirdropProject> {
     if (search) {
       const countStmt = this.db.prepare(
@@ -892,6 +1117,13 @@ export class StoreService {
     return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToAirdropProject(r))
   }
 
+  /**
+   * 更新空投项目
+   *
+   * @param id   - 空投项目 UUID
+   * @param data - 要更新的字段（links/tasks/earnings/tags/labels 自动序列化）
+   * @returns 更新后的 AirdropProject 对象，不存在时返回 null
+   */
   updateAirdrop(
     id: string,
     data: Partial<Omit<AirdropProject, 'id' | 'createdAt' | 'updatedAt'>>
@@ -920,16 +1152,23 @@ export class StoreService {
     return this.getAirdrop(id)
   }
 
+  /**
+   * 删除空投项目
+   *
+   * @param id - 空投项目 UUID
+   * @returns 是否成功删除
+   */
   deleteAirdrop(id: string): boolean {
     const result = this.stmt('airdrop.delete').run(id)
     return result.changes > 0
   }
 
   /**
-   * Aggregate analytics over all airdrop projects. Status counts come from
-   * the indexed status column; earnings and deadlines are computed in JS
-   * from the JSON-decoded rows. Upcoming deadlines are capped at 5, sorted
-   * by deadline ASC.
+   * 获取空投分析数据
+   *
+   * 统计各状态数量、总收益估算、代币分布和即将到期列表。
+   *
+   * @returns AirdropAnalytics 分析结果
    */
   getAirdropAnalytics(): AirdropAnalytics {
     const countByStatus = this.db
@@ -1007,6 +1246,12 @@ export class StoreService {
     }
   }
 
+  /**
+   * 创建验证码 API 密钥记录
+   *
+   * @param data - 验证码密钥数据
+   * @returns 创建的 CaptchaKey 对象
+   */
   createCaptchaKey(data: Omit<CaptchaKey, 'id' | 'createdAt'>): CaptchaKey {
     const id = uuidv4()
     const createdAt = nowISO()
@@ -1014,11 +1259,25 @@ export class StoreService {
     return this.getCaptchaKey(id)!
   }
 
+  /**
+   * 根据 ID 获取验证码密钥
+   *
+   * @param id - 验证码密钥 UUID
+   * @returns CaptchaKey 对象，不存在时返回 null
+   */
   getCaptchaKey(id: string): CaptchaKey | null {
     const row = this.stmt('captchaKey.getById').get(id) as Record<string, unknown> | undefined
     return row ? this.rowToCaptchaKey(row) : null
   }
 
+  /**
+   * 分页查询验证码密钥列表（支持按提供商名称模糊搜索）
+   *
+   * @param page     - 页码（默认 1）
+   * @param pageSize - 每页条数（默认 20）
+   * @param search   - 可选搜索关键词
+   * @returns 分页结果
+   */
   listCaptchaKeys(page = 1, pageSize = 20, search?: string): ListResponse<CaptchaKey> {
     if (search) {
       const countStmt = this.db.prepare(
@@ -1038,6 +1297,13 @@ export class StoreService {
     return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToCaptchaKey(r))
   }
 
+  /**
+   * 更新验证码密钥信息
+   *
+   * @param id   - 验证码密钥 UUID
+   * @param data - 要更新的字段
+   * @returns 更新后的 CaptchaKey 对象，不存在时返回 null
+   */
   updateCaptchaKey(
     id: string,
     data: Partial<Omit<CaptchaKey, 'id' | 'createdAt'>>
@@ -1049,11 +1315,23 @@ export class StoreService {
     return this.getCaptchaKey(id)
   }
 
+  /**
+   * 删除验证码密钥
+   *
+   * @param id - 验证码密钥 UUID
+   * @returns 是否成功删除
+   */
   deleteCaptchaKey(id: string): boolean {
     const result = this.stmt('captchaKey.delete').run(id)
     return result.changes > 0
   }
 
+  /**
+   * 创建代理提供商配置
+   *
+   * @param data - 代理提供商数据
+   * @returns 创建的 ProxyProvider 对象
+   */
   createProxyProvider(data: Omit<ProxyProvider, 'id' | 'createdAt'>): ProxyProvider {
     const id = uuidv4()
     const createdAt = nowISO()
@@ -1071,11 +1349,25 @@ export class StoreService {
     return this.getProxyProvider(id)!
   }
 
+  /**
+   * 根据 ID 获取代理提供商
+   *
+   * @param id - 代理提供商 UUID
+   * @returns ProxyProvider 对象，不存在时返回 null
+   */
   getProxyProvider(id: string): ProxyProvider | null {
     const row = this.stmt('proxyProvider.getById').get(id) as Record<string, unknown> | undefined
     return row ? this.rowToProxyProvider(row) : null
   }
 
+  /**
+   * 分页查询代理提供商列表（支持按名称或 API URL 模糊搜索）
+   *
+   * @param page     - 页码（默认 1）
+   * @param pageSize - 每页条数（默认 20）
+   * @param search   - 可选搜索关键词
+   * @returns 分页结果
+   */
   listProxyProviders(page = 1, pageSize = 20, search?: string): ListResponse<ProxyProvider> {
     if (search) {
       const countStmt = this.db.prepare(
@@ -1096,6 +1388,13 @@ export class StoreService {
     return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToProxyProvider(r))
   }
 
+  /**
+   * 更新代理提供商配置
+   *
+   * @param id   - 代理提供商 UUID
+   * @param data - 要更新的字段
+   * @returns 更新后的 ProxyProvider 对象，不存在时返回 null
+   */
   updateProxyProvider(
     id: string,
     data: Partial<Omit<ProxyProvider, 'id' | 'createdAt'>>
@@ -1116,15 +1415,37 @@ export class StoreService {
     return this.getProxyProvider(id)
   }
 
+  /**
+   * 删除代理提供商
+   *
+   * @param id - 代理提供商 UUID
+   * @returns 是否成功删除
+   */
   deleteProxyProvider(id: string): boolean {
     const result = this.stmt('proxyProvider.delete').run(id)
     return result.changes > 0
   }
 
+  /**
+   * 添加应用日志
+   *
+   * @param level    - 日志级别（info / warn / error / debug）
+   * @param category - 日志分类
+   * @param message  - 日志内容
+   * @param fields   - 可选的附加字段（自动序列化为 JSON）
+   */
   addAppLog(level: string, category: string, message: string, fields?: unknown): void {
     this.stmt('appLog.insert').run(nowISO(), level, category, message, toJson(fields))
   }
 
+  /**
+   * 分页查询应用日志（支持按分类或内容模糊搜索）
+   *
+   * @param page     - 页码（默认 1）
+   * @param pageSize - 每页条数（默认 20）
+   * @param search   - 可选搜索关键词
+   * @returns 分页结果
+   */
   listAppLogs(page = 1, pageSize = 20, search?: string): ListResponse<AppLog> {
     if (search) {
       const countStmt = this.db.prepare(
@@ -1143,15 +1464,32 @@ export class StoreService {
     return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToAppLog(r))
   }
 
+  /**
+   * 获取设置项的值
+   *
+   * @param key - 设置键名
+   * @returns 设置值，不存在时返回 null
+   */
   getSetting(key: string): string | null {
     const row = this.stmt('setting.get').get(key) as Record<string, string> | undefined
     return row ? row.value : null
   }
 
+  /**
+   * 设置键值对（INSERT OR REPLACE）
+   *
+   * @param key   - 设置键名
+   * @param value - 设置值
+   */
   setSetting(key: string, value: string): void {
     this.stmt('setting.set').run(key, value)
   }
 
+  /**
+   * 获取所有设置项
+   *
+   * @returns 键值对对象
+   */
   getAllSettings(): Record<string, string> {
     const rows = this.stmt('setting.getAll').all() as Record<string, string>[]
     const result: Record<string, string> = {}
@@ -1161,11 +1499,25 @@ export class StoreService {
     return result
   }
 
+  /**
+   * 删除设置项
+   *
+   * @param key - 设置键名
+   * @returns 是否成功删除
+   */
   deleteSetting(key: string): boolean {
     const result = this.stmt('setting.delete').run(key)
     return result.changes > 0
   }
 
+  /**
+   * 获取仪表盘聚合统计数据
+   *
+   * 统计钱包总数/链分布、代理总数/协议分布/状态分布、账号池分布、
+   * 任务总数/状态分布/成功率、空投项目统计和即将到期列表。
+   *
+   * @returns 完整的 StatsAggregate 统计聚合
+   */
   getStats(): StatsAggregate {
     const walletTotal = this._walletRepo.count()
     const walletChainDistribution = this._walletRepo.countByType()
@@ -1270,6 +1622,15 @@ export class StoreService {
     }
   }
 
+  /**
+   * 获取应用信息（用于 Debug 页面展示）
+   *
+   * 包含数据库连接状态、各实体数量、运行中任务数等诊断信息。
+   *
+   * @param version - 应用版本号
+   * @param dataDir - 数据目录路径
+   * @returns AppInfo 诊断信息
+   */
   getAppInfo(version = '', dataDir = ''): AppInfo {
     let dbConnected = true
     let dbError: string | null = null
@@ -1299,10 +1660,17 @@ export class StoreService {
       accountCount,
       proxyCount,
       taskCount,
-      runningTaskCount
+      runningTaskCount,
+      totalLogs: 0
     }
   }
 
+  /**
+   * 批量创建账号（事务内执行，提升导入性能）
+   *
+   * @param items - 账号数据数组
+   * @returns 成功创建的账号数量
+   */
   batchCreateAccounts(items: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>[]): number {
     const insert = this.stmt('account.insert')
     const transaction = this.db.transaction(
@@ -1329,6 +1697,17 @@ export class StoreService {
     return transaction(items)
   }
 
+  /**
+   * 高级日志查询（支持按级别、分类、关键词、时间范围过滤）
+   *
+   * @param level    - 可选的日志级别过滤
+   * @param category - 可选的日志分类过滤
+   * @param search   - 可选的关键词模糊搜索
+   * @param since    - 可选的起始时间（ISO 8601）
+   * @param until    - 可选的结束时间（ISO 8601）
+   * @param limit    - 返回条数上限（默认 100）
+   * @returns 过滤后的日志分页结果
+   */
   queryLogs(
     level?: string,
     category?: string,
@@ -1378,6 +1757,11 @@ export class StoreService {
     }
   }
 
+  /**
+   * 获取所有不重复的日志分类名称
+   *
+   * @returns 分类名称数组（已排序）
+   */
   getLogCategories(): string[] {
     const rows = this.db
       .prepare('SELECT DISTINCT category FROM app_logs ORDER BY category')
@@ -1385,23 +1769,36 @@ export class StoreService {
     return rows.map((r) => r.category)
   }
 
+  /**
+   * 设置日志级别（持久化到 settings 表）
+   *
+   * @param level - 日志级别名称
+   */
   setLogLevel(level: string): void {
     this.setSetting('logLevel', level)
   }
 
+  /**
+   * 获取当前日志级别
+   *
+   * @returns 日志级别（默认 'info'）
+   */
   getLogLevel(): string {
     return this.getSetting('logLevel') ?? 'info'
   }
 
+  /** 删除所有应用日志（用于日志清理） */
   deleteAllLogs(): number {
     const result = this.db.prepare('DELETE FROM app_logs').run()
     return result.changes
   }
 
+  /** 关闭数据库连接（应用退出时调用） */
   close(): void {
     this.db.close()
   }
 
+  /** 获取原始 better-sqlite3 数据库实例（供子仓库和其他内部使用） */
   getDb(): Database.Database {
     return this.db
   }
