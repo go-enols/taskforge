@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   LogOut,
-  Shield
+  Shield,
+  Bug
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import type { UserRole } from '../contexts/AuthContext'
@@ -43,7 +44,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
   // ── Developer-only pages ──
   { path: '/quick-dev', icon: Zap, key: 'nav.quickDev', roles: ['developer'] },
   { path: '/developer/pending', icon: Clock, key: 'nav.developerPending', roles: ['developer'] },
-  // ── Admin-only pages ──
+  { path: '/debug', icon: Bug, key: 'nav.debug', roles: ['admin', 'developer'] },
+
   { path: '/admin/review', icon: Shield, key: 'nav.adminReview', roles: ['admin'] },
   { path: '/users', icon: User, key: 'nav.users', roles: ['admin'] },
   { path: '/logs', icon: ScrollText, key: 'nav.logs', roles: ['admin'] },
