@@ -1,3 +1,9 @@
+/**
+ * @file AirdropKpiBar — 空投 KPI 指标栏组件
+ * @description 展示空投相关的核心 KPI 指标：总空投数、进行中数、已领取数、总收益 USD。
+ *              底部展示收益最高的前 2 种代币摘要。
+ * @module renderer/components/airdrops
+ */
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Sprout, Activity, CheckCircle2, Wallet } from 'lucide-react'
@@ -5,22 +11,40 @@ import type { AirdropAnalytics, TokenEarnings } from '../../../../shared/types'
 import { formatUsd } from './airdrop-mappers'
 
 interface AirdropKpiBarProps {
+  /** 空投分析统计数据 */
   analytics: AirdropAnalytics
 }
 
+/** 单个 KPI 磁贴的配置结构 */
 interface KpiTile {
+  /** i18n 标签 key */
   labelKey: string
+  /** 显示数值 */
   value: string
+  /** lucide-react 图标组件 */
   icon: React.ComponentType<{ size?: number; className?: string }>
+  /** 左边框颜色类 */
   accent: string
+  /** 图标颜色类 */
   iconColor: string
 }
 
+/**
+ * AirdropKpiBar — 空投 KPI 指标栏组件
+ *
+ * 以四格网格展示空投分析指标（总数/进行中/已领取/收益 USD），
+ * 底部额外显示收益最高的前 2 种代币的金额和价值。
+ * 用于 Dashboard 页面的空投概览区域。
+ *
+ * @param analytics - 空投分析统计数据
+ */
 const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
   const { t } = useTranslation()
 
+  // 取收益最高的前 2 种代币显示在底部摘要行
   const topTokens = analytics.tokenEarnings.slice(0, 2)
 
+  // 定义 4 个 KPI 磁贴的配置
   const tiles: KpiTile[] = [
     {
       labelKey: 'airdrops.kpi.total',
@@ -54,6 +78,7 @@ const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
 
   return (
     <div className="space-y-2">
+      {/* 4 个 KPI 指标磁贴网格 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {tiles.map((tile) => {
           const Icon = tile.icon
@@ -77,6 +102,7 @@ const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
           )
         })}
       </div>
+      {/* Top 代币收益摘要行 */}
       {topTokens.length > 0 && (
         <div className="flex items-center gap-1.5 px-1 text-[11px] text-text-muted">
           <span className="font-medium">{t('airdrops.kpi.topTokens')}:</span>

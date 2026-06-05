@@ -1,3 +1,10 @@
+/**
+ * @file TitleBar — 自定义窗口标题栏
+ * @description Electron 自定义标题栏，替换原生窗口标题栏。
+ *              支持 macOS（仅显示主题切换）和 Windows/Linux（显示应用名 + 窗口控制按钮）。
+ *              窗口控制按钮通过 windowApi 调用来最小化/最大化/关闭窗口。
+ * @module renderer/components
+ */
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Leaf, Minus, Square, Copy, X } from 'lucide-react'
@@ -5,14 +12,26 @@ import { windowApi } from '../api'
 import { toastError } from '../utils/toast'
 import ThemeToggle from './ThemeToggle'
 
+/** 窗口可拖拽区域样式（macOS 标题栏可拖拽移动窗口） */
 const dragStyle = { WebkitAppRegion: 'drag' } as unknown as React.CSSProperties
+/** 窗口不可拖拽区域样式（按钮点击区域） */
 const noDragStyle = { WebkitAppRegion: 'no-drag' } as unknown as React.CSSProperties
 
+/**
+ * TitleBar — 自定义窗口标题栏组件
+ *
+ * 根据操作系统平台渲染不同布局：
+ * - macOS：仅显示右侧的主题切换按钮
+ * - Windows/Linux：左侧显示应用图标和名称 + 右侧主题切换 + 最小化/最大化/关闭按钮
+ *
+ * 通过 windowApi 与 Electron 主进程通信执行窗口操作。
+ */
 const TitleBar: React.FC = () => {
   const { t } = useTranslation()
   const [platform, setPlatform] = useState<string>('')
   const [maximized, setMaximized] = useState<boolean>(false)
 
+  // 加载平台信息和窗口最大化状态
   useEffect(() => {
     let cancelled = false
     windowApi
@@ -22,7 +41,7 @@ const TitleBar: React.FC = () => {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          // Platform info is non-critical: default to a safe value so the UI still renders.
+          // API 调用失败时默认为 win32 平台
           setPlatform('win32')
           toastError(err instanceof Error ? err.message : t('common.error'))
         }
@@ -34,7 +53,7 @@ const TitleBar: React.FC = () => {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          // Default to "not maximized" so window controls render correctly.
+          // API 调用失败时默认未最大化
           setMaximized(false)
           toastError(err instanceof Error ? err.message : t('common.error'))
         }
@@ -44,6 +63,7 @@ const TitleBar: React.FC = () => {
     }
   }, [t])
 
+  // 监听窗口最大化状态变化事件
   useEffect(() => {
     const off = window.electronAPI?.on?.('window:maximizedChanged', (...args: unknown[]) => {
       setMaximized(Boolean(args[0]))
@@ -53,6 +73,7 @@ const TitleBar: React.FC = () => {
     }
   }, [])
 
+  // macOS 平台：仅显示主题切换按钮
   if (platform === 'darwin') {
     return (
       <header
@@ -66,29 +87,37 @@ const TitleBar: React.FC = () => {
     )
   }
 
+  /** 最小化窗口 */
   const onMinimize = (): void => {
     void windowApi.minimize()
   }
+  /** 切换窗口最大化/还原 */
   const onToggleMaximize = (): void => {
     void windowApi.toggleMaximize()
   }
+  /** 关闭窗口 */
   const onClose = (): void => {
     void windowApi.close()
   }
 
+  // Windows/Linux 平台：完整标题栏
   return (
     <header
       className="flex-shrink-0 flex items-center justify-between h-8 bg-bg-card border-b border-border-light select-none"
       style={dragStyle}
     >
+      {/* 左侧：应用图标和名称 */}
       <div className="flex items-center gap-2 px-3">
         <Leaf size={14} className="text-primary" />
         <span className="text-xs font-semibold text-text-primary tracking-wide">Airdrop Farm</span>
       </div>
+
+      {/* 右侧：主题切换 + 窗口控制按钮 */}
       <div className="flex items-center h-full" style={noDragStyle}>
         <div className="px-2" style={noDragStyle}>
           <ThemeToggle collapsed />
         </div>
+        {/* 最小化按钮 */}
         <button
           type="button"
           onClick={onMinimize}
@@ -99,6 +128,7 @@ const TitleBar: React.FC = () => {
         >
           <Minus size={14} />
         </button>
+        {/* 最大化/还原按钮 */}
         <button
           type="button"
           onClick={onToggleMaximize}
@@ -109,6 +139,7 @@ const TitleBar: React.FC = () => {
         >
           {maximized ? <Copy size={12} /> : <Square size={12} />}
         </button>
+        {/* 关闭按钮 */}
         <button
           type="button"
           onClick={onClose}

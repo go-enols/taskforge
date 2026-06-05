@@ -1,3 +1,9 @@
+/**
+ * @file airdrop-mappers — 空投数据映射与格式化工具
+ * @description 提供空投项目状态/类型的颜色映射、i18n key 映射、边框类名生成、
+ *              收益摘要聚合和 USD 金额格式化等纯函数工具。
+ * @module renderer/components/airdrops
+ */
 import type {
   AirdropStatus,
   AirdropProjectType,
@@ -7,8 +13,9 @@ import type {
 } from '../../../../shared/types'
 
 /**
- * Status pill colors for the Status column on cards + detail.
- * Uses the project's Tailwind theme tokens (see assets/main.css).
+ * 状态徽章颜色映射
+ *
+ * 用于卡片列表和详情页的状态列，使用项目的 Tailwind 主题 token（参见 assets/main.css）。
  */
 export const statusColorMap: Record<AirdropStatus, string> = {
   ongoing: 'bg-primary-light text-primary',
@@ -17,9 +24,7 @@ export const statusColorMap: Record<AirdropStatus, string> = {
   claimed: 'bg-purple-light text-purple'
 }
 
-/**
- * Project type pill colors.
- */
+/** 项目类型徽章颜色映射 */
 export const typeColorMap: Record<AirdropProjectType, string> = {
   testnet: 'bg-cyan-light text-cyan',
   mainnet: 'bg-primary-light text-primary',
@@ -30,7 +35,9 @@ export const typeColorMap: Record<AirdropProjectType, string> = {
 }
 
 /**
- * i18n keys for status labels. Used so the i18n catalog is the single source of truth.
+ * 状态标签的 i18n key 映射
+ *
+ * 使国际化目录作为唯一真实来源，避免硬编码显示文本。
  */
 export const statusLabelKey: Record<AirdropStatus, string> = {
   ongoing: 'airdrops.statusOngoing',
@@ -39,9 +46,7 @@ export const statusLabelKey: Record<AirdropStatus, string> = {
   claimed: 'airdrops.statusClaimed'
 }
 
-/**
- * i18n keys for project type labels.
- */
+/** 项目类型标签的 i18n key 映射 */
 export const typeLabelKey: Record<AirdropProjectType, string> = {
   testnet: 'airdrops.typeTestnet',
   mainnet: 'airdrops.typeMainnet',
@@ -52,8 +57,12 @@ export const typeLabelKey: Record<AirdropProjectType, string> = {
 }
 
 /**
- * Border-left class used as a visual accent on the card edge.
- * Pair with a 2-3px left border to subtly indicate status at a glance.
+ * 根据状态返回卡片左侧边框颜色类
+ *
+ * 为卡片添加 2-3px 左边框，以颜色快速指示项目状态。
+ *
+ * @param status - 空投项目状态
+ * @returns Tailwind 边框颜色类
  */
 export const statusBorderClass = (status: AirdropStatus): string => {
   switch (status) {
@@ -71,7 +80,12 @@ export const statusBorderClass = (status: AirdropStatus): string => {
 }
 
 /**
- * Background accent (used in the KPI bar's status tiles).
+ * 根据状态返回 KPI 磁贴的背景强调色
+ *
+ * 用于空投 KPI 指标栏中各状态磁贴的视觉区分。
+ *
+ * @param status - 空投项目状态
+ * @returns Tailwind 边框和背景类
  */
 export const statusAccent = (status: AirdropStatus): string => {
   switch (status) {
@@ -88,12 +102,17 @@ export const statusAccent = (status: AirdropStatus): string => {
   }
 }
 
+/** 空投项目各项数量的统计结果 */
 export interface AirdropCounts {
+  /** 链接数量 */
   links: number
+  /** 任务数量 */
   tasks: number
+  /** 收益记录数量 */
   earnings: number
 }
 
+/** 统计空投项目的链接、任务和收益记录数量 */
 export const summarizeCounts = (
   links: AirdropLink[],
   tasks: AirdropTaskItem[],
@@ -104,16 +123,24 @@ export const summarizeCounts = (
   earnings: earnings.length
 })
 
+/** 按代币聚合的收益摘要行 */
 export interface EarningsSummaryRow {
+  /** 代币名称 */
   token: string
+  /** 总数量 */
   amount: number
+  /** 总 USD 估值 */
   valueUsd: number
 }
 
 /**
- * Aggregate earnings by token. Skips rows with empty token. Treats missing
- * valueUsd as 0. Result order: tokens are sorted by totalValueUsd DESC then
- * totalAmount DESC for stable display.
+ * 按代币聚合收益记录
+ *
+ * 跳过名称为空的代币条目。缺失 valueUsd 时按 0 处理。
+ * 返回结果按总 valueUsd 降序排列，相同 valueUsd 时按总数量降序排列。
+ *
+ * @param earnings - 收益记录数组
+ * @returns 按代币聚合的摘要行数组
  */
 export const formatEarningsSummary = (earnings: Earning[]): EarningsSummaryRow[] => {
   const map = new Map<string, { amount: number; valueUsd: number }>()
@@ -134,6 +161,15 @@ export const formatEarningsSummary = (earnings: Earning[]): EarningsSummaryRow[]
     })
 }
 
+/**
+ * 格式化 USD 金额为可读字符串
+ *
+ * 非有限值返回 "$0"，正常值使用美国英语区域格式，
+ * 最多保留 2 位小数。
+ *
+ * @param value - 数值
+ * @returns 格式化后的字符串，如 "$1,234.56"
+ */
 export const formatUsd = (value: number): string => {
   if (!Number.isFinite(value)) return '$0'
   return `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`

@@ -1,3 +1,9 @@
+/**
+ * @file Layout — 应用主布局组件
+ * @description 应用的主框架布局，包含顶部自定义标题栏（TitleBar）、左侧可折叠导航侧边栏、
+ *              以及右侧主内容区。导航项根据用户角色动态过滤，支持侧边栏折叠/展开状态持久化。
+ * @module renderer/components
+ */
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -23,73 +29,98 @@ import type { UserRole } from '../contexts/AuthContext'
 import TitleBar from './TitleBar'
 
 interface NavItem {
+  /** 路由路径 */
   path: string
+  /** 导航图标组件 */
   icon: React.ElementType
+  /** i18n 翻译 key */
   key: string
+  /** 可见角色列表 */
   roles: UserRole[]
 }
 
+/** 完整导航项配置：定义所有可用页面及其对应的角色可见性 */
 const ALL_NAV_ITEMS: NavItem[] = [
-  // ── Dashboard (all roles) ──
+  // ---- 通用页面（所有角色可见） ----
   { path: '/', icon: LayoutDashboard, key: 'nav.dashboard', roles: ['admin', 'developer', 'user'] },
-  // ── Operational pages (developer + user only) ──
+
+  // ---- 运营页面（developer + user） ----
   { path: '/wallets', icon: Wallet, key: 'nav.wallets', roles: ['developer', 'user'] },
   { path: '/accounts', icon: User, key: 'nav.accounts', roles: ['developer', 'user'] },
   { path: '/proxies', icon: Globe, key: 'nav.proxies', roles: ['developer', 'user'] },
   { path: '/airdrops', icon: Gift, key: 'nav.airdrops', roles: ['developer', 'user'] },
   { path: '/tasks', icon: Zap, key: 'nav.tasks', roles: ['developer', 'user'] },
   { path: '/scheduler', icon: Clock, key: 'nav.scheduler', roles: ['developer', 'user'] },
-  // ── Templates (all roles, including admin for marketplace management) ──
+
+  // ---- 模板市场（所有角色可见） ----
   { path: '/templates', icon: FileText, key: 'nav.templates', roles: ['admin', 'developer', 'user'] },
-  // ── Developer-only pages ──
+
+  // ---- 开发者专用页面 ----
   { path: '/quick-dev', icon: Zap, key: 'nav.quickDev', roles: ['developer'] },
   { path: '/developer/pending', icon: Clock, key: 'nav.developerPending', roles: ['developer'] },
   { path: '/debug', icon: Bug, key: 'nav.debug', roles: ['admin', 'developer'] },
 
+  // ---- 管理员专用页面 ----
   { path: '/admin/review', icon: Shield, key: 'nav.adminReview', roles: ['admin'] },
   { path: '/users', icon: User, key: 'nav.users', roles: ['admin'] },
   { path: '/logs', icon: ScrollText, key: 'nav.logs', roles: ['admin'] },
-  // ── Settings (all roles — content adapts to permission) ──
+
+  // ---- 设置页面（所有角色可见） ----
   { path: '/settings', icon: Settings, key: 'nav.settings', roles: ['admin', 'developer', 'user'] },
 ]
 
+/** 角色名到 i18n key 的映射 */
 const roleLabelKeys: Record<UserRole, string> = {
   admin: 'roles.admin',
   developer: 'roles.developer',
   user: 'roles.user'
 }
 
+/** 角色徽章颜色映射 */
 const roleColors: Record<UserRole, string> = {
   admin: 'bg-danger text-white',
   developer: 'bg-primary text-white',
   user: 'bg-success text-white'
 }
 
+/**
+ * Layout — 应用主布局组件
+ *
+ * 提供应用的整体骨架结构，包含顶部标题栏、左侧导航侧边栏和右侧主内容区。
+ * 导航项根据当前用户角色动态过滤显示，侧边栏折叠状态持久化到 localStorage。
+ *
+ * @param children - 路由页面内容，由 <KeepAliveOutlet /> 或 <Outlet /> 提供
+ */
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
+  // 从 localStorage 恢复侧边栏折叠状态
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'
   )
 
+  // 根据用户角色过滤导航项
   const userRole: UserRole = user?.role ?? 'user'
   const NAV_ITEMS = ALL_NAV_ITEMS.filter((item) => item.roles.includes(userRole))
 
   return (
+    // 整体布局：纵向排列 TitleBar 和主内容区
     <div className="flex flex-col h-screen bg-bg-page">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
+        {/* 左侧导航侧边栏 */}
         <aside
           className={`${collapsed ? 'w-16' : 'w-52'} flex flex-col border-r border-border-light bg-bg-card transition-all duration-200`}
         >
+          {/* 侧边栏顶栏：折叠/展开按钮 */}
           <div
             className={`relative flex items-center h-11 px-2.5 border-b border-border-light/60 ${
               collapsed ? 'justify-center' : 'justify-end'
             }`}
           >
-            {/* Subtle accent hairline at the bottom of the header */}
+            {/* 顶栏底部装饰线 */}
             <div className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
             <button
@@ -105,6 +136,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               {collapsed ? <Menu size={16} /> : <X size={16} />}
             </button>
           </div>
+
+          {/* 导航菜单列表 */}
           <nav className="flex-1 py-2 space-y-0.5 px-2 overflow-y-auto">
             {NAV_ITEMS.map(({ path, icon: Icon, key }) => {
               const active =
@@ -128,6 +161,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             })}
           </nav>
 
+          {/* 底部用户信息 + 登出按钮 */}
           <div className="border-t border-border-light p-3">
             {!collapsed && (
               <div className="mb-2">
@@ -152,14 +186,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </button>
           </div>
         </aside>
+
+        {/* 右侧主内容区 */}
         <main className="flex-1 overflow-auto p-6 bg-bg-page">
           {/*
-            No `key={pathname}` here: pages are kept mounted across
-            navigation by <KeepAliveOutlet /> in App.tsx, so we do not
-            want to remount the whole <main> on every URL change. The
-            per-page fade-in animation lives on the active page wrapper
-            inside KeepAliveOutlet, so it runs on the first visit to
-            each page and not on subsequent returns.
+            这里不使用 key={pathname} 的原因是页面切换由 <KeepAliveOutlet /> 在 App.tsx 中处理，
+            页面组件被缓存而非卸载/重新挂载。因此整个 <main> 不应因 URL 变化而重新挂载。
+            每个页面的淡入动画由 KeepAliveOutlet 内部的活跃页面包装器控制。
           */}
           {children}
         </main>
