@@ -120,7 +120,7 @@ export default function TemplateEditor() {
     try {
       const readResult = await fileApi.readFile(result.filePath)
       if (!readResult.success || !readResult.content) {
-        toast.error(t('templateEditor.readFailed', 'Failed to read file'))
+        toast.error(t('templateEditor.readFailed'))
         return
       }
       const parsed = JSON.parse(readResult.content)
@@ -157,10 +157,7 @@ export default function TemplateEditor() {
       }
       setFields(imported)
       toast.success(
-        t('templateEditor.importedCount', 'Imported {{count}} fields').replace(
-          '{{count}}',
-          String(imported.length)
-        )
+        t('templateEditor.importedCount', { count: imported.length })
       )
     } catch (e) {
       toast.error(
@@ -181,27 +178,27 @@ export default function TemplateEditor() {
     if (!meta.id.trim()) {
       setUploadStatus({
         kind: 'error',
-        message: t('templateEditor.idRequired', 'Template ID is required')
+        message: t('templateEditor.idRequired')
       })
       return
     }
     if (!meta.name.trim()) {
       setUploadStatus({
         kind: 'error',
-        message: t('templateEditor.nameRequired', 'Template name is required')
+        message: t('templateEditor.nameRequired')
       })
       return
     }
     if (!meta.type.trim()) {
       setUploadStatus({
         kind: 'error',
-        message: t('templateEditor.typeRequired', 'Template type is required')
+        message: t('templateEditor.typeRequired')
       })
       return
     }
     setUploadStatus({
       kind: 'uploading',
-      message: t('templateEditor.uploading', 'Uploading...')
+      message: t('templateEditor.uploading')
     })
     try {
       const base = await getMarketplaceUrl()
@@ -221,7 +218,7 @@ export default function TemplateEditor() {
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}: ${await resp.text()}`)
       }
-      const msg = t('templateEditor.uploadSuccess', 'Upload successful')
+      const msg = t('templateEditor.uploadSuccess')
       setUploadStatus({ kind: 'success', message: msg })
       toast.success(msg)
     } catch (e) {
@@ -258,7 +255,7 @@ export default function TemplateEditor() {
               type="text"
               value={meta.id}
               onChange={(e) => setMeta((m) => ({ ...m, id: e.target.value }))}
-              placeholder={t('templateEditor.idPlaceholder', 'template-unique-id')}
+              placeholder={t('templateEditor.idPlaceholder')}
               className="w-full bg-bg-input border border-border-light rounded-lg px-3 py-2 text-sm text-text-primary focus:border-primary outline-none"
             />
           </div>
@@ -306,7 +303,7 @@ export default function TemplateEditor() {
               type="text"
               value={meta.description}
               onChange={(e) => handleMetaChange('description', e.target.value)}
-              placeholder={t('templateEditor.descPlaceholder', 'EVM wallet account template')}
+              placeholder={t('templateEditor.descPlaceholder')}
               className="w-full bg-bg-input border border-border-light rounded-lg px-3 py-2 text-sm text-text-primary focus:border-primary outline-none"
             />
           </div>
@@ -461,7 +458,7 @@ function FieldRow({ field, fieldTypeLabels, onChange, onDelete, t }: FieldRowPro
           type="text"
           value={field.title}
           onChange={(e) => onChange({ title: e.target.value })}
-          placeholder={t('templateEditor.fieldLabelPlaceholder', 'Display label')}
+          placeholder={t('templateEditor.fieldLabelPlaceholder')}
           className="w-full bg-bg-input border border-border-light rounded-lg px-2.5 py-2 text-xs text-text-primary focus:border-primary outline-none"
         />
       </div>

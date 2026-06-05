@@ -449,7 +449,7 @@ const Accounts: React.FC = () => {
               onChange={(e) => setForm((f) => ({ ...f, templateId: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">{t('accounts.selectTemplate', '请选择模板')}</option>
+              <option value="">{t('accounts.selectTemplate')}</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} ({t.type})

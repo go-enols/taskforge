@@ -492,7 +492,7 @@ export default function UserManagement() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-bg-card border border-border-light rounded-xl p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-lg font-semibold text-text-primary mb-5">
-              {t('userManagement.editModal.title', { username: editTarget.username }) || `编辑用户 ${editTarget.username}`}
+              {t('userManagement.editModal.title', { username: editTarget.username })}
             </h3>
 
             {editError && (

@@ -498,7 +498,7 @@ const Tasks: React.FC = () => {
     try {
       config = JSON.parse(editConfig)
     } catch {
-      showError(t('tasks.config', '配置') + ' JSON ' + t('common.error', '错误'))
+      showError(t('tasks.config') + ' JSON ' + t('common.error'))
       return
     }
     setEditing(true)

@@ -54,7 +54,9 @@
     "status": "状态",
     "saveSuccess": "保存成功",
     "readonly": "只读",
-    "none": "无"
+    "none": "无",
+    "deleted": "已删除",
+    "undo": "撤销"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -329,7 +331,10 @@
     "batchCreated": "成功创建 {{count}} 个任务",
     "batchCreatedPartial": "部分成功: {{created}}/{{total}} 个任务已创建",
     "sandboxMode": "沙箱模式 (禁止网络和文件系统访问)",
-    "scriptPermissions": "脚本权限: "
+    "scriptPermissions": "脚本权限: ",
+    "batchSuccess": "批量执行成功，共 {{count}} 个任务",
+    "batchPartial": "部分成功：{{succeeded}} 个成功，{{failed}} 个失败",
+    "batchFailed": "批量执行失败，共 {{count}} 个任务失败"
   },
   "templates": {
     "title": "模板市场",
@@ -632,8 +637,7 @@
       "marketplace": "连接 marketplace 服务器的 URL 与 API Key。",
       "security": "应用锁定、自动锁屏等安全选项。",
       "system": "服务端口、日志级别、数据存储设置。",
-      "advanced": "实验性功能、调试选项与重置。",
-      "data": "数据目录、导出、清除日志与备份。"
+      "advanced": "实验性功能、调试选项与重置。"
     },
     "context": {
       "loggedInAs": "已登录为",
@@ -837,7 +841,11 @@
     "fieldDesc": "描述",
     "enumOptions": "枚举选项",
     "required": "必填",
-    "deleteField": "删除字段"
+    "deleteField": "删除字段",
+    "readFailed": "读取文件失败",
+    "importedCount": "已导入 {{count}} 个字段",
+    "idPlaceholder": "模板唯一标识，如 evm-wallet",
+    "descPlaceholder": "如：EVM 钱包账户模板"
   },
   "quickDev": {
     "title": "快速开发",

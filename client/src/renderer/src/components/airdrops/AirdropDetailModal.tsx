@@ -151,7 +151,7 @@ const AirdropDetailModal: React.FC<AirdropDetailModalProps> = ({
         <div className="mb-4">
           <div className="flex items-center gap-1 text-sm font-semibold text-text-primary mb-2">
             <LinkIcon size={14} />
-            {t('airdrops.links')}
+            {t('airdrops.counts.links', { count: project.links.length })}
           </div>
           {project.links.length === 0 ? (
             <p className="text-xs text-text-muted">{t('airdrops.noLinks')}</p>
@@ -178,7 +178,7 @@ const AirdropDetailModal: React.FC<AirdropDetailModalProps> = ({
         <div className="mb-4">
           <div className="flex items-center gap-1 text-sm font-semibold text-text-primary mb-2">
             <ListChecks size={14} />
-            {t('airdrops.tasks')}
+            {t('airdrops.counts.tasks', { count: project.tasks.length })}
           </div>
           {project.tasks.length === 0 ? (
             <p className="text-xs text-text-muted">{t('airdrops.noTasks')}</p>
@@ -227,7 +227,7 @@ const AirdropDetailModal: React.FC<AirdropDetailModalProps> = ({
         <div className="mb-4">
           <div className="flex items-center gap-1 text-sm font-semibold text-text-primary mb-2">
             <DollarSign size={14} />
-            {t('airdrops.earnings')}
+            {t('airdrops.counts.earnings', { count: project.earnings.length })}
           </div>
           {project.earnings.length === 0 ? (
             <p className="text-xs text-text-muted">{t('airdrops.noEarnings')}</p>
