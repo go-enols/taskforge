@@ -1,3 +1,9 @@
+/**
+ * @file 脚本 CRUD 路由
+ * @description 提供脚本的列表、详情、下载、上传、更新、删除、重新上传和审核功能。
+ *              上传时自动解压并验证 manifest.json 格式。
+ * @module server/routes
+ */
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { createHash } from "crypto";
@@ -10,9 +16,11 @@ import { db, stmts, getScriptsDir } from "../db";
 import { AuthenticatedRequest } from "../types";
 import { requireRole } from "../middleware/auth";
 
+/** 脚本路由实例 */
 const router = Router();
 
 // 50MB file size limit
+/** multer 文件上传中间件：存储到脚本目录，限制 50MB */
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, getScriptsDir()),
@@ -22,6 +30,13 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
+/**
+ * 将数据库行记录转换为前端所需的脚本响应格式
+ * 负责解析 JSON 字段、关联创建者用户名
+ *
+ * @param row - 数据库查询结果行
+ * @returns 格式化后的脚本对象
+ */
 function rowToScript(row: Record<string, unknown>) {
   const createdBy = (row.created_by as string) || undefined
   let createdByName: string | undefined
@@ -50,6 +65,7 @@ function rowToScript(row: Record<string, unknown>) {
   };
 }
 
+/** 获取脚本列表：普通用户只看到可见脚本，开发者可看到自己所有脚本，管理员看到全部 */
 router.get("/", (req: AuthenticatedRequest, res: Response) => {
     const showAll = req.query.all === "true" && (req.user?.role === "admin" || req.user?.role === "developer");
     let rows: Record<string, unknown>[];
@@ -67,18 +83,21 @@ router.get("/", (req: AuthenticatedRequest, res: Response) => {
     res.json({ data: { items, total: items.length } });
   });
 
+/** 获取待审核脚本列表（管理员专用） */
 router.get("/pending", requireRole("admin"), (req: AuthenticatedRequest, res: Response) => {
   const rows = stmts.scriptGetPending.all() as Record<string, unknown>[];
   const items = rows.map(rowToScript);
   res.json({ data: { items, total: items.length } });
 });
 
+/** 获取当前用户的待审核脚本列表 */
 router.get("/my-pending", requireRole("admin", "developer"), (req: AuthenticatedRequest, res: Response) => {
   const rows = stmts.scriptGetPendingByAuthor.all(req.user?.id) as Record<string, unknown>[];
   const items = rows.map(rowToScript);
   res.json({ data: { items, total: items.length } });
 });
 
+/** 获取脚本详情：非公开脚本仅创建者和管理员可查看 */
 router.get("/:id", (req: AuthenticatedRequest, res: Response) => {
   const row = stmts.scriptGetById.get(req.params.id) as
     | Record<string, unknown>
@@ -102,6 +121,7 @@ router.get("/:id", (req: AuthenticatedRequest, res: Response) => {
   res.json({ data: rowToScript(row) });
 });
 
+/** 下载脚本 zip 包：自动增加下载计数，校验路径安全性 */
 router.get("/:id/download", (req: AuthenticatedRequest, res: Response) => {
   const row = stmts.scriptGetById.get(req.params.id) as
     | Record<string, unknown>
@@ -143,6 +163,7 @@ router.get("/:id/download", (req: AuthenticatedRequest, res: Response) => {
   });
 });
 
+/** 上传新脚本：自动解压并校验 manifest.json，管理员直接可见，开发者需审核 */
 router.post(
   "/",
   requireRole("admin", "developer"),
@@ -178,6 +199,7 @@ router.post(
     let manifestSchema: Record<string, unknown> | null = null;
     let tmpDir: string | undefined;
     try {
+      // 解压 zip 包到临时目录
       const { mkdtempSync, readFileSync } = require("fs");
       const { join: pathJoin } = require("path");
       const { tmpdir } = require("os");
@@ -190,6 +212,7 @@ router.post(
       if (!existsSync(manifestPath)) {
         manifestErr = "zip 包中缺少 manifest.json 文件";
       } else {
+        // 解析 manifest.json（支持 JSON5 注释语法）
         const manifestRaw = readFileSync(manifestPath, "utf-8");
         let manifest: Record<string, unknown>;
         try {
@@ -198,6 +221,7 @@ router.post(
           manifestErr = "manifest.json 不是有效的 JSON（支持 JSON5 注释格式）";
           throw new Error();
         }
+        // 校验必填字段
         const requiredFields = [
           "id",
           "name",
@@ -213,10 +237,12 @@ router.post(
             throw new Error();
           }
         }
+        // 校验运行时类型（目前仅支持 node）
         if (manifest.runtime !== "node") {
           manifestErr = 'manifest.json 中 runtime 必须为 "node"';
           throw new Error();
         }
+        // 校验 schema 格式（必须是 object 类型的 JSON Schema）
         const mSchema = manifest.schema as Record<string, unknown>;
         if (
           !mSchema ||
@@ -231,12 +257,13 @@ router.post(
       }
     } catch (err) {
       if (!manifestErr) {
-        // Real error (e.g., unzip not installed), not a validation failure
+        // 捕获未预先处理的异常
         const msg = err instanceof Error ? err.message : String(err);
         manifestErr = `验证脚本包失败: ${msg}`;
         console.error(`[scripts] zip validation error: ${msg}`);
       }
     } finally {
+      // 清理临时目录
       if (tmpDir) { try { rmSync(tmpDir, { recursive: true, force: true }) } catch {} }
     }
     if (manifestErr) {
@@ -295,6 +322,7 @@ router.post(
   },
 );
 
+/** 更新脚本：可替换 zip 包或修改元数据，非管理员只能修改自己的脚本 */
 router.put(
   "/:id",
   requireRole("admin", "developer"),
@@ -359,6 +387,7 @@ router.put(
   },
 );
 
+/** 部分更新脚本：支持修改 visible、name、version 等字段 */
 router.patch(
   "/:id",
   requireRole("admin", "developer"),
@@ -421,6 +450,7 @@ router.patch(
   },
 );
 
+/** 删除脚本：同时删除关联的 zip 文件，非管理员只能删除自己创建的脚本 */
 router.delete(
   "/:id",
   requireRole("admin", "developer"),
@@ -451,6 +481,7 @@ router.delete(
   },
 );
 
+/** 重新上传脚本 zip 包：替换文件并重新校验 manifest，非管理员需重新审核 */
 router.post(
   "/:id/reupload",
   requireRole("admin", "developer"),
@@ -552,6 +583,7 @@ router.post(
   },
 );
 
+/** 审核脚本：管理员可 approve 或 reject，通过后自动设为可见 */
 router.post("/:id/review", requireRole("admin"), (req: AuthenticatedRequest, res: Response) => {
   const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
   if (!existing) {

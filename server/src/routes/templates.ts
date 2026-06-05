@@ -1,11 +1,24 @@
+/**
+ * @file 模板 CRUD 路由
+ * @description 提供账户模板的列表、详情、创建、更新、部分更新、删除和审核功能。
+ * @module server/routes
+ */
 import { Router, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db, stmts } from "../db";
 import { AuthenticatedRequest } from "../types";
 import { requireRole } from "../middleware/auth";
 
+/** 模板路由实例 */
 const router = Router();
 
+/**
+ * 将数据库行记录转换为前端所需的模板响应格式
+ * 解析 JSON 字段，关联创建者用户名
+ *
+ * @param row - 数据库查询结果行
+ * @returns 格式化后的模板对象
+ */
 function rowToTemplate(row: Record<string, unknown>) {
   const createdBy = (row.created_by as string) || undefined
   let createdByName: string | undefined
@@ -32,6 +45,7 @@ function rowToTemplate(row: Record<string, unknown>) {
   };
 }
 
+/** 获取模板列表：普通用户只看到可见模板，开发者可看到自己所有模板，管理员看到全部 */
 router.get("/", (req: AuthenticatedRequest, res: Response) => {
     const showAll = req.query.all === "true" && (req.user?.role === "admin" || req.user?.role === "developer");
     let rows: Record<string, unknown>[];
@@ -49,18 +63,21 @@ router.get("/", (req: AuthenticatedRequest, res: Response) => {
     res.json({ data: { items, total: items.length } });
   });
 
+/** 获取待审核模板列表（管理员专用） */
 router.get("/pending", requireRole("admin"), (req: AuthenticatedRequest, res: Response) => {
   const rows = stmts.templateGetPending.all() as Record<string, unknown>[];
   const items = rows.map(rowToTemplate);
   res.json({ data: { items, total: items.length } });
 });
 
+/** 获取当前用户的待审核模板列表 */
 router.get("/my-pending", requireRole("admin", "developer"), (req: AuthenticatedRequest, res: Response) => {
   const rows = stmts.templateGetPendingByAuthor.all(req.user?.id) as Record<string, unknown>[];
   const items = rows.map(rowToTemplate);
   res.json({ data: { items, total: items.length } });
 });
 
+/** 获取模板详情：非公开模板仅创建者和管理员可查看 */
 router.get("/:id", (req: AuthenticatedRequest, res: Response) => {
   const row = stmts.templateGetById.get(req.params.id) as
     | Record<string, unknown>
@@ -84,6 +101,7 @@ router.get("/:id", (req: AuthenticatedRequest, res: Response) => {
   res.json({ data: rowToTemplate(row) });
 });
 
+/** 创建新模板：管理员直接可见，开发者需审核 */
 router.post(
   "/",
   requireRole("admin", "developer"),
@@ -132,6 +150,7 @@ router.post(
   },
 );
 
+/** 更新模板：非管理员只能修改自己创建的模板 */
 router.put(
   "/:id",
   requireRole("admin", "developer"),
@@ -179,6 +198,7 @@ router.put(
   },
 );
 
+/** 部分更新模板：支持修改 visible、name、type、version 等字段 */
 router.patch(
   "/:id",
   requireRole("admin", "developer"),
@@ -240,6 +260,7 @@ router.patch(
   },
 );
 
+/** 删除模板：非管理员只能删除自己创建的模板 */
 router.delete(
   "/:id",
   requireRole("admin", "developer"),
@@ -267,6 +288,7 @@ router.delete(
   },
 );
 
+/** 审核模板：管理员可 approve 或 reject，通过后自动设为可见 */
 router.post("/:id/review", requireRole("admin"), (req: AuthenticatedRequest, res: Response) => {
   const existing = stmts.templateGetById.get(req.params.id) as Record<string, unknown> | undefined;
   if (!existing) {

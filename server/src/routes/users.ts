@@ -1,3 +1,8 @@
+/**
+ * @file 用户管理路由
+ * @description 提供用户信息查询、修改密码、API Key 管理、以及管理员对用户的 CRUD 操作。
+ * @module server/routes
+ */
 import { Router, Response } from 'express'
 import bcrypt from 'bcrypt'
 import { v4 as uuidv4 } from 'uuid'
@@ -6,8 +11,15 @@ import { db, stmts } from '../db'
 import { AuthenticatedRequest, UserRecord } from '../types'
 import { requireRole } from '../middleware/auth'
 
+/** 用户路由实例 */
 const router = Router()
 
+/**
+ * 脱敏用户数据：移除 password_hash，转换为驼峰命名的安全输出格式
+ *
+ * @param row - 数据库用户记录
+ * @returns 脱敏后的用户对象（不含密码）
+ */
 function sanitizeUser(row: UserRecord) {
   return {
     id: row.id,
@@ -20,11 +32,13 @@ function sanitizeUser(row: UserRecord) {
   }
 }
 
+/** 统一错误日志记录工具 */
 function logError(tag: string, err: unknown): void {
   console.error(`[users] ${tag}:`, err instanceof Error ? err.message : String(err))
 }
 
 // GET /api/users/me — current user info
+/** 获取当前登录用户信息 */
 router.get('/me', (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     res.status(401).json({ error: { message: '未认证', code: 'UNAUTHORIZED' } })
@@ -39,6 +53,7 @@ router.get('/me', (req: AuthenticatedRequest, res: Response) => {
 })
 
 // PATCH /api/users/me — self-update (displayName, password)
+/** 更新当前用户信息：支持修改 displayName 和密码（需提供当前密码验证） */
 router.patch('/me', async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     res.status(401).json({ error: { message: '未认证', code: 'UNAUTHORIZED' } })
@@ -107,6 +122,7 @@ router.patch('/me', async (req: AuthenticatedRequest, res: Response) => {
 })
 
 // POST /api/users/me/regenerate-key — regenerate own API key
+/** 重新生成当前用户的 API Key */
 router.post('/me/regenerate-key', (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     res.status(401).json({ error: { message: '未认证', code: 'UNAUTHORIZED' } })
@@ -135,6 +151,7 @@ router.post('/me/regenerate-key', (req: AuthenticatedRequest, res: Response) => 
 })
 
 // GET /api/users — list all users (admin only)
+/** 获取所有用户列表（管理员专用） */
 router.get('/', requireRole('admin'), (_req: AuthenticatedRequest, res: Response) => {
   try {
     const rows = stmts.userGetAll.all() as UserRecord[]
@@ -148,6 +165,7 @@ router.get('/', requireRole('admin'), (_req: AuthenticatedRequest, res: Response
 })
 
 // POST /api/users — create user (admin only)
+/** 创建新用户（管理员专用） */
 router.post('/', requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
   const { username, password, displayName, role } = req.body
 
@@ -195,6 +213,7 @@ router.post('/', requireRole('admin'), async (req: AuthenticatedRequest, res: Re
 })
 
 // PATCH /api/users/:id — update user (admin only)
+/** 更新指定用户信息（管理员专用）：支持修改 displayName、role 和密码 */
 router.patch('/:id', requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
   const existing = stmts.userGetById.get(req.params.id) as UserRecord | undefined
   if (!existing) {
@@ -225,6 +244,7 @@ router.patch('/:id', requireRole('admin'), async (req: AuthenticatedRequest, res
 })
 
 // DELETE /api/users/:id — delete user (admin only)
+/** 删除用户（管理员专用） */
 router.delete('/:id', requireRole('admin'), (req: AuthenticatedRequest, res: Response) => {
   try {
     const existing = stmts.userGetById.get(req.params.id) as UserRecord | undefined
@@ -243,6 +263,7 @@ router.delete('/:id', requireRole('admin'), (req: AuthenticatedRequest, res: Res
 })
 
 // POST /api/users/:id/regenerate-key — regenerate API key (admin only)
+/** 重新生成指定用户的 API Key（管理员专用） */
 router.post('/:id/regenerate-key', requireRole('admin'), (req: AuthenticatedRequest, res: Response) => {
   try {
     const existing = stmts.userGetById.get(req.params.id) as UserRecord | undefined

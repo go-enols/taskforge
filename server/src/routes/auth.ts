@@ -1,3 +1,8 @@
+/**
+ * @file 认证路由（登录/注册/初始化）
+ * @description 提供用户登录（JWT 签发）、注册（默认 user 角色）和首次初始化（创建管理员）接口。
+ * @module server/routes
+ */
 import { Router, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -7,13 +12,16 @@ import { stmts } from "../db";
 import { AuthenticatedRequest, UserRecord } from "../types";
 import { authMiddleware, requireRole } from "../middleware/auth";
 
+/** 认证路由实例 */
 const router = Router();
 
+/** 获取 JWT 签名密钥（从环境变量读取） */
 function getJwtSecret(): string {
   return process.env.JWT_SECRET || "";
 }
 
 // POST /api/auth/login
+/** 用户登录：验证用户名密码，返回 JWT Token（24h 有效期） */
 router.post("/login", async (req: AuthenticatedRequest, res: Response) => {
   const { username, password } = req.body;
 
@@ -67,6 +75,7 @@ router.post("/login", async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // POST /api/auth/register (public — anyone can register as a regular user)
+/** 用户注册：创建新用户（默认 role=user），返回 JWT Token */
 router.post("/register", async (req: AuthenticatedRequest, res: Response) => {
   const { username, password, displayName } = req.body
 
@@ -137,6 +146,7 @@ router.post("/register", async (req: AuthenticatedRequest, res: Response) => {
 })
 
 // POST /api/auth/setup (first-run — only works when 0 users exist)
+/** 首次初始化：当系统中无用户时创建第一个管理员账号（仅可调用一次） */
 router.post("/setup", async (req: AuthenticatedRequest, res: Response) => {
   const count = stmts.userCount.get() as { count: number }
   if (count.count > 0) {

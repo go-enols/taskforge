@@ -1,18 +1,43 @@
+/**
+ * @file 任务参数校验 schema
+ * @description 提供 JSON Schema ↔ FieldMeta 互转、表单校验、扁平/嵌套数据转换等功能。
+ *              用于任务脚本参数表单的动态渲染和校验。
+ * @module shared/schemas
+ */
 import { z } from 'zod'
 
+/** 表单字段元数据：描述一个表单字段的类型、标签、校验规则和选项 */
 export interface FieldMeta {
+  /** 字段名称 */
   name: string
+  /** 字段类型 */
   type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect'
+  /** 显示标签 */
   label: string
+  /** 是否必填 */
   required: boolean
+  /** 默认值 */
   defaultValue?: unknown
+  /** 选项列表（select/multiselect 类型使用） */
   options?: Array<{ label: string; value: string }>
+  /** 字段描述 */
   description?: string
+  /** 最小值（number 类型） */
   min?: number
+  /** 最大值（number 类型） */
   max?: number
+  /** 正则校验模式（string 类型） */
   pattern?: string
 }
 
+/**
+ * 从 Zod Schema 提取 FieldMeta 列表
+ *
+ * 遍历 ZodObject 的每个字段，解析类型信息和校验规则
+ *
+ * @param schema - Zod 对象 schema
+ * @returns 字段元数据数组
+ */
 export function extractFieldMeta(schema: z.ZodObject<z.ZodRawShape>): FieldMeta[] {
   const shape = schema.shape
   const fields: FieldMeta[] = []
@@ -26,9 +51,13 @@ export function extractFieldMeta(schema: z.ZodObject<z.ZodRawShape>): FieldMeta[
 }
 
 /**
- * Convert a JSON Schema object to FieldMeta[].
- * Handles the manifest.json schema format: { type: "object", properties: {...}, required: [...] }
- * Nested objects are flattened with dot-notation field names (e.g. "parent.child").
+ * 将 JSON Schema 对象转换为 FieldMeta[] 数组
+ *
+ * 处理 manifest.json 的 schema 格式：{ type: "object", properties: {...}, required: [...] }
+ * 嵌套对象会被展开为点号表示法（如 "parent.child"）。
+ *
+ * @param jsonSchema - JSON Schema 对象
+ * @returns 字段元数据数组
  */
 export function jsonSchemaToFieldMeta(jsonSchema: Record<string, unknown>): FieldMeta[] {
   const fields: FieldMeta[] = []
@@ -82,7 +111,13 @@ export function jsonSchemaToFieldMeta(jsonSchema: Record<string, unknown>): Fiel
 }
 
 /**
- * Recursively flatten nested object properties into dot-notation FieldMeta entries.
+ * 递归展开嵌套对象属性为点号表示法的 FieldMeta 条目
+ *
+ * @param prefix - 父级字段名前缀（如 "profile"）
+ * @param properties - 当前级别的属性定义
+ * @param requiredList - 当前级别的必填字段列表
+ * @param parentSchema - 父级 schema（用于获取 label）
+ * @returns 展开后的字段元数据数组
  */
 function flattenNestedProperties(
   prefix: string,
@@ -140,6 +175,7 @@ function flattenNestedProperties(
   return fields
 }
 
+/** 将 JSON Schema 类型映射为 FieldMeta 类型 */
 function mapJsonSchemaType(jsonType: string, enumValues: string[] | undefined): FieldMeta['type'] {
   if (enumValues?.length) return 'select'
   switch (jsonType) {
@@ -153,6 +189,7 @@ function mapJsonSchemaType(jsonType: string, enumValues: string[] | undefined): 
   }
 }
 
+/** 解析单个 Zod 字段为 FieldMeta 元数据 */
 function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
   const meta: FieldMeta = {
     name,
@@ -214,6 +251,7 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
   return meta
 }
 
+/** 解包 Zod 包装类型（Optional、Default），获取内部真实类型 */
 function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   const def = schema._def as unknown as { type?: string; innerType?: z.ZodTypeAny }
   if ((def.type === 'optional' || def.type === 'default') && def.innerType) {
@@ -222,6 +260,7 @@ function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   return schema
 }
 
+/** 判断 Zod Schema 是否为可选类型 */
 function isOptionalSchema(schema: z.ZodTypeAny): boolean {
   const def = schema._def as unknown as { type?: string }
   if (def.type === 'optional') return true
@@ -230,8 +269,13 @@ function isOptionalSchema(schema: z.ZodTypeAny): boolean {
 }
 
 /**
- * Validate form values against FieldMeta[] definitions.
- * Returns a map of field name → error message. Empty map means valid.
+ * 校验表单字段值
+ *
+ * 根据 FieldMeta[] 定义检查必填、数值范围和正则匹配。
+ *
+ * @param fields - 字段元数据数组
+ * @param values - 表单值键值对
+ * @returns 字段名 → 错误消息的映射（空对象表示校验通过）
  */
 export function validateFormFields(
   fields: FieldMeta[],
@@ -285,12 +329,15 @@ export function validateFormFields(
 }
 
 /**
- * Convert a flat object with dot-notation keys into a nested object.
- * Example: { "profile.name": "Alice", "profile.age": 30, "url": "x" }
- *       → { profile: { name: "Alice", age: 30 }, url: "x" }
+ * 将点号表示法的扁平对象转换为嵌套对象
  *
- * If a non-object leaf value already exists at an intermediate path, it is
- * replaced with an object so the deeper key can be inserted.
+ * 示例：{ "profile.name": "Alice", "profile.age": 30, "url": "x" }
+ *    → { profile: { name: "Alice", age: 30 }, url: "x" }
+ *
+ * 如果中间路径上已存在非对象值，会将其替换为对象以便插入深层属性。
+ *
+ * @param values - 点号表示法的扁平键值对
+ * @returns 嵌套结构对象
  */
 export function unflattenDotNotation(values: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
@@ -324,6 +371,14 @@ export function unflattenDotNotation(values: Record<string, unknown>): Record<st
   return result
 }
 
+/**
+ * 将 FieldMeta[] 转换为 Zod Schema
+ *
+ * 用于将动态表单定义转换为可执行的校验 schema。
+ *
+ * @param fields - 字段元数据数组
+ * @returns Zod 对象 schema
+ */
 export function fieldMetaToZodSchema(
   fields: FieldMeta[]
 ): z.ZodObject<Record<string, z.ZodTypeAny>> {
@@ -383,6 +438,7 @@ export function fieldMetaToZodSchema(
   return z.object(shape)
 }
 
+/** 通用任务参数 schema：代理、无头模式、重试次数、超时时间 */
 export const commonTaskParams = z.object({
   proxyEnabled: z.boolean().default(false).describe('使用代理'),
   headless: z.boolean().default(true).describe('无头模式'),
@@ -390,4 +446,5 @@ export const commonTaskParams = z.object({
   timeout: z.number().int().min(0).default(300).describe('超时时间(秒)')
 })
 
+/** 通用任务参数的类型推导 */
 export type CommonTaskParams = z.infer<typeof commonTaskParams>
