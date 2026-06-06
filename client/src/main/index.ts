@@ -95,11 +95,11 @@ function createWindow(httpPort: number, httpApiToken: string): void {
  * 7. 延迟 3 秒后检查自动更�? * 8. macOS 下处�?activate 事件（无窗口时重建）
  */
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.airdrop-farm')
+  electronApp.setAppUserModelId('com.taskforge')
 
-  // 数据库路径：%APPDATA%/airdrop-farm/airdrop-farm.db
+  // 数据库路径：%APPDATA%/TaskForge/taskforge.db
   const dataDir = app.getPath('userData')
-  const dbPath = join(dataDir, 'airdrop-farm.db')
+  const dbPath = join(dataDir, 'taskforge.db')
 
   const encryption = new EncryptionService()
   store = new StoreService(dbPath, encryption)

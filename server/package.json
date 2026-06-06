@@ -1,7 +1,7 @@
 {
-  "name": "airdrop-farm-marketplace",
+  "name": "taskforge-marketplace",
   "version": "1.0.0",
-  "description": "Marketplace server for airdrop-farm scripts and templates",
+  "description": "TaskForge marketplace server — script and account template distribution backend",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

@@ -1,5 +1,5 @@
 appId: com.electron.app
-productName: airdrop-farm
+productName: TaskForge
 directories:
   buildResources: build
 files:
@@ -21,7 +21,7 @@ extraResources:
 asarUnpack:
   - resources/**
 win:
-  executableName: airdrop-farm
+  executableName: taskforge
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -32,8 +32,8 @@ mac:
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    - NSDocumentsFolderUsageDescription: Application requests access to the device's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the device's Downloads folder.
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
@@ -50,4 +50,4 @@ npmRebuild: false
 publish:
   provider: github
   owner: go-enols
-  repo: airdrop-farm
+  repo: taskforge

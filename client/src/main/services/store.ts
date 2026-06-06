@@ -115,7 +115,7 @@ function nowISO(): string {
  *
  * @example
  * ```ts
- * const store = new StoreService('path/to/airdrop-farm.db')
+ * const store = new StoreService('path/to/taskforge.db')
  * const wallets = store.walletRepo.listWallets()
  * const accounts = store.listAccounts(1, 20, 'search term')
  * ```

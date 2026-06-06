@@ -199,7 +199,7 @@ ${propsStr}${(m.schema as Record<string, unknown>)?.required ? `,\n    "required
 const config = JSON.parse(process.env.TASK_CONFIG || '{}')
 console.log('[script] started with config:', JSON.stringify(config))
 
-// ── 权限自检（由 Airdrop Farm 注入） ──
+// ── 权限自检（由 TaskForge 注入） ──
 const canNetwork = process.env.TASK_PERM_NETWORK === '1'
 const canFilesystem = process.env.TASK_PERM_FILESYSTEM === '1'
 const isSandbox = process.env.TASK_SANDBOX === '1'
@@ -207,13 +207,13 @@ if (isSandbox) {
   console.warn('[script] Running in sandbox mode — network and filesystem access disabled')
 }
 
-// ── 读取钱包数据（由 Airdrop Farm 注入） ──
+// ── 读取钱包数据（由 TaskForge 注入） ──
 const wallets = JSON.parse(process.env.TASK_WALLETS || '[]')
 if (wallets.length > 0) {
   console.log('[script] loaded', wallets.length, 'wallet(s)')
 }
 
-// ── 读取账户数据（由 Airdrop Farm 注入） ──
+// ── 读取账户数据（由 TaskForge 注入） ──
 const accounts = JSON.parse(process.env.TASK_ACCOUNTS || '[]')
 if (accounts.length > 0) {
   console.log('[script] loaded', accounts.length, 'account(s)')
@@ -226,7 +226,7 @@ if (accounts.length > 0) {
         : ''
       const readme = `# ${projectMeta.name.trim() || 'Script'}
 
-${projectMeta.desc.trim() || 'Task script for Airdrop Farm'}
+${projectMeta.desc.trim() || 'Task script for TaskForge'}
 
 ## Permissions
 
@@ -245,7 +245,7 @@ ${schemaSection}
 
 ## Usage
 
-Install via Airdrop Farm marketplace, then create a task using this script.
+Install via TaskForge marketplace, then create a task using this script.
 `
       const manifestJson5 = buildManifestJson5(manifest)
       await fileApi.writeFile(`${dir}/manifest.json`, manifestJson5)

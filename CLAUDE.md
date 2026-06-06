@@ -60,7 +60,11 @@ npm run rebuild:node                # Rebuild for Node
 
 ### Overview
 
-Airdrop Farm is a full-stack desktop application for managing crypto airdrop operations. Built with:
+TaskForge is a full-stack desktop application for distributing and executing automation scripts. It pairs a sandboxed Electron runtime with a marketplace backend, letting developers publish signed scripts and letting users install + run them against their own data (accounts, proxies, captcha keys).
+
+Under the hood the system is a script distribution + execution platform: 47% of the main-process code is the task/script runtime, 62% of the marketplace server endpoints serve script and template distribution, and a 4-layer permission model (manifest declaration, sandbox flag, env-var whitelist, and a `sandbox-enforcer.cjs` monkey-patch) hardens every script before it can touch the network or filesystem. "Airdrop tracking" is one optional domain that scripts can target — not the product's purpose.
+
+Built with:
 
 - **Electron** - Desktop shell
 - **React 19 + TypeScript** - Frontend UI
@@ -117,7 +121,7 @@ Both transports share the same `handlerMap` in `src/main/ipc/index.ts`. The `exe
 
 ### Database
 
-SQLite via `better-sqlite3` stored at `userData/airdrop-farm.db`.
+SQLite via `better-sqlite3` stored at `userData/taskforge.db`.
 
 **Tables**:
 

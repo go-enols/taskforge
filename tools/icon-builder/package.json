@@ -1,5 +1,5 @@
 {
-  "name": "airdrop-farm-icon-builder",
+  "name": "taskforge-icon-builder",
   "version": "1.0.0",
   "description": "Builds multi-platform icons (PNG/ICO/ICNS) from icon.svg",
   "private": true,

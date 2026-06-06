@@ -1,10 +1,10 @@
 # Script Development Guide
 
-Reference for writing, testing, and publishing task scripts for airdrop-farm.
+Reference for writing, testing, and publishing task scripts for TaskForge.
 
 ## 1. Overview
 
-A task script is a Node.js program that automates blockchain interactions. The airdrop-farm app runs your script as a child process, feeds it configuration, captures its output, and manages its lifecycle.
+A task script is a Node.js program that automates blockchain interactions. The TaskForge app runs your script as a child process, feeds it configuration, captures its output, and manages its lifecycle.
 
 Flow: you publish a script to the marketplace server, users discover and install it, the app renders a configuration form from your schema, then spawns your script as a child process when the user starts the task.
 
@@ -354,7 +354,7 @@ Send a multipart POST request to your marketplace server:
 
 ```bash
 curl -X POST http://localhost:3400/api/scripts \
-  -H "Authorization: Bearer airdrop-farm-dev-key" \
+  -H "Authorization: Bearer taskforge-dev-key" \
   -F "name=Ping Checker" \
   -F "version=1.0.0" \
   -F "description=Sends a request and reports response time" \
@@ -378,7 +378,7 @@ If validation fails, the upload is rejected with a 400 error and the zip is dele
 
 ```bash
 curl -X PUT http://localhost:3400/api/scripts/{id} \
-  -H "Authorization: Bearer airdrop-farm-dev-key" \
+  -H "Authorization: Bearer taskforge-dev-key" \
   -F "version=1.1.0" \
   -F "changelog=Added retry logic" \
   -F "file=@my-script-v2.zip"
@@ -388,7 +388,7 @@ curl -X PUT http://localhost:3400/api/scripts/{id} \
 
 - GET requests are public (no token needed).
 - POST, PUT, DELETE requests require `Authorization: Bearer <token>`.
-- The default dev key is `airdrop-farm-dev-key`. Change it via the `MARKETPLACE_API_KEY` environment variable in production.
+- The default dev key is `taskforge-dev-key`. Change it via the `MARKETPLACE_API_KEY` environment variable in production.
 
 ## 11. Common Patterns
 

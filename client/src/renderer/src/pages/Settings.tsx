@@ -1186,7 +1186,7 @@ const DataSection: React.FC = () => {
       // Use saveFile dialog
       const result = (await window.electronAPI?.invoke?.(
         'dialog:saveFile',
-        'airdrop-farm-export.json',
+        'taskforge-export.json',
         '{}'
       )) as { canceled: boolean; filePath: string | null } | undefined
       if (result && !result.canceled) {

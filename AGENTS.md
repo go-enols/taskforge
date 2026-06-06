@@ -1,8 +1,10 @@
-# AGENTS.md — airdrop-farm 开发规范
+# AGENTS.md — TaskForge 开发规范
 
 ## 项目类型：Electron + TypeScript 桌面应用
 
-基于 Electron 的全栈桌面应用，React + Tailwind CSS 渲染层，Node.js 主进程。所有业务逻辑在 TypeScript 中实现，附带独立的 Express 服务端子项目用于脚本/模板市场。
+基于 Electron 的全栈桌面应用，**核心定位是"脚本分发 + 沙箱执行平台"**。React + Tailwind CSS 渲染层，Node.js 主进程。所有业务逻辑在 TypeScript 中实现，附带独立的 Express 服务端子项目作为脚本与账户模板的分发后端。
+
+> **重要**：本仓库的原始名称是 airdrop-farm，正在重命名为 TaskForge（见 `.omo/plans/taskforge-redesign.md`）。所有"空投"业务（airdrop tracking、airdrop projects）只是脚本可执行的众多垂直场景之一，不是产品主线。当前重构目标：把脚本市场 + 沙箱执行作为导航/产品文案的一等公民，空投业务降级为次要模块。
 
 ### 子项目
 
@@ -25,7 +27,7 @@
 ## 1. 架构总览
 
 ```
-airdrop-farm/
+taskforge/
 ├── client/                    # Electron 客户端
 │   ├── package.json
 │   ├── electron.vite.config.ts
@@ -195,7 +197,7 @@ airdrop-farm/
 
 ## 4. 数据库设计
 
-位置：`app.getPath('userData')/airdrop-farm.db`（客户端）、`server/data/marketplace.db`（服务端）。使用 better-sqlite3 的同步 API，无需 async/await。JSON 字段由 `StoreService` 自动序列化/反序列化。
+位置：`app.getPath('userData')/taskforge.db`（客户端）、`server/data/marketplace.db`（服务端）。使用 better-sqlite3 的同步 API，无需 async/await。JSON 字段由 `StoreService` 自动序列化/反序列化。
 
 ### 4.1 表结构（客户端）
 

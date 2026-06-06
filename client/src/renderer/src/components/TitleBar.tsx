@@ -109,7 +109,7 @@ const TitleBar: React.FC = () => {
       {/* 左侧：应用图标和名称 */}
       <div className="flex items-center gap-2 px-3">
         <Leaf size={14} className="text-primary" />
-        <span className="text-xs font-semibold text-text-primary tracking-wide">Airdrop Farm</span>
+        <span className="text-xs font-semibold text-text-primary tracking-wide">TaskForge</span>
       </div>
 
       {/* 右侧：主题切换 + 窗口控制按钮 */}

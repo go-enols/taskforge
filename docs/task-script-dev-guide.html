@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Airdrop Farm — 任务脚本开发指南</title>
+<title>TaskForge — 任务脚本开发指南</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -131,7 +131,7 @@
 </head>
 <body>
 
-<h1>🚀 Airdrop Farm 任务脚本开发指南 <span class="sub">从零编写、测试、发布你的自动化任务脚本</span></h1>
+<h1>🚀 TaskForge 任务脚本开发指南 <span class="sub">从零编写、测试、发布你的自动化任务脚本</span></h1>
 
 <div class="toc">
 <h3>📑 目录</h3>
@@ -156,7 +156,7 @@
 <!-- ============================================================ -->
 <h2 id="overview">1. 概述</h2>
 
-<p>任务脚本是一个 <strong>Node.js 程序</strong>，由 Airdrop Farm 以子进程方式启动，自动化执行区块链交互操作（如领水、签到、跨链桥等）。</p>
+<p>任务脚本是一个 <strong>Node.js 程序</strong>，由 TaskForge 以子进程方式启动，自动化执行区块链交互操作（如领水、签到、跨链桥等）。</p>
 
 <p>一个脚本从开发到运行的完整路径：</p>
 
@@ -182,7 +182,7 @@
 <h3>2.1 整体架构</h3>
 
 <pre><code>┌─────────────────────────────────────────────────────────────┐
-│                    Airdrop Farm (Electron)                   │
+│                    TaskForge (Electron)                   │
 │                                                             │
 │  ┌──────────┐    IPC/HTTP     ┌──────────────┐              │
 │  │ Renderer │ ◄──────────────► │  Main Process │              │
@@ -573,14 +573,14 @@ if (proxy?.host) {
 
 <h4>方式二：通过 <code>package.json</code> 依赖数据库直连（高级）</h4>
 
-<p>脚本如果打包了 <code>better-sqlite3</code>（注意：<strong>需要静态编译版本</strong>，不能用标准 npm 包），可以直接读取 Airdrop Farm 的 SQLite 数据库查询代理表：</p>
+<p>脚本如果打包了 <code>better-sqlite3</code>（注意：<strong>需要静态编译版本</strong>，不能用标准 npm 包），可以直接读取 TaskForge 的 SQLite 数据库查询代理表：</p>
 
 <pre><code>// ⚠️ 高级用法，需要处理跨平台和 Electron ABI 问题
 const Database = require('better-sqlite3')
 const { app } = require('electron')  // 脚本运行在 Electron 环境中
 const { join } = require('path')
 
-const db = new Database(join(app.getPath('userData'), 'airdrop-farm.db'))
+const db = new Database(join(app.getPath('userData'), 'taskforge.db'))
 const proxies = db.prepare('SELECT * FROM proxies WHERE status = ?').all('active')
 console.log(`找到 ${proxies.length} 个活跃代理`)
 </code></pre>
@@ -790,7 +790,7 @@ unzip -l ../my-script.zip
 
 <pre><code># 首次发布
 curl -X POST http://localhost:3400/api/scripts \
-  -H "Authorization: Bearer airdrop-farm-dev-key" \
+  -H "Authorization: Bearer taskforge-dev-key" \
   -F "name=Testnet 领水" \
   -F "version=1.0.0" \
   -F "description=自动从测试网水龙头领取测试币" \
@@ -801,7 +801,7 @@ curl -X POST http://localhost:3400/api/scripts \
 
 # 更新版本
 curl -X PUT http://localhost:3400/api/scripts/com.example.testnet-faucet \
-  -H "Authorization: Bearer airdrop-farm-dev-key" \
+  -H "Authorization: Bearer taskforge-dev-key" \
   -F "version=1.1.0" \
   -F "changelog=添加 Base Sepolia 支持" \
   -F "file=@my-script-v2.zip"
@@ -1057,7 +1057,7 @@ main()
 <hr>
 
 <p style="text-align:center; color: var(--text-dim); margin-top: 3rem; font-size: 0.88rem;">
-  Airdrop Farm Task Script Development Guide &nbsp;·&nbsp; 版本 1.0 &nbsp;·&nbsp; 最后更新 2025-01
+  TaskForge Task Script Development Guide &nbsp;·&nbsp; 版本 1.0 &nbsp;·&nbsp; 最后更新 2025-01
 </p>
 
 </body>

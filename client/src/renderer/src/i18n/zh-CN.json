@@ -764,7 +764,7 @@
     "close": "关闭"
   },
   "login": {
-    "title": "Airdrop Farm",
+    "title": "TaskForge",
     "serverUrl": "服务端地址",
     "serverUrlPlaceholder": "http://localhost:3400",
     "connect": "连接",
@@ -789,7 +789,7 @@
     "tabRegister": "注册",
     "tabSetup": "初始化管理员",
     "operationFailed": "操作失败",
-    "version": "Airdrop Farm v1.0.0"
+    "version": "TaskForge v0.2.0"
   },
   "auth": {
     "noAccess": "无权访问此页面",
