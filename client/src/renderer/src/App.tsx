@@ -1,52 +1,48 @@
-/**
+﻿/**
  * @file 应用根组件
  * @description 应用入口组件，管理全局路由、认证状态、错误边界和页面缓存。
  *              未登录时显示 LoginPage，登录后根据角色显示对应的导航页面。
  *              使用 KeepAliveOutlet 保持页面状态，避免切换路由时重新挂载。
  * @module renderer/core
  */
-import React, { Suspense, lazy } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import Layout from './components/Layout'
-import ProtectedRoute from './components/ProtectedRoute'
-import KeepAliveOutlet from './components/KeepAliveOutlet'
+import React, { Suspense, lazy } from "react"
+import { Routes, Route, Navigate } from "react-router-dom"
+import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import { ErrorBoundary } from "./components/ErrorBoundary"
+import Layout from "./components/Layout"
+import ProtectedRoute from "./components/ProtectedRoute"
+import KeepAliveOutlet from "./components/KeepAliveOutlet"
 
 /** 懒加载页面组件：仪表盘 */
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-/** 懒加载页面组件：钱包管理 */
-const Wallets = lazy(() => import('./pages/Wallets'))
+const Dashboard = lazy(() => import("./pages/Dashboard"))
 /** 懒加载页面组件：账户管理 */
-const Accounts = lazy(() => import('./pages/Accounts'))
+const Accounts = lazy(() => import("./pages/Accounts"))
 /** 懒加载页面组件：代理管理 */
-const Proxies = lazy(() => import('./pages/Proxies'))
+const Proxies = lazy(() => import("./pages/Proxies"))
+/** 懒加载页面组件：验证码密钥管理 */
+const Captcha = lazy(() => import("./pages/Captcha"))
 /** 懒加载页面组件：任务管理 */
-const Tasks = lazy(() => import('./pages/Tasks'))
-/** 懒加载页面组件：模板市场 */
-const Templates = lazy(() => import('./pages/Templates'))
-/** 懒加载页面组件：空投管理 */
-const Airdrops = lazy(() => import('./pages/Airdrops'))
+const Tasks = lazy(() => import("./pages/Tasks"))
+/** 懒加载页面组件：市场（模板/脚本浏览安装） */
+const Templates = lazy(() => import("./pages/Templates"))
+/** 懒加载页面组件：空投追踪 */
+const Airdrops = lazy(() => import("./pages/Airdrops"))
 /** 懒加载页面组件：统计 */
-const Stats = lazy(() => import('./pages/Stats'))
+const Stats = lazy(() => import("./pages/Stats"))
 /** 懒加载页面组件：定时任务 */
-const Scheduler = lazy(() => import('./pages/Scheduler'))
+const Scheduler = lazy(() => import("./pages/Scheduler"))
 /** 懒加载页面组件：日志 */
-const Logs = lazy(() => import('./pages/Logs'))
+const Logs = lazy(() => import("./pages/Logs"))
 /** 懒加载页面组件：设置 */
-const Settings = lazy(() => import('./pages/Settings'))
-/** 懒加载页面组件：快速开发 */
-const QuickDev = lazy(() => import('./pages/QuickDev'))
-/** 懒加载页面组件：用户管理（admin） */
-const UserManagement = lazy(() => import('./pages/UserManagement'))
-/** 懒加载页面组件：管理员审核（admin） */
-const AdminReviewPage = lazy(() => import('./pages/AdminReviewPage'))
-/** 懒加载页面组件：开发者待审核（developer） */
-const DeveloperPendingPage = lazy(() => import('./pages/DeveloperPendingPage'))
+const Settings = lazy(() => import("./pages/Settings"))
+/** 懒加载页面组件：快速开发（开发者中心占位，P4 合并） */
+const QuickDev = lazy(() => import("./pages/QuickDev"))
+/** 懒加载页面组件：管理员审核（管理中心占位，P5 合并） */
+const AdminReviewPage = lazy(() => import("./pages/AdminReviewPage"))
 /** 懒加载页面组件：调试页 */
-const DebugPage = lazy(() => import('./pages/DebugPage'))
+const DebugPage = lazy(() => import("./pages/DebugPage"))
 /** 懒加载页面组件：登录页 */
-const LoginPage = lazy(() => import('./pages/LoginPage'))
+const LoginPage = lazy(() => import("./pages/LoginPage"))
 
 /** 通用加载旋转指示器，用于 Suspense fallback */
 const LoadingSpinner: React.FC = () => (
@@ -55,16 +51,6 @@ const LoadingSpinner: React.FC = () => (
   </div>
 )
 
-/**
- * AppContent — 应用主内容区
- *
- * 根据认证状态渲染不同内容：
- * - loading：显示全局加载画面
- * - 未登录：显示 LoginPage
- * - 已登录：显示 Layout + 角色保护的路由
- *
- * 路由使用 KeepAliveOutlet 保持页面缓存状态（表单值、滚动位置等）
- */
 function AppContent(): React.ReactElement {
   const { user, loading } = useAuth()
 
@@ -91,29 +77,21 @@ function AppContent(): React.ReactElement {
     <Layout>
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
-          {/*
-            KeepAliveOutlet 缓存模式：
-            匹配的子路由通过 KeepAliveOutlet 渲染，按 pathname 缓存 React 元素。
-            页面切换时，之前访问的页面保持挂载在 DOM 中（隐藏），
-            从而保留表单值、滚动位置、查询缓存、动画播放等状态。
-          */}
           <Route element={<KeepAliveOutlet />}>
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/wallets" element={<ProtectedRoute><Wallets /></ProtectedRoute>} />
-            <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
-            <Route path="/proxies" element={<ProtectedRoute><Proxies /></ProtectedRoute>} />
+            <Route path="/marketplace" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
             <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
-            <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+            <Route path="/data/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
+            <Route path="/data/proxies" element={<ProtectedRoute><Proxies /></ProtectedRoute>} />
+            <Route path="/data/captcha" element={<ProtectedRoute><Captcha /></ProtectedRoute>} />
             <Route path="/airdrops" element={<ProtectedRoute><Airdrops /></ProtectedRoute>} />
-            <Route path="/stats" element={<ProtectedRoute roles={['admin']}><Stats /></ProtectedRoute>} />
             <Route path="/scheduler" element={<ProtectedRoute><Scheduler /></ProtectedRoute>} />
-            <Route path="/logs" element={<ProtectedRoute roles={['admin']}><Logs /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/debug" element={<ProtectedRoute roles={['admin', 'developer']}><DebugPage /></ProtectedRoute>} />
-            <Route path="/quick-dev" element={<ProtectedRoute roles={['admin', 'developer']}><QuickDev /></ProtectedRoute>} />
-            <Route path="/users" element={<ProtectedRoute roles={['admin']}><UserManagement /></ProtectedRoute>} />
-            <Route path="/admin/review" element={<ProtectedRoute roles={['admin']}><AdminReviewPage /></ProtectedRoute>} />
-            <Route path="/developer/pending" element={<ProtectedRoute roles={['admin', 'developer']}><DeveloperPendingPage /></ProtectedRoute>} />
+            <Route path="/stats" element={<ProtectedRoute roles={["admin"]}><Stats /></ProtectedRoute>} />
+            <Route path="/logs" element={<ProtectedRoute roles={["admin"]}><Logs /></ProtectedRoute>} />
+            <Route path="/dev" element={<ProtectedRoute roles={["admin", "developer"]}><QuickDev /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute roles={["admin"]}><AdminReviewPage /></ProtectedRoute>} />
+            <Route path="/debug" element={<ProtectedRoute roles={["admin", "developer"]}><DebugPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
@@ -122,14 +100,6 @@ function AppContent(): React.ReactElement {
   )
 }
 
-/**
- * App — 根组件
- *
- * 组件层级：ErrorBoundary > AuthProvider > AppContent
- * - ErrorBoundary：全局错误捕获，防止白屏
- * - AuthProvider：管理用户认证状态
- * - AppContent：路由和页面内容
- */
 const App: React.FC = () => (
   <ErrorBoundary>
     <AuthProvider>

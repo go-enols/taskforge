@@ -9,7 +9,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
-  Wallet,
   User,
   Globe,
   Zap,
@@ -309,13 +308,7 @@ export default function Dashboard(): React.JSX.Element {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          icon={Wallet}
-          label={t('dashboard.stats.wallets')}
-          value={stats?.walletTotal || 0}
-          color="bg-primary/10 text-primary"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           icon={User}
           label={t('dashboard.stats.accounts')}
@@ -370,9 +363,9 @@ export default function Dashboard(): React.JSX.Element {
           </h2>
           <div className="space-y-3">
             <QuickActionButton
-              icon={Wallet}
-              label={t('dashboard.createWallet')}
-              onClick={() => navigate('/wallets')}
+              icon={User}
+              label={t('dashboard.createAccount')}
+              onClick={() => navigate('/data/accounts')}
             />
             <QuickActionButton
               icon={Zap}
@@ -382,7 +375,7 @@ export default function Dashboard(): React.JSX.Element {
             <QuickActionButton
               icon={Globe}
               label={t('dashboard.addProxy')}
-              onClick={() => navigate('/proxies')}
+              onClick={() => navigate('/data/proxies')}
             />
             <QuickActionButton
               icon={Plus}

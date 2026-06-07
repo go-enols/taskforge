@@ -62,8 +62,6 @@
   },
   "nav": {
     "dashboard": "仪表盘",
-    "accounts": "账户",
-    "proxies": "代理",
     "tasks": "任务",
     "airdrops": "项目追踪",
     "stats": "统计",
@@ -76,7 +74,6 @@
     "dataProxies": "代理",
     "dataCaptcha": "验证码",
     "developerCenter": "开发者中心",
-    "users": "用户管理",
     "adminCenter": "管理中心",
     "debug": "调试",
     "logout": "退出登录",
@@ -95,7 +92,7 @@
       "title": "刷新数据",
       "label": "刷新"
     },
-    "createWallet": "创建钱包",
+    "createAccount": "创建账户",
     "createTask": "创建任务",
     "addProxy": "添加代理",
     "addAirdrop": "添加空投",
