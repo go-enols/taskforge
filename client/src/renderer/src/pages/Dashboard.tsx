@@ -1,32 +1,30 @@
 /**
- * @file Dashboard — 仪表盘页面
- * @description 系统首页，展示统计概览（钱包、账户、代理、任务数量）、任务状态分布、
- *              快捷操作入口、近期活动任务列表和空投项目概览。
+ * @file Dashboard — 仪表盘页面（任务自动化中心）
+ * @description 系统首页，展示任务相关的 KPI 统计（进行中/今日完成/今日失败/已安装脚本）、
+ *              任务时间线（最近 24h 事件）、市场更新和快捷操作入口。
+ *              不再显示钱包数或空投项目概览（已改为任务自动化为中心）。
  * @module renderer/pages
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
-  User,
-  Globe,
-  Zap,
-  RefreshCw,
   Activity,
   CheckCircle,
   XCircle,
-  Plus,
+  User,
+  Globe,
+  Zap,
+  ShoppingBag,
+  PackageOpen,
   ArrowRight,
-  Clock,
-  TrendingUp,
-  Layers,
-  Target,
-  Shield
+  RefreshCw,
+  Clock
 } from 'lucide-react'
-import type { TFunction } from 'i18next'
-import { appApi, airdropApi } from '../api'
-import type { StatsAggregate, AirdropProject } from '../types'
+import { toast } from 'sonner'
+import { taskApi, scriptApi, marketplaceApi } from '../api'
+import type { Task, InstalledScript, RemoteScript } from '../types'
 import { statusLabel } from '../utils/i18n-status'
 import { useAuth } from '../contexts/AuthContext'
 import Skeleton from '../components/common/Skeleton'
@@ -44,47 +42,37 @@ const statusIcons: Record<string, React.ReactNode> = {
 /**
  * StatCard — 统计卡片组件
  *
- * 显示单一统计指标，包含图标、标签、数值和可选趋势数据。
- *
- * @param icon  - lucide-react 图标组件
- * @param label - 卡片标签文字
- * @param value - 主数值
- * @param color - 图标背景色（Tailwind class）
- * @param trend - 可选趋势数据 {value, isUp}
+ * 显示单一统计指标，包含图标、标签和数值。
  */
 function StatCard({
   icon: Icon,
   label,
   value,
   color,
-  trend
+  loading = false
 }: {
   icon: React.ElementType
   label: string
   value: number | string
   color: string
-  trend?: { value: number; isUp: boolean }
+  loading?: boolean
 }): React.JSX.Element {
   return (
     <div className="bg-bg-card rounded-xl p-6 border border-border-light hover:border-primary/30 transition-all duration-300">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
         <div className={`p-3 rounded-lg ${color}`}>
           <Icon className="w-6 h-6" />
         </div>
-        {trend && (
-          <div
-            className={`flex items-center gap-1 text-sm ${trend.isUp ? 'text-success' : 'text-danger'}`}
-          >
-            <TrendingUp className={`w-4 h-4 ${trend.isUp ? '' : 'rotate-180'}`} />
-            <span>{trend.value}%</span>
-          </div>
-        )}
       </div>
       <div className="mt-4">
         <p className="text-text-muted text-sm">{label}</p>
-        <p className="text-2xl font-bold mt-1 text-text-primary">
-          {typeof value === 'number' ? value.toLocaleString() : value}
-        </p>
+        {loading ? (
+          <Skeleton className="h-8 w-16 mt-1" />
+        ) : (
+          <p className="text-2xl font-bold mt-1 text-text-primary">
+            {typeof value === 'number' ? value.toLocaleString() : value}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -94,12 +82,22 @@ function StatCard({
  * StatusBadge — 状态徽章组件
  *
  * 根据任务状态显示对应颜色的圆角徽章（含状态图标）。
- *
- * @param status - 任务状态标识
- * @param label  - 显示文字
  */
-function StatusBadge({ status, label }: { status: string; label: string }): React.JSX.Element {
-  const statusClass = `bg-status-${status}-bg text-status-${status}-text border-status-${status}-text/20`
+function StatusBadge({
+  status,
+  label
+}: {
+  status: string
+  label: string
+}): React.JSX.Element {
+  const statusClass =
+    status === 'running'
+      ? 'bg-status-running-bg text-status-running-text border-status-running-border'
+      : status === 'complete'
+        ? 'bg-status-complete-bg text-status-complete-text border-status-complete-border'
+        : status === 'error'
+          ? 'bg-status-error-bg text-status-error-text border-status-error-border'
+          : 'bg-bg-tertiary text-text-muted border-border-light'
 
   return (
     <span
@@ -112,13 +110,7 @@ function StatusBadge({ status, label }: { status: string; label: string }): Reac
 }
 
 /**
- * QuickActionButton — 快捷操作按钮组件
- *
- * 在 Dashboard 上提供导航快捷入口。
- *
- * @param icon   - lucide-react 图标组件
- * @param label  - 按钮文字
- * @param onClick - 点击回调
+ * QuickActionButton — 快捷操作按钮
  */
 function QuickActionButton({
   icon: Icon,
@@ -132,138 +124,160 @@ function QuickActionButton({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 p-4 rounded-xl bg-bg-card border border-border-light hover:border-primary/50 hover:bg-bg-card-hover transition-all duration-200"
+      className="flex flex-col items-center gap-3 p-5 bg-bg-card border border-border-light rounded-xl hover:border-primary/40 hover:bg-bg-hover transition-all duration-200 group"
     >
-      <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
-        <Icon className="w-5 h-5" />
+      <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+        <Icon className="w-5 h-5 text-primary" />
       </div>
-      <span className="font-medium text-text-primary">{label}</span>
+      <span className="text-sm font-medium text-text-primary">{label}</span>
     </button>
   )
 }
 
-function AirdropCard({ airdrop, t }: { airdrop: AirdropProject; t: TFunction }): React.JSX.Element {
-  const statusColors: Record<string, string> = {
-    ongoing: 'bg-primary',
-    completed: 'bg-success',
-    cancelled: 'bg-danger',
-    claimed: 'bg-purple-500'
-  }
-
-  const typeColors: Record<string, string> = {
-    testnet: 'bg-cyan-500',
-    mainnet: 'bg-primary',
-    galxe: 'bg-warning',
-    quest: 'bg-purple-500',
-    social: 'bg-pink-500',
-    other: 'bg-bg-tertiary0'
-  }
-
+/**
+ * isToday — 判断 ISO 字符串是否属于今天（本地时区）
+ */
+function isToday(iso: string | null): boolean {
+  if (!iso) return false
+  const d = new Date(iso)
+  const now = new Date()
   return (
-    <div className="bg-bg-card rounded-xl p-5 border border-border-light hover:border-primary/30 transition-all duration-200">
-      <div className="flex items-start justify-between mb-3">
-        <h4 className="font-semibold text-text-primary">{airdrop.name}</h4>
-        <span
-          className={`w-2.5 h-2.5 rounded-full ${statusColors[airdrop.status] || 'bg-bg-tertiary0'}`}
-        />
-      </div>
-      <p className="text-sm text-text-secondary mb-4 line-clamp-2">{airdrop.description}</p>
-      <div className="flex flex-wrap gap-2">
-        <span className="px-2 py-1 rounded-md text-xs bg-primary/20 text-primary">
-          {airdrop.chain}
-        </span>
-        <span
-          className={`px-2 py-1 rounded-md text-xs ${statusColors[airdrop.status] || 'bg-bg-tertiary0'}/20 text-white/80`}
-        >
-          {statusLabel('airdrop', airdrop.status, t)}
-        </span>
-        <span
-          className={`px-2 py-1 rounded-md text-xs ${typeColors[airdrop.projectType] || 'bg-bg-tertiary0'}/20 text-white/80`}
-        >
-          {statusLabel('airdropType', airdrop.projectType, t)}
-        </span>
-      </div>
-    </div>
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
   )
 }
 
-const roleBannerColors: Record<string, string> = {
-  admin: 'bg-purple-500/10 border-purple-500/30 text-purple-600',
-  developer: 'bg-primary/10 border-primary/30 text-primary',
-  user: 'bg-success/10 border-success/30 text-success'
+interface MarketUpdateItem {
+  name: string
+  version: string
+  author: string | null
+  updatedAt: string
 }
 
+/**
+ * Dashboard — 仪表盘主页面
+ *
+ * 四个区域：
+ * 1. 顶部 — 4 个任务相关 KPI 卡片
+ * 2. 中部 — 最近 24h 任务时间线
+ * 3. 右侧 — 市场最新脚本更新
+ * 4. 底部 — 4 个快捷操作按钮
+ */
 export default function Dashboard(): React.JSX.Element {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  const [stats, setStats] = useState<StatsAggregate | null>(null)
-  const [airdrops, setAirdrops] = useState<AirdropProject[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [installedScripts, setInstalledScripts] = useState<InstalledScript[]>([])
+  const [marketUpdates, setMarketUpdates] = useState<MarketUpdateItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  const fetchData = useCallback(async (): Promise<void> => {
-    try {
-      setError(null)
-      setRefreshing(true)
-
-      const results = await Promise.allSettled([
-        appApi.getInfo(),
-        appApi.getStats(),
-        airdropApi.list(1, 4, '')
-      ])
-
-      const statsData = results[1].status === 'fulfilled' ? results[1].value : null
-      const airdropsData = results[2].status === 'fulfilled' ? results[2].value : null
-
-      setStats(statsData)
-      setAirdrops(airdropsData?.items || [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('common.operationFailed'))
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
+  /** 构建 scriptFolder → 脚本名称映射 */
+  const scriptNameMap = React.useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const s of installedScripts) {
+      map[s.installPath] = s.name
     }
-  }, [t])
+    return map
+  }, [installedScripts])
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData()
-  }, [fetchData])
-
-  if (loading) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary">{t('dashboard.title')}</h1>
-            <p className="text-text-muted mt-1">{t('dashboard.refresh.title')}</p>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border-light rounded-lg opacity-50">
-            <RefreshCw className="w-4 h-4" />
-            {t('common.refresh')}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Skeleton lines={1} className="h-16 rounded-xl" />
-          <Skeleton lines={1} className="h-16 rounded-xl" />
-          <Skeleton lines={1} className="h-16 rounded-xl" />
-          <Skeleton lines={1} className="h-16 rounded-xl" />
-        </div>
-      </div>
-    )
+  /** 获取任务名称（优先从已安装脚本映射中查找） */
+  const getTaskName = (task: Task): string => {
+    return scriptNameMap[task.scriptFolder] || task.scriptFolder
   }
 
-  if (error) {
+  const fetchData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [taskResult, installedResult, marketResult] = await Promise.allSettled([
+        taskApi.list(1, 9999),
+        scriptApi.listInstalled(),
+        marketplaceApi.listScripts()
+      ])
+
+      if (taskResult.status === 'fulfilled') {
+        setTasks(taskResult.value.items)
+      } else {
+        toast.error('获取任务数据失败')
+        console.error(taskResult.reason)
+      }
+
+      if (installedResult.status === 'fulfilled') {
+        setInstalledScripts(installedResult.value)
+      } else {
+        toast.error('获取脚本列表失败')
+        console.error(installedResult.reason)
+      }
+
+      if (marketResult.status === 'fulfilled') {
+        const sorted = [...marketResult.value.items]
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+          .slice(0, 5)
+          .map((s: RemoteScript) => ({
+            name: s.name,
+            version: s.version,
+            author: s.createdByName ?? null,
+            updatedAt: s.updatedAt
+          }))
+        setMarketUpdates(sorted)
+      } else {
+        // 市场数据拉取失败不阻塞页面
+        console.error(marketResult.reason)
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      toast.error(`数据加载失败: ${message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchData()
+    setRefreshing(false)
+  }
+
+  // --- KPI 计算 ---
+
+  const runningTasks = tasks.filter((t) => t.status === 'running').length
+  const completedToday = tasks.filter((t) => t.status === 'complete' && isToday(t.endedAt)).length
+  const failedToday = tasks.filter((t) => t.status === 'error' && isToday(t.endedAt)).length
+  const installedScriptCount = installedScripts.length
+
+  // --- 任务时间线（最近 24h） ---
+
+  const now = Date.now()
+  const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000
+
+  const timelineTasks = tasks
+    .filter((t) => t.startedAt && new Date(t.startedAt).getTime() >= twentyFourHoursAgo)
+    .sort((a, b) => {
+      if (!a.startedAt || !b.startedAt) return 0
+      return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    })
+    .slice(0, 20)
+
+  // Error state
+  if (error && !loading && tasks.length === 0 && installedScripts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <XCircle className="w-12 h-12 text-danger" />
-        <p className="text-text-secondary">{error}</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <XCircle className="w-16 h-16 text-danger/60" />
+        <p className="text-text-muted text-lg">{t('common.error')}</p>
+        <p className="text-text-muted text-sm">{error}</p>
         <button
           onClick={fetchData}
-          className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-primary rounded-lg text-sm font-medium hover:bg-primary/80 transition-colors"
         >
           {t('common.retry')}
         </button>
@@ -271,19 +285,18 @@ export default function Dashboard(): React.JSX.Element {
     )
   }
 
-  const ongoingAirdrops = airdrops.filter((a) => a.status === 'ongoing')
-
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
+      {/* 页头 */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">{t('dashboard.title')}</h1>
-          <p className="text-text-muted mt-1">{t('dashboard.refresh.title')}</p>
+          <p className="text-text-muted text-sm mt-1">{t('dashboard.refresh.title')}</p>
         </div>
         <button
-          onClick={fetchData}
+          onClick={handleRefresh}
           disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border-light rounded-lg hover:border-primary/50 transition-all disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border-light rounded-lg hover:border-primary/40 transition-colors text-sm text-text-secondary disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
           {t('common.refresh')}
@@ -292,186 +305,184 @@ export default function Dashboard(): React.JSX.Element {
 
       {/* 当前用户角色横幅 */}
       {user && (
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${roleBannerColors[user.role] || 'bg-bg-card border-border-light'}`}>
-          <Shield className="w-5 h-5 shrink-0" />
+        <div className="bg-bg-card border border-border-light rounded-xl p-4 flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <User className="w-5 h-5 text-primary" />
+          </div>
           <div>
-            <span className="text-sm font-medium">
-              {user.displayName}
-            </span>
-            <span className="text-xs ml-2 opacity-70">
-              ({user.role === 'admin' ? '管理员' : user.role === 'developer' ? '开发者' : '用户'})
-            </span>
-            <span className="text-xs ml-2 opacity-60">
-              — {t(`dashboard.roleMessage.${user.role}`)}
-            </span>
+            <p className="font-medium text-text-primary">
+              {user.displayName || user.username}
+              <span className="text-text-muted font-normal ml-1">
+                — {t(`dashboard.roleMessage.${user.role}`)}
+              </span>
+            </p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* 区域 1: KPI 卡片 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={User}
-          label={t('dashboard.stats.accounts')}
-          value={stats?.accountTotal || 0}
-          color="bg-purple-500/10 text-purple-600"
+          icon={Activity}
+          label={t('dashboard.runningTasks')}
+          value={runningTasks}
+          color="bg-amber-500/10 text-amber-500"
+          loading={loading}
         />
         <StatCard
-          icon={Globe}
-          label={t('dashboard.stats.proxies')}
-          value={stats?.proxyTotal || 0}
-          color="bg-cyan-500/10 text-cyan-600"
+          icon={CheckCircle}
+          label={t('dashboard.completedToday')}
+          value={completedToday}
+          color="bg-emerald-500/10 text-emerald-500"
+          loading={loading}
         />
         <StatCard
-          icon={Zap}
-          label={t('dashboard.stats.tasks')}
-          value={stats?.taskTotal || 0}
-          color="bg-amber-500/10 text-amber-600"
+          icon={XCircle}
+          label={t('dashboard.failedToday')}
+          value={failedToday}
+          color="bg-red-500/10 text-red-500"
+          loading={loading}
+        />
+        <StatCard
+          icon={PackageOpen}
+          label={t('dashboard.installedScripts')}
+          value={installedScriptCount}
+          color="bg-violet-500/10 text-violet-500"
+          loading={loading}
         />
       </div>
 
+      {/* 区域 2 & 3: 任务时间线 + 市场更新 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-bg-card rounded-xl p-6 border border-border-light">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-text-primary">
-            <Layers className="w-5 h-5 text-primary" />
-            {t('dashboard.taskStatusDistribution')}
-          </h2>
+        {/* 任务时间线 */}
+        <div className="lg:col-span-2 bg-bg-card border border-border-light rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" />
+              {t('dashboard.taskTimeline')}
+            </h2>
+            <span className="text-xs text-text-muted">
+              {t('common.total', { count: timelineTasks.length })}
+            </span>
+          </div>
 
-          {stats?.taskStatusDistribution ? (
-            <div className="space-y-3">
-              {Object.entries(stats.taskStatusDistribution).map(([status, count]) => (
-                <div key={status} className="flex items-center gap-3">
-                  <StatusBadge status={status} label={statusLabel('task', status, t)} />
-                  <div className="flex-1 h-2 bg-bg-tertiary rounded-full overflow-hidden">
-                    <div
-                      className={`h-full bg-status-${status}-bg`}
-                      style={{ width: `${(count / (stats.taskTotal || 1)) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-sm text-text-secondary w-12 text-right">{count}</span>
-                </div>
-              ))}
+          {loading ? (
+            <Skeleton lines={5} className="h-12 mb-3" />
+          ) : timelineTasks.length === 0 ? (
+            <div className="text-center py-12 text-text-muted">
+              <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">{t('dashboard.noRecentActivity')}</p>
             </div>
           ) : (
-            <p className="text-text-muted text-center py-8">{t('common.noData')}</p>
+            <div className="max-h-[400px] overflow-y-auto space-y-0">
+              <table className="w-full text-sm">
+                <thead className="text-text-muted border-b border-border-light sticky top-0 bg-bg-card z-10">
+                  <tr>
+                    <th className="text-left pb-2 font-medium">{t('tasks.scriptFolder')}</th>
+                    <th className="text-left pb-2 font-medium">{t('common.status')}</th>
+                    <th className="text-left pb-2 font-medium">{t('tasks.startTime')}</th>
+                    <th className="text-left pb-2 font-medium">{t('tasks.endTime')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {timelineTasks.map((task) => (
+                    <tr key={task.id} className="border-b border-border-light/50 hover:bg-bg-hover/50 transition-colors">
+                      <td className="py-2.5 pr-3 text-text-primary max-w-[200px] truncate" title={getTaskName(task)}>
+                        {getTaskName(task)}
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <StatusBadge
+                          status={task.status}
+                          label={statusLabel('task', task.status, t)}
+                        />
+                      </td>
+                      <td className="py-2.5 pr-3 text-text-muted whitespace-nowrap">
+                        {task.startedAt ? new Date(task.startedAt).toLocaleString('zh-CN') : '-'}
+                      </td>
+                      <td className="py-2.5 text-text-muted whitespace-nowrap">
+                        {task.endedAt ? new Date(task.endedAt).toLocaleString('zh-CN') : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
-        <div className="bg-bg-card rounded-xl p-6 border border-border-light">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-text-primary">
-            <Target className="w-5 h-5 text-primary" />
-            {t('dashboard.quickActions')}
-          </h2>
-          <div className="space-y-3">
-            <QuickActionButton
-              icon={User}
-              label={t('dashboard.createAccount')}
-              onClick={() => navigate('/data/accounts')}
-            />
-            <QuickActionButton
-              icon={Zap}
-              label={t('dashboard.createTask')}
-              onClick={() => navigate('/tasks')}
-            />
-            <QuickActionButton
-              icon={Globe}
-              label={t('dashboard.addProxy')}
-              onClick={() => navigate('/data/proxies')}
-            />
-            <QuickActionButton
-              icon={Plus}
-              label={t('dashboard.addAirdrop')}
-              onClick={() => navigate('/airdrops')}
-            />
+        {/* 市场更新 */}
+        <div className="bg-bg-card border border-border-light rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-primary" />
+              {t('dashboard.marketUpdates')}
+            </h2>
+            <button
+              onClick={() => navigate('/marketplace')}
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              {t('common.viewAll')}
+              <ArrowRight className="w-3 h-3" />
+            </button>
           </div>
+
+          {loading ? (
+            <Skeleton lines={5} className="h-14 mb-3" />
+          ) : marketUpdates.length === 0 ? (
+            <div className="text-center py-8 text-text-muted">
+              <ShoppingBag className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-xs">{t('common.noData')}</p>
+            </div>
+          ) : (
+            <ul className="space-y-4">
+              {marketUpdates.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="pb-4 border-b border-border-light last:border-0 last:pb-0"
+                >
+                  <p className="text-sm font-medium text-text-primary">{item.name}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
+                    <span>v{item.version}</span>
+                    {item.author && <span>{item.author}</span>}
+                  </div>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {new Date(item.updatedAt).toLocaleString('zh-CN')}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
+      {/* 区域 4: 快捷操作 */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2 text-text-primary">
-            <Activity className="w-5 h-5 text-primary" />
-            {t('dashboard.airdropOverview')}
-          </h2>
-          <button
-            onClick={() => navigate('/airdrops')}
-            className="flex items-center gap-1 text-sm text-primary hover:text-primary-hover transition-colors"
-          >
-            {t('common.viewAll')}
-            <ArrowRight className="w-4 h-4" />
-          </button>
+        <h2 className="text-lg font-semibold text-text-primary mb-4">
+          {t('dashboard.quickActions')}
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <QuickActionButton
+            icon={User}
+            label={t('dashboard.createAccount')}
+            onClick={() => navigate('/data/accounts')}
+          />
+          <QuickActionButton
+            icon={Zap}
+            label={t('dashboard.createTask')}
+            onClick={() => navigate('/tasks')}
+          />
+          <QuickActionButton
+            icon={Globe}
+            label={t('dashboard.addProxy')}
+            onClick={() => navigate('/data/proxies')}
+          />
+          <QuickActionButton
+            icon={ShoppingBag}
+            label={t('dashboard.browseMarketplace')}
+            onClick={() => navigate('/marketplace')}
+          />
         </div>
-
-        {ongoingAirdrops.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {ongoingAirdrops.map((airdrop) => (
-              <AirdropCard key={airdrop.id} airdrop={airdrop} t={t} />
-            ))}
-          </div>
-        ) : (
-          <div className="bg-bg-card rounded-xl p-12 border border-border-light text-center">
-            <Clock className="w-12 h-12 text-text-muted mx-auto mb-4" />
-            <p className="text-text-muted">{t('dashboard.noRecentActivity')}</p>
-          </div>
-        )}
       </div>
-
-      {stats?.recentTaskResults && stats.recentTaskResults.length > 0 && (
-        <div className="bg-bg-card rounded-xl p-6 border border-border-light">
-          <h2 className="text-lg font-semibold mb-4 text-text-primary">
-            {t('dashboard.recentActivity')}
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border-light">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-text-muted">
-                    {t('tasks.scriptFolder')}
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-text-muted">
-                    {t('common.status')}
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-text-muted">
-                    {t('tasks.startTime')}
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-text-muted">
-                    {t('tasks.endTime')}
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-text-muted">
-                    {t('common.duration')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.recentTaskResults.map((task, index) => (
-                  <tr
-                    key={index}
-                    className="border-b border-border-light/50 hover:bg-bg-card-hover transition-colors"
-                  >
-                    <td className="py-3 px-4 text-sm text-text-primary max-w-xs truncate">
-                      {task.scriptFolder}
-                    </td>
-                    <td className="py-3 px-4">
-                      <StatusBadge
-                        status={task.status}
-                        label={statusLabel('task', task.status, t)}
-                      />
-                    </td>
-                    <td className="py-3 px-4 text-sm text-text-secondary">
-                      {task.startedAt ? new Date(task.startedAt).toLocaleString('zh-CN') : '-'}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-text-secondary">
-                      {task.endedAt ? new Date(task.endedAt).toLocaleString('zh-CN') : '-'}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-text-secondary">
-                      {task.durationSecs != null ? `${task.durationSecs}s` : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
