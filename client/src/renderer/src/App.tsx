@@ -6,7 +6,7 @@
  * @module renderer/core
  */
 import React, { Suspense, lazy } from "react"
-import { Routes, Route, Navigate } from "react-router-dom"
+import { Routes, Route, useNavigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import Layout from "./components/Layout"
@@ -89,7 +89,7 @@ function AppContent(): React.ReactElement {
             <Route path="/dev" element={<ProtectedRoute roles={["admin", "developer"]}><DeveloperCenter /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute roles={["admin"]}><AdminCenter /></ProtectedRoute>} />
             <Route path="/debug" element={<ProtectedRoute roles={["admin", "developer"]}><DebugPage /></ProtectedRoute>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
       </Suspense>
@@ -104,5 +104,29 @@ const App: React.FC = () => (
     </AuthProvider>
   </ErrorBoundary>
 )
+
+/**
+ * 404 兜底页 — 当 pathname 不匹配任何 Route 时显示。
+ *
+ * 关键：必须用普通 JSX（按钮 onClick 调 navigate），不能用 <Navigate to="/" replace />。
+ * react-router v6/v7 的 <Navigate> 内部 useEffect 调 navigate()，依赖 navigate 函数引用；
+ * KeepAlive 会把它缓存在 module-level Map 里的 hidden div 保留，location 变化时 effect 重跑，
+ * 在 hidden div 里再次 navigate('/') 覆盖用户刚点的任何导航，污染整个应用的导航。
+ */
+const NotFoundPage: React.FC = () => {
+  const navigate = useNavigate()
+  return (
+    <div className="h-full flex flex-col items-center justify-center gap-4 text-text-secondary">
+      <div className="text-6xl font-bold text-text-muted">404</div>
+      <p className="text-sm">页面不存在</p>
+      <button
+        onClick={() => navigate('/')}
+        className="px-4 py-1.5 text-sm border border-border-light rounded-lg hover:bg-bg-tertiary transition-colors"
+      >
+        返回首页
+      </button>
+    </div>
+  )
+}
 
 export default App

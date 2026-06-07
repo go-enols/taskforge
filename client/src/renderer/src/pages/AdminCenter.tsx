@@ -9,7 +9,6 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Shield,
@@ -119,24 +118,9 @@ const levelLabelKey: Record<string, string> = {
 export default function AdminCenter() {
   const { t } = useTranslation()
   const { isAdmin } = useAuth()
-  const [searchParams, setSearchParams] = useSearchParams()
 
-  /* ── Tab (URL-synced: ?tab=scripts|templates|users|logs) ── */
-  const VALID_TABS: AdminTab[] = ['scripts', 'templates', 'users', 'logs']
-  const tabFromUrl = searchParams.get('tab') as AdminTab | null
-  const [activeTab, setActiveTabState] = useState<AdminTab>(
-    tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'scripts'
-  )
-
-  const setActiveTab = useCallback(
-    (tab: AdminTab) => {
-      setActiveTabState(tab)
-      const next = new URLSearchParams(searchParams)
-      next.set('tab', tab)
-      setSearchParams(next, { replace: true })
-    },
-    [searchParams, setSearchParams]
-  )
+  /* ── Tab ── */
+  const [activeTab, setActiveTab] = useState<AdminTab>('scripts')
 
   /* ── Review state (shared between scripts & templates tabs) ── */
   const [scripts, setScripts] = useState<RemoteScript[]>([])

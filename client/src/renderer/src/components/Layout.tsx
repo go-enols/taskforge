@@ -17,7 +17,6 @@ import {
   Zap,
   Clock,
   Tag,
-  ScrollText,
   Settings,
   Menu,
   X,
@@ -45,11 +44,6 @@ interface NavItem {
   roles: UserRole[]
   /** 子项列表（用于折叠菜单）；若存在则该项为父级菜单，点击只展开/折叠 */
   children?: NavItem[]
-  /**
-   * 可选：自定义点击跳转路径（含 query/hash），用于同路由不同 tab 场景。
-   * 不传则用 path。
-   */
-  navigateTo?: string
 }
 
 /**
@@ -93,14 +87,6 @@ const ALL_NAV_ITEMS: NavItem[] = [
 
   { path: '/dev', icon: Code, key: 'nav.developerCenter', roles: ['admin', 'developer'] },
   { path: '/admin', icon: ShieldCheck, key: 'nav.adminCenter', roles: ['admin'] },
-
-  {
-    path: '/admin',
-    icon: ScrollText,
-    key: 'nav.logs',
-    roles: ['admin'],
-    navigateTo: '/admin?tab=logs'
-  },
 
   { path: '/stats', icon: BarChart3, key: 'nav.stats', roles: ['admin'] },
   { path: '/debug', icon: Bug, key: 'nav.debug', roles: ['admin', 'developer'] }
@@ -215,7 +201,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 return (
                   <button
                     key={item.path}
-                    onClick={() => navigate(item.navigateTo ?? item.path)}
+                    onClick={() => navigate(item.path)}
                     className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm transition-colors focus-ring ${
                       active
                         ? 'bg-primary/10 text-primary font-medium'
