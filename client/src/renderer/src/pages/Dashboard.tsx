@@ -238,9 +238,11 @@ export default function Dashboard(): React.JSX.Element {
     }
   }
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchData()
   }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -255,10 +257,8 @@ export default function Dashboard(): React.JSX.Element {
   const failedToday = tasks.filter((t) => t.status === 'error' && isToday(t.endedAt)).length
   const installedScriptCount = installedScripts.length
 
-  // --- 任务时间线（最近 24h） ---
-
-  const now = Date.now()
-  const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000
+  /** 24h 截止时间戳（组件首次渲染时计算一次） */
+  const [twentyFourHoursAgo] = useState(() => Date.now() - 24 * 60 * 60 * 1000)
 
   const timelineTasks = tasks
     .filter((t) => t.startedAt && new Date(t.startedAt).getTime() >= twentyFourHoursAgo)

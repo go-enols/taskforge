@@ -66,12 +66,14 @@ export default function Data(): React.ReactElement {
   })
 
   /* ── URL → activeTab 同步 ── */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const tab = PATH_TAB_MAP[location.pathname]
     if (tab) {
       setActiveTab(tab)
     }
   }, [location.pathname])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   /* ── Tab 切换 ── */
   const handleTabChange = useCallback((tab: DataTab) => {
