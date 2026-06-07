@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ExternalLink,
@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   Calendar,
   Layers,
-  Tag as TagIcon
+  Tag as TagIcon,
+  FileBox
 } from 'lucide-react'
 import type {
   AirdropLink,
@@ -19,8 +20,10 @@ import type {
   AirdropTaskItem,
   AirdropTaskStatus,
   Earning,
-  EligibilityCriterion
+  EligibilityCriterion,
+  ProjectTemplate
 } from '../../../../shared/types'
+import { projectTemplateApi } from '../../api'
 import {
   statusColorMap,
   typeColorMap,
@@ -59,6 +62,29 @@ const AirdropDetailModal: React.FC<AirdropDetailModalProps> = ({
   onDelete
 }) => {
   const { t } = useTranslation()
+  const [template, setTemplate] = useState<ProjectTemplate | null>(null)
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!open || !project.templateId) {
+      setTemplate(null)
+      return
+    }
+    let cancelled = false
+    projectTemplateApi
+      .get(project.templateId)
+      .then((tpl) => {
+        if (!cancelled) setTemplate(tpl)
+      })
+      .catch(() => {
+        if (!cancelled) setTemplate(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, project.templateId])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   if (!open) return null
 
   const earnings = formatEarningsSummary(project.earnings)
@@ -339,6 +365,33 @@ const AirdropDetailModal: React.FC<AirdropDetailModalProps> = ({
           </div>
         )}
 
+        {/* 模板驱动的自定义字段 */}
+        {template && (
+          <div className="mb-4">
+            <div className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-1">
+              <FileBox size={14} className="text-primary" />
+              {template.name}
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 bg-primary/5 border border-primary/20 rounded-lg p-3">
+              {template.fields.map((field) => {
+                const value = project.customFields?.[field.name]
+                const displayValue = formatCustomFieldValue(value, field)
+                return (
+                  <div key={field.name} className="text-sm">
+                    <div className="text-xs text-text-muted mb-0.5">
+                      {field.title}
+                      {field.required && <span className="text-danger ml-1">*</span>}
+                    </div>
+                    <div className="text-text-primary font-medium break-words">
+                      {displayValue ?? <span className="text-text-muted italic">未填</span>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-4 border-t border-border-light">
           <button
@@ -361,6 +414,20 @@ const AirdropDetailModal: React.FC<AirdropDetailModalProps> = ({
       </div>
     </div>
   )
+}
+
+/** 格式化模板自定义字段值为可读字符串 */
+function formatCustomFieldValue(
+  value: unknown,
+  field: { type: string; options?: Array<{ label: string; value: string }> }
+): string | null {
+  if (value === undefined || value === null || value === '') return null
+  if (field.type === 'boolean') return value ? '是' : '否'
+  if (field.type === 'select') {
+    const opt = field.options?.find((o) => o.value === value)
+    return opt?.label ?? String(value)
+  }
+  return String(value)
 }
 
 export default AirdropDetailModal

@@ -4,7 +4,7 @@
  *              支持点击查看详情、编辑和删除操作。
  * @module renderer/components/airdrops
  */
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ExternalLink,
@@ -13,9 +13,11 @@ import {
   Link as LinkIcon,
   ListChecks,
   DollarSign,
-  Layers
+  Layers,
+  FileBox
 } from 'lucide-react'
-import type { AirdropLink, AirdropProject } from '../../../../shared/types'
+import type { AirdropLink, AirdropProject, ProjectTemplate } from '../../../../shared/types'
+import { projectTemplateApi } from '../../api'
 import {
   statusColorMap,
   typeColorMap,
@@ -52,6 +54,28 @@ const FOOTER_LINK_CAP = 3
  */
 const AirdropCard: React.FC<AirdropCardProps> = ({ project, onEdit, onDelete, onView }) => {
   const { t } = useTranslation()
+  const [template, setTemplate] = useState<ProjectTemplate | null>(null)
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!project.templateId) {
+      setTemplate(null)
+      return
+    }
+    let cancelled = false
+    projectTemplateApi
+      .get(project.templateId)
+      .then((tpl) => {
+        if (!cancelled) setTemplate(tpl)
+      })
+      .catch(() => {
+        if (!cancelled) setTemplate(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [project.templateId])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 截取最多 FOOTER_LINK_CAP 个链接显示在底部
   const visibleLinks = project.links.slice(0, FOOTER_LINK_CAP)
@@ -216,8 +240,45 @@ const AirdropCard: React.FC<AirdropCardProps> = ({ project, onEdit, onDelete, on
           )}
         </div>
       )}
+
+      {/* 模板驱动的自定义字段预览 (最多展示 2 个, 其余 "+N" 提示看详情) */}
+      {template && project.customFields && Object.keys(project.customFields).length > 0 && (
+        <div className="px-4 py-2 border-t border-border-light/40 bg-bg-tertiary/30">
+          <div className="flex items-center gap-1 mb-1.5">
+            <FileBox size={11} className="text-primary" />
+            <span className="text-[10px] font-medium text-primary">{template.name}</span>
+          </div>
+          <div className="space-y-1">
+            {template.fields.slice(0, 2).map((field) => {
+              const value = project.customFields?.[field.name]
+              const displayValue = formatCustomFieldValue(value, field)
+              if (displayValue === null) return null
+              return (
+                <div key={field.name} className="flex items-baseline gap-1.5 text-[11px]">
+                  <span className="text-text-muted shrink-0">{field.title}:</span>
+                  <span className="text-text-primary truncate">{displayValue}</span>
+                </div>
+              )
+            })}
+            {template.fields.length > 2 && (
+              <span className="text-[10px] text-text-muted">+{template.fields.length - 2}</span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+/** 把字段值格式化为简短字符串 (用于卡片预览) */
+function formatCustomFieldValue(value: unknown, field: { type: string; options?: Array<{ label: string; value: string }> }): string | null {
+  if (value === undefined || value === null || value === '') return null
+  if (field.type === 'boolean') return value ? '✓' : '—'
+  if (field.type === 'select') {
+    const opt = field.options?.find((o) => o.value === value)
+    return opt?.label ?? String(value)
+  }
+  return String(value)
 }
 
 export default AirdropCard

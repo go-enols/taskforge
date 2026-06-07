@@ -17,6 +17,7 @@ import {
   Zap,
   Clock,
   Tag,
+  FileBox,
   ScrollText,
   Settings,
   Menu,
@@ -88,6 +89,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
 
   { path: '/dev', icon: Code, key: 'nav.developerCenter', roles: ['admin', 'developer'] },
   { path: '/admin', icon: ShieldCheck, key: 'nav.adminCenter', roles: ['admin'] },
+
+  { path: '/admin/templates', icon: FileBox, key: 'nav.projectTemplates', roles: ['admin'] },
 
   { path: '/logs', icon: ScrollText, key: 'nav.logs', roles: ['admin'] },
 
