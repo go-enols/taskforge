@@ -51,6 +51,7 @@
     "category": "分类",
     "viewAll": "查看全部",
     "invalidJson": "JSON 格式无效",
+    "permissionDenied": "无权访问",
     "status": "状态",
     "saveSuccess": "保存成功",
     "readonly": "只读",
@@ -120,7 +121,28 @@
       "admin": "专注系统治理、脚本审核与平台统计",
       "developer": "专注脚本开发、测试与发布管理",
       "user": "下载脚本、配置数据源、运行任务"
-    }
+    },
+    "adminKpi": {
+      "users": "用户总数",
+      "scripts": "脚本总数",
+      "pendingReviews": "待审核",
+      "failedTasks": "今日失败任务"
+    },
+    "adminActions": {
+      "auditCenter": "审核中心",
+      "userManagement": "用户管理",
+      "systemLogs": "系统日志",
+      "marketplace": "审核市场"
+    },
+    "devActions": {
+      "scaffold": "项目脚手架",
+      "myPending": "我的待审核",
+      "myScripts": "我的脚本",
+      "browseMarket": "浏览市场"
+    },
+    "pendingReviews": "待审核列表",
+    "errorLogSummary": "错误日志摘要",
+    "noErrors": "暂无错误日志"
   },
   "accounts": {
     "title": "账户管理",
@@ -717,7 +739,8 @@
   },
   "auth": {
     "noAccess": "无权访问此页面",
-    "requiredRole": "需要 {{roles}} 权限"
+    "requiredRole": "需要 {{roles}} 权限",
+    "redirectingHome": "无权访问此页面，正在返回首页"
   },
   "layout": {
     "roleAdmin": "管理员",

@@ -299,6 +299,25 @@ export const marketplaceApi = {
       'market:getUser'
     ),
 
+  listUsers: async () => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/users`, { headers })
+    if (!resp.ok) throw new Error(`Failed to fetch users: ${resp.status}`)
+    const json = await resp.json()
+    return {
+      items: (json.data?.items ?? json.data ?? []) as Array<{
+        id: string
+        username: string
+        displayName: string
+        role: string
+        createdAt: string
+        updatedAt: string
+      }>,
+      total: json.data?.total ?? 0
+    }
+  },
+
   getMe: async () => {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()

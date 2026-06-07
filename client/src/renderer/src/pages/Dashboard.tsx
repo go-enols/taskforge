@@ -1,8 +1,9 @@
 /**
- * @file Dashboard — 仪表盘页面（任务自动化中心）
- * @description 系统首页，展示任务相关的 KPI 统计（进行中/今日完成/今日失败/已安装脚本）、
- *              任务时间线（最近 24h 事件）、市场更新和快捷操作入口。
- *              不再显示钱包数或空投项目概览（已改为任务自动化为中心）。
+ * @file Dashboard — 仪表盘页面（任务自动化中心 / 平台治理中心）
+ * @description 系统首页，按用户角色展示不同的视角：
+ *              admin   — 平台治理（用户数、脚本数、待审核、治理快捷入口）
+ *              developer — 脚本开发视角（安装脚本、任务时间线、市场更新、开发快捷入口）
+ *              user     — 任务运营视角（进行中任务、时间线、市场更新、操作快捷入口）
  * @module renderer/pages
  */
 
@@ -18,16 +19,24 @@ import {
   Zap,
   ShoppingBag,
   PackageOpen,
-  ArrowRight,
   RefreshCw,
-  Clock
+  Clock,
+  Shield,
+  Users,
+  ScrollText,
+  Code,
+  FileCheck,
+  FolderGit2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { taskApi, scriptApi, marketplaceApi } from '../api'
-import type { Task, InstalledScript, RemoteScript } from '../types'
+import { taskApi, scriptApi, marketplaceApi, logApi } from '../api'
+import type { Task, InstalledScript, RemoteScript, AppLog } from '../types'
 import { statusLabel } from '../utils/i18n-status'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth, type UserRole } from '../contexts/AuthContext'
 import Skeleton from '../components/common/Skeleton'
+
+/** 开发/用户角色允许导航的页面列表（admin 被限制进入运营页面） */
+const OPERATIONAL_ROUTES: UserRole[] = ['developer', 'user']
 
 /** 任务状态到对应图标的映射 */
 const statusIcons: Record<string, React.ReactNode> = {
@@ -155,19 +164,27 @@ interface MarketUpdateItem {
   updatedAt: string
 }
 
+interface PendingReviewItem {
+  id: string
+  name: string
+  version: string
+  author: string | null
+  reviewStatus: string
+  updatedAt: string
+}
+
 /**
  * Dashboard — 仪表盘主页面
  *
- * 四个区域：
- * 1. 顶部 — 4 个任务相关 KPI 卡片
- * 2. 中部 — 最近 24h 任务时间线
- * 3. 右侧 — 市场最新脚本更新
- * 4. 底部 — 4 个快捷操作按钮
+ * 按角色提供三种视图：
+ * - admin：平台治理 KPI + 待审核列表 + 系统日志摘要 + 治理快捷入口
+ * - developer：脚本开发 KPI + 任务时间线 + 市场更新 + 开发快捷入口
+ * - user：运营 KPI + 任务时间线 + 市场更新 + 操作快捷入口
  */
 export default function Dashboard(): React.JSX.Element {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
 
   const [tasks, setTasks] = useState<Task[]>([])
   const [installedScripts, setInstalledScripts] = useState<InstalledScript[]>([])
@@ -175,6 +192,13 @@ export default function Dashboard(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Admin-specific state
+  const [userCount, setUserCount] = useState<number>(0)
+  const [scriptCount, setScriptCount] = useState<number>(0)
+  const [pendingCount, setPendingCount] = useState<number>(0)
+  const [pendingReviews, setPendingReviews] = useState<PendingReviewItem[]>([])
+  const [errorLogs, setErrorLogs] = useState<AppLog[]>([])
 
   /** 构建 scriptFolder → 脚本名称映射 */
   const scriptNameMap = React.useMemo(() => {
@@ -194,40 +218,92 @@ export default function Dashboard(): React.JSX.Element {
     setLoading(true)
     setError(null)
     try {
-      const [taskResult, installedResult, marketResult] = await Promise.allSettled([
-        taskApi.list(1, 9999),
-        scriptApi.listInstalled(),
-        marketplaceApi.listScripts()
-      ])
+      if (isAdmin) {
+        // Admin 平台视角：用户数、脚本总数、待审核、今日失败任务
+        const [
+          usersResult,
+          scriptsResult,
+          pendingResult,
+          taskResult,
+          logsResult
+        ] = await Promise.allSettled([
+          marketplaceApi.listUsers(),
+          marketplaceApi.listScripts(),
+          marketplaceApi.getPendingScripts(),
+          taskApi.list(1, 9999),
+          logApi.query('error', undefined, undefined, undefined, undefined, 5)
+        ])
 
-      if (taskResult.status === 'fulfilled') {
-        setTasks(taskResult.value.items)
-      } else {
-        toast.error('获取任务数据失败')
-        console.error(taskResult.reason)
-      }
+        if (usersResult.status === 'fulfilled') {
+          setUserCount(usersResult.value.total ?? usersResult.value.items.length)
+        } else {
+          console.error('获取用户数据失败', usersResult.reason)
+        }
 
-      if (installedResult.status === 'fulfilled') {
-        setInstalledScripts(installedResult.value)
-      } else {
-        toast.error('获取脚本列表失败')
-        console.error(installedResult.reason)
-      }
+        if (scriptsResult.status === 'fulfilled') {
+          setScriptCount(scriptsResult.value.total)
+        } else {
+          console.error('获取脚本数据失败', scriptsResult.reason)
+        }
 
-      if (marketResult.status === 'fulfilled') {
-        const sorted = [...marketResult.value.items]
-          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-          .slice(0, 5)
-          .map((s: RemoteScript) => ({
-            name: s.name,
-            version: s.version,
-            author: s.createdByName ?? null,
-            updatedAt: s.updatedAt
-          }))
-        setMarketUpdates(sorted)
+        if (pendingResult.status === 'fulfilled') {
+          const data = pendingResult.value
+          const items = (data as { data?: { items?: PendingReviewItem[] } }).data?.items ??
+                        (data as { items?: PendingReviewItem[] }).items ??
+                        (Array.isArray(data) ? data : [])
+          setPendingCount(items.length)
+          setPendingReviews(items.slice(0, 10))
+        } else {
+          console.error('获取待审核数据失败', pendingResult.reason)
+        }
+
+        if (taskResult.status === 'fulfilled') {
+          setTasks(taskResult.value.items)
+        } else {
+          console.error('获取任务数据失败', taskResult.reason)
+        }
+
+        if (logsResult.status === 'fulfilled') {
+          setErrorLogs(logsResult.value.items.slice(0, 5))
+        } else {
+          console.error('获取日志数据失败', logsResult.reason)
+        }
       } else {
-        // 市场数据拉取失败不阻塞页面
-        console.error(marketResult.reason)
+        // Developer/User 运营视角
+        const [taskResult, installedResult, marketResult] = await Promise.allSettled([
+          taskApi.list(1, 9999),
+          scriptApi.listInstalled(),
+          marketplaceApi.listScripts()
+        ])
+
+        if (taskResult.status === 'fulfilled') {
+          setTasks(taskResult.value.items)
+        } else {
+          toast.error('获取任务数据失败')
+          console.error(taskResult.reason)
+        }
+
+        if (installedResult.status === 'fulfilled') {
+          setInstalledScripts(installedResult.value)
+        } else {
+          toast.error('获取脚本列表失败')
+          console.error(installedResult.reason)
+        }
+
+        if (marketResult.status === 'fulfilled') {
+          const sorted = [...marketResult.value.items]
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            .slice(0, 5)
+            .map((s: RemoteScript) => ({
+              name: s.name,
+              version: s.version,
+              author: s.createdByName ?? null,
+              updatedAt: s.updatedAt
+            }))
+          setMarketUpdates(sorted)
+        } else {
+          console.error(marketResult.reason)
+        }
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
@@ -250,7 +326,14 @@ export default function Dashboard(): React.JSX.Element {
     setRefreshing(false)
   }
 
-  // --- KPI 计算 ---
+  /** 带角色校验的导航：防御越权访问 */
+  const safeNavigate = (path: string, allowedRoles: UserRole[]) => {
+    if (user && !allowedRoles.includes(user.role)) {
+      toast.warning(t('common.permissionDenied'))
+      return
+    }
+    navigate(path)
+  }
 
   const runningTasks = tasks.filter((t) => t.status === 'running').length
   const completedToday = tasks.filter((t) => t.status === 'complete' && isToday(t.endedAt)).length
@@ -268,8 +351,8 @@ export default function Dashboard(): React.JSX.Element {
     })
     .slice(0, 20)
 
-  // Error state
-  if (error && !loading && tasks.length === 0 && installedScripts.length === 0) {
+  // --- 完全加载失败（无任何数据）时的兜底页 ---
+  if (error && !loading && tasks.length === 0 && installedScripts.length === 0 && (!isAdmin || userCount === 0)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <XCircle className="w-16 h-16 text-danger/60" />
@@ -287,7 +370,7 @@ export default function Dashboard(): React.JSX.Element {
 
   return (
     <div className="space-y-6">
-      {/* 页头 */}
+      {/* ────── 页头 ────── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">{t('dashboard.title')}</h1>
@@ -303,7 +386,7 @@ export default function Dashboard(): React.JSX.Element {
         </button>
       </div>
 
-      {/* 当前用户角色横幅 */}
+      {/* ────── 用户角色横幅 ────── */}
       {user && (
         <div className="bg-bg-card border border-border-light rounded-xl p-4 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
@@ -320,169 +403,369 @@ export default function Dashboard(): React.JSX.Element {
         </div>
       )}
 
-      {/* 区域 1: KPI 卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          icon={Activity}
-          label={t('dashboard.runningTasks')}
-          value={runningTasks}
-          color="bg-amber-500/10 text-amber-500"
-          loading={loading}
-        />
-        <StatCard
-          icon={CheckCircle}
-          label={t('dashboard.completedToday')}
-          value={completedToday}
-          color="bg-emerald-500/10 text-emerald-500"
-          loading={loading}
-        />
-        <StatCard
-          icon={XCircle}
-          label={t('dashboard.failedToday')}
-          value={failedToday}
-          color="bg-red-500/10 text-red-500"
-          loading={loading}
-        />
-        <StatCard
-          icon={PackageOpen}
-          label={t('dashboard.installedScripts')}
-          value={installedScriptCount}
-          color="bg-violet-500/10 text-violet-500"
-          loading={loading}
-        />
-      </div>
-
-      {/* 区域 2 & 3: 任务时间线 + 市场更新 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 任务时间线 */}
-        <div className="lg:col-span-2 bg-bg-card border border-border-light rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-              <Clock className="w-5 h-5 text-primary" />
-              {t('dashboard.taskTimeline')}
-            </h2>
-            <span className="text-xs text-text-muted">
-              {t('common.total', { count: timelineTasks.length })}
-            </span>
+      {/* ══════════════════════════════════════════════
+          ADMIN 视图
+          ══════════════════════════════════════════════ */}
+      {isAdmin && (
+        <>
+          {/* 区域 1：平台 KPI 卡片 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              icon={Users}
+              label={t('dashboard.adminKpi.users')}
+              value={userCount}
+              color="bg-blue-500/10 text-blue-500"
+              loading={loading}
+            />
+            <StatCard
+              icon={PackageOpen}
+              label={t('dashboard.adminKpi.scripts')}
+              value={scriptCount}
+              color="bg-violet-500/10 text-violet-500"
+              loading={loading}
+            />
+            <StatCard
+              icon={FileCheck}
+              label={t('dashboard.adminKpi.pendingReviews')}
+              value={pendingCount}
+              color="bg-amber-500/10 text-amber-500"
+              loading={loading}
+            />
+            <StatCard
+              icon={XCircle}
+              label={t('dashboard.adminKpi.failedTasks')}
+              value={failedToday}
+              color="bg-red-500/10 text-red-500"
+              loading={loading}
+            />
           </div>
 
-          {loading ? (
-            <Skeleton lines={5} className="h-12 mb-3" />
-          ) : timelineTasks.length === 0 ? (
-            <div className="text-center py-12 text-text-muted">
-              <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">{t('dashboard.noRecentActivity')}</p>
-            </div>
-          ) : (
-            <div className="max-h-[400px] overflow-y-auto space-y-0">
-              <table className="w-full text-sm">
-                <thead className="text-text-muted border-b border-border-light sticky top-0 bg-bg-card z-10">
-                  <tr>
-                    <th className="text-left pb-2 font-medium">{t('tasks.scriptFolder')}</th>
-                    <th className="text-left pb-2 font-medium">{t('common.status')}</th>
-                    <th className="text-left pb-2 font-medium">{t('tasks.startTime')}</th>
-                    <th className="text-left pb-2 font-medium">{t('tasks.endTime')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timelineTasks.map((task) => (
-                    <tr key={task.id} className="border-b border-border-light/50 hover:bg-bg-hover/50 transition-colors">
-                      <td className="py-2.5 pr-3 text-text-primary max-w-[200px] truncate" title={getTaskName(task)}>
-                        {getTaskName(task)}
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <StatusBadge
-                          status={task.status}
-                          label={statusLabel('task', task.status, t)}
-                        />
-                      </td>
-                      <td className="py-2.5 pr-3 text-text-muted whitespace-nowrap">
-                        {task.startedAt ? new Date(task.startedAt).toLocaleString('zh-CN') : '-'}
-                      </td>
-                      <td className="py-2.5 text-text-muted whitespace-nowrap">
-                        {task.endedAt ? new Date(task.endedAt).toLocaleString('zh-CN') : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+          {/* 区域 2 & 3：待审核列表 + 系统日志 */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 待审核列表 */}
+            <div className="lg:col-span-2 bg-bg-card border border-border-light rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-amber-500" />
+                  {t('dashboard.pendingReviews')}
+                </h2>
+                <span className="text-xs text-text-muted">
+                  {t('common.total', { count: pendingReviews.length })}
+                </span>
+              </div>
 
-        {/* 市场更新 */}
-        <div className="bg-bg-card border border-border-light rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-              <ShoppingBag className="w-5 h-5 text-primary" />
-              {t('dashboard.marketUpdates')}
-            </h2>
-            <button
-              onClick={() => navigate('/marketplace')}
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              {t('common.viewAll')}
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-
-          {loading ? (
-            <Skeleton lines={5} className="h-14 mb-3" />
-          ) : marketUpdates.length === 0 ? (
-            <div className="text-center py-8 text-text-muted">
-              <ShoppingBag className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-xs">{t('common.noData')}</p>
+              {loading ? (
+                <Skeleton lines={5} className="h-12 mb-3" />
+              ) : pendingReviews.length === 0 ? (
+                <div className="text-center py-12 text-text-muted">
+                  <FileCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">{t('common.noData')}</p>
+                </div>
+              ) : (
+                <div className="max-h-[400px] overflow-y-auto space-y-0">
+                  <table className="w-full text-sm">
+                    <thead className="text-text-muted border-b border-border-light sticky top-0 bg-bg-card z-10">
+                      <tr>
+                        <th className="text-left pb-2 font-medium">{t('templates.name')}</th>
+                        <th className="text-left pb-2 font-medium">{t('templates.version')}</th>
+                        <th className="text-left pb-2 font-medium">{t('common.status')}</th>
+                        <th className="text-left pb-2 font-medium">{t('templates.updatedAt')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-light">
+                      {pendingReviews.map((item) => (
+                        <tr key={item.id} className="hover:bg-bg-hover transition-colors">
+                          <td className="py-3 pr-2 font-medium text-text-primary">
+                            {item.name}
+                            {item.author && (
+                              <span className="text-text-muted font-normal text-xs ml-1">
+                                by {item.author}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 pr-2 text-text-secondary">v{item.version}</td>
+                          <td className="py-3 pr-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                              {item.reviewStatus || 'pending'}
+                            </span>
+                          </td>
+                          <td className="py-3 text-text-muted">
+                            {new Date(item.updatedAt).toLocaleString('zh-CN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          ) : (
-            <ul className="space-y-4">
-              {marketUpdates.map((item, idx) => (
-                <li
-                  key={idx}
-                  className="pb-4 border-b border-border-light last:border-0 last:pb-0"
+
+            {/* 系统日志摘要 */}
+            <div className="bg-bg-card border border-border-light rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <ScrollText className="w-5 h-5 text-danger/70" />
+                  {t('dashboard.errorLogSummary')}
+                </h2>
+                <button
+                  onClick={() => safeNavigate('/logs', ['admin'])}
+                  className="text-xs text-primary hover:underline flex items-center gap-1"
                 >
-                  <p className="text-sm font-medium text-text-primary">{item.name}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
-                    <span>v{item.version}</span>
-                    {item.author && <span>{item.author}</span>}
-                  </div>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    {new Date(item.updatedAt).toLocaleString('zh-CN')}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
+                  {t('common.viewAll')}
+                </button>
+              </div>
 
-      {/* 区域 4: 快捷操作 */}
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary mb-4">
-          {t('dashboard.quickActions')}
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <QuickActionButton
-            icon={User}
-            label={t('dashboard.createAccount')}
-            onClick={() => navigate('/data/accounts')}
-          />
-          <QuickActionButton
-            icon={Zap}
-            label={t('dashboard.createTask')}
-            onClick={() => navigate('/tasks')}
-          />
-          <QuickActionButton
-            icon={Globe}
-            label={t('dashboard.addProxy')}
-            onClick={() => navigate('/data/proxies')}
-          />
-          <QuickActionButton
-            icon={ShoppingBag}
-            label={t('dashboard.browseMarketplace')}
-            onClick={() => navigate('/marketplace')}
-          />
-        </div>
-      </div>
+              {loading ? (
+                <Skeleton lines={5} className="h-10 mb-2" />
+              ) : errorLogs.length === 0 ? (
+                <div className="text-center py-8 text-text-muted">
+                  <CheckCircle className="w-8 h-8 mx-auto mb-2 text-emerald-500/50" />
+                  <p className="text-xs">{t('dashboard.noErrors')}</p>
+                </div>
+              ) : (
+                <ul className="space-y-3 max-h-[360px] overflow-y-auto">
+                  {errorLogs.map((log) => (
+                    <li key={log.id} className="text-xs border-b border-border-light pb-2 last:border-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <XCircle className="w-3 h-3 text-danger flex-shrink-0" />
+                        <span className="text-text-muted">
+                          {new Date(log.timestamp).toLocaleString('zh-CN')}
+                        </span>
+                        <span className="text-text-muted/60">{log.category && `· ${log.category}`}</span>
+                      </div>
+                      <p className="text-text-secondary truncate">{log.message}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* 区域 4：治理快捷入口 */}
+          <div>
+            <h2 className="text-lg font-semibold text-text-primary mb-4">{t('dashboard.quickActions')}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <QuickActionButton
+                icon={Shield}
+                label={t('dashboard.adminActions.auditCenter')}
+                onClick={() => safeNavigate('/admin', ['admin'])}
+              />
+              <QuickActionButton
+                icon={Users}
+                label={t('dashboard.adminActions.userManagement')}
+                onClick={() => safeNavigate('/admin', ['admin'])}
+              />
+              <QuickActionButton
+                icon={ScrollText}
+                label={t('dashboard.adminActions.systemLogs')}
+                onClick={() => safeNavigate('/admin', ['admin'])}
+              />
+              <QuickActionButton
+                icon={ShoppingBag}
+                label={t('dashboard.adminActions.marketplace')}
+                onClick={() => safeNavigate('/marketplace', ['admin', 'developer', 'user'])}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════
+          DEVELOPER / USER 视图（非 admin）
+          ══════════════════════════════════════════════ */}
+      {!isAdmin && (
+        <>
+          {/* 区域 1：KPI 卡片 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              icon={Activity}
+              label={t('dashboard.runningTasks')}
+              value={runningTasks}
+              color="bg-amber-500/10 text-amber-500"
+              loading={loading}
+            />
+            <StatCard
+              icon={CheckCircle}
+              label={t('dashboard.completedToday')}
+              value={completedToday}
+              color="bg-emerald-500/10 text-emerald-500"
+              loading={loading}
+            />
+            <StatCard
+              icon={XCircle}
+              label={t('dashboard.failedToday')}
+              value={failedToday}
+              color="bg-red-500/10 text-red-500"
+              loading={loading}
+            />
+            <StatCard
+              icon={PackageOpen}
+              label={t('dashboard.installedScripts')}
+              value={installedScriptCount}
+              color="bg-violet-500/10 text-violet-500"
+              loading={loading}
+            />
+          </div>
+
+          {/* 区域 2 & 3：任务时间线 + 市场更新 */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 任务时间线 */}
+            <div className="lg:col-span-2 bg-bg-card border border-border-light rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-primary" />
+                  {t('dashboard.taskTimeline')}
+                </h2>
+                <span className="text-xs text-text-muted">
+                  {t('common.total', { count: timelineTasks.length })}
+                </span>
+              </div>
+
+              {loading ? (
+                <Skeleton lines={5} className="h-12 mb-3" />
+              ) : timelineTasks.length === 0 ? (
+                <div className="text-center py-12 text-text-muted">
+                  <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">{t('dashboard.noRecentActivity')}</p>
+                </div>
+              ) : (
+                <div className="max-h-[400px] overflow-y-auto space-y-0">
+                  <table className="w-full text-sm">
+                    <thead className="text-text-muted border-b border-border-light sticky top-0 bg-bg-card z-10">
+                      <tr>
+                        <th className="text-left pb-2 font-medium">{t('tasks.scriptFolder')}</th>
+                        <th className="text-left pb-2 font-medium">{t('common.status')}</th>
+                        <th className="text-left pb-2 font-medium">{t('tasks.startTime')}</th>
+                        <th className="text-left pb-2 font-medium">{t('tasks.endTime')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-light">
+                      {timelineTasks.map((task) => (
+                        <tr key={task.id} className="hover:bg-bg-hover transition-colors">
+                          <td className="py-3 pr-2 font-medium text-text-primary">
+                            {getTaskName(task)}
+                          </td>
+                          <td className="py-3 pr-2">
+                            <StatusBadge
+                              status={task.status}
+                              label={statusLabel('task', task.status, t)}
+                            />
+                          </td>
+                          <td className="py-3 pr-2 text-text-muted">
+                            {task.startedAt ? new Date(task.startedAt).toLocaleString('zh-CN') : '-'}
+                          </td>
+                          <td className="py-3 text-text-muted">
+                            {task.endedAt ? new Date(task.endedAt).toLocaleString('zh-CN') : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 市场更新 */}
+            <div className="bg-bg-card border border-border-light rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5 text-violet-500" />
+                  {t('dashboard.marketUpdates')}
+                </h2>
+                <button
+                  onClick={() => safeNavigate('/marketplace', ['admin', 'developer', 'user'])}
+                  className="text-xs text-primary hover:underline flex items-center gap-1"
+                >
+                  {t('common.viewAll')}
+                </button>
+              </div>
+
+              {loading ? (
+                <Skeleton lines={5} className="h-10 mb-2" />
+              ) : marketUpdates.length === 0 ? (
+                <div className="text-center py-8 text-text-muted">
+                  <PackageOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-xs">{t('common.noData')}</p>
+                </div>
+              ) : (
+                <ul className="space-y-3 max-h-[360px] overflow-y-auto">
+                  {marketUpdates.map((item, idx) => (
+                    <li key={idx} className="border-b border-border-light pb-3 last:border-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-text-primary text-sm">{item.name}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500">
+                          v{item.version}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-text-muted">
+                        {item.author && <span>{item.author}</span>}
+                        <span>{new Date(item.updatedAt).toLocaleString('zh-CN')}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* ═══════════ 区域 4：快捷操作 — 按角色区分 ═══════════ */}
+          {user?.role === 'developer' && (
+            <div>
+              <h2 className="text-lg font-semibold text-text-primary mb-4">{t('dashboard.quickActions')}</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <QuickActionButton
+                  icon={Code}
+                  label={t('dashboard.devActions.scaffold')}
+                  onClick={() => safeNavigate('/dev', ['admin', 'developer'])}
+                />
+                <QuickActionButton
+                  icon={FileCheck}
+                  label={t('dashboard.devActions.myPending')}
+                  onClick={() => safeNavigate('/dev', ['admin', 'developer'])}
+                />
+                <QuickActionButton
+                  icon={FolderGit2}
+                  label={t('dashboard.devActions.myScripts')}
+                  onClick={() => safeNavigate('/dev', ['admin', 'developer'])}
+                />
+                <QuickActionButton
+                  icon={ShoppingBag}
+                  label={t('dashboard.devActions.browseMarket')}
+                  onClick={() => safeNavigate('/marketplace', ['admin', 'developer', 'user'])}
+                />
+              </div>
+            </div>
+          )}
+
+          {user?.role === 'user' && (
+            <div>
+              <h2 className="text-lg font-semibold text-text-primary mb-4">{t('dashboard.quickActions')}</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <QuickActionButton
+                  icon={User}
+                  label={t('dashboard.createAccount')}
+                  onClick={() => safeNavigate('/data/accounts', OPERATIONAL_ROUTES)}
+                />
+                <QuickActionButton
+                  icon={Zap}
+                  label={t('dashboard.createTask')}
+                  onClick={() => safeNavigate('/tasks', OPERATIONAL_ROUTES)}
+                />
+                <QuickActionButton
+                  icon={Globe}
+                  label={t('dashboard.addProxy')}
+                  onClick={() => safeNavigate('/data/proxies', OPERATIONAL_ROUTES)}
+                />
+                <QuickActionButton
+                  icon={ShoppingBag}
+                  label={t('dashboard.browseMarketplace')}
+                  onClick={() => safeNavigate('/marketplace', ['admin', 'developer', 'user'])}
+                />
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

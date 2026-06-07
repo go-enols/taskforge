@@ -75,15 +75,15 @@ function AppContent(): React.ReactElement {
         <Routes>
           <Route element={<KeepAliveOutlet />}>
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/marketplace" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
-            <Route path="/marketplace/scripts/:id" element={<ProtectedRoute><ScriptDetail /></ProtectedRoute>} />
-            <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
-            <Route path="/data" element={<ProtectedRoute><Data /></ProtectedRoute>} />
-            <Route path="/data/accounts" element={<ProtectedRoute><Data /></ProtectedRoute>} />
-            <Route path="/data/proxies" element={<ProtectedRoute><Data /></ProtectedRoute>} />
-            <Route path="/data/captcha" element={<ProtectedRoute><Data /></ProtectedRoute>} />
-            <Route path="/airdrops" element={<ProtectedRoute><Airdrops /></ProtectedRoute>} />
-            <Route path="/scheduler" element={<ProtectedRoute><Scheduler /></ProtectedRoute>} />
+            <Route path="/marketplace" element={<ProtectedRoute roles={["admin", "developer", "user"]}><Templates /></ProtectedRoute>} />
+            <Route path="/marketplace/scripts/:id" element={<ProtectedRoute roles={["admin", "developer", "user"]}><ScriptDetail /></ProtectedRoute>} />
+            <Route path="/tasks" element={<ProtectedRoute roles={["developer", "user"]}><Tasks /></ProtectedRoute>} />
+            <Route path="/data" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+            <Route path="/data/accounts" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+            <Route path="/data/proxies" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+            <Route path="/data/captcha" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+            <Route path="/airdrops" element={<ProtectedRoute roles={["developer", "user"]}><Airdrops /></ProtectedRoute>} />
+            <Route path="/scheduler" element={<ProtectedRoute roles={["developer", "user"]}><Scheduler /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/stats" element={<ProtectedRoute roles={["admin"]}><Stats /></ProtectedRoute>} />
             <Route path="/dev" element={<ProtectedRoute roles={["admin", "developer"]}><DeveloperCenter /></ProtectedRoute>} />
