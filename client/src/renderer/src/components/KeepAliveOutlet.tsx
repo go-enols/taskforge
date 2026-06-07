@@ -1,5 +1,5 @@
 import React from 'react'
-import { useLocation, useOutlet } from 'react-router-dom'
+import { useLocation, useOutlet, Navigate } from 'react-router-dom'
 import { setKeepAliveElement, getKeepAliveEntries } from './keep-alive-cache'
 
 /**
@@ -19,6 +19,12 @@ import { setKeepAliveElement, getKeepAliveEntries } from './keep-alive-cache'
  * only exports a component (required by the
  * `react-refresh/only-export-components` ESLint rule for HMR).
  *
+ * 重要：<Navigate> 元素（路由表 '*' 兜底）绝不能进 KeepAlive 缓存。
+ * Navigate 组件在 useEffect 里调 navigate(to, { replace: true })，
+ * 依赖 navigate 函数引用。KeepAlive 让它保留在 hidden div 里，
+ * location 变化时 useNavigate 返回新引用 → effect 重跑 →
+ * 在 hidden div 里再次 navigate 覆盖用户导航，导致点哪个页面都跳回 /。
+ *
  * Usage:
  *   <Routes>
  *     <Route element={<KeepAliveOutlet />}>
@@ -32,16 +38,17 @@ export default function KeepAliveOutlet(): React.ReactElement {
   const location = useLocation()
   const currentOutlet = useOutlet()
 
-  // Cache the element for the current pathname so it survives the
-  // next navigation. `useOutlet()` returns the matched child route's
-  // element (or `null` if nothing matches, e.g. on the catch-all).
-  if (currentOutlet) {
+  // 拒绝缓存 <Navigate> 元素（路由表 '*' 兜底）。
+  // 它的 useEffect 在 hidden div 里仍会跑，依赖 navigate 函数引用，
+  // locationPathname 变化时 effect 再跑，调用 navigate(to, { replace: true })
+  // 把当前用户导航覆盖回 Navigate 的目标路径。
+  const isNavigateElement =
+    React.isValidElement(currentOutlet) && currentOutlet.type === Navigate
+
+  if (currentOutlet && !isNavigateElement) {
     setKeepAliveElement(location.pathname, currentOutlet)
   }
 
-  // Stable iteration order: Map preserves insertion order, and we
-  // only ever *overwrite* existing keys in place, never reorder
-  // them. So React's reconciliation is stable across renders.
   const entries = getKeepAliveEntries()
 
   return (
