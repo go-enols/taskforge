@@ -222,9 +222,11 @@ export default function ScriptDetailPage(): React.ReactElement {
     }
   }, [scriptId])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchData()
   }, [fetchData])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   /** 安装脚本 */
   const handleInstall = async () => {
@@ -551,6 +553,7 @@ function TasksTab({
 
 /** Tab 4: README — 渲染脚本 README 内容 */
 function ReadmeTab({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   script: _script
 }: {
   script: RemoteScript

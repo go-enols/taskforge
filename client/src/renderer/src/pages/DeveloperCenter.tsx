@@ -425,9 +425,11 @@ Install via TaskForge marketplace, then create a task using this script.
     }
   }, [])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchPending()
   }, [fetchPending])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
@@ -728,7 +730,7 @@ Install via TaskForge marketplace, then create a task using this script.
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-text-muted">点击"加载模板列表"获取可用模板</p>
+                  <p className="text-xs text-text-muted">点击&quot;加载模板列表&quot;获取可用模板</p>
                 )}
               </div>
 
@@ -1052,7 +1054,7 @@ Install via TaskForge marketplace, then create a task using this script.
         ) : myScripts.length === 0 ? (
           <div className="bg-bg-card rounded-xl border border-border-light p-12 text-center">
             <Code2 size={48} className="mx-auto mb-4 text-text-muted" />
-            <p className="text-text-muted">暂无已发布的脚本。使用"项目脚手架"创建新脚本并上传。</p>
+            <p className="text-text-muted">暂无已发布的脚本。使用&quot;项目脚手架&quot;创建新脚本并上传。</p>
           </div>
         ) : (
           <div className="space-y-3">
