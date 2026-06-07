@@ -1,6 +1,6 @@
 /**
- * @file BasicInfoSection — 空投表单基础信息区块
- * @description 渲染空投创建/编辑表单的基础信息部分，包含项目名称（必填）、
+ * @file BasicInfoSection — 项目表单基础信息区块
+ * @description 渲染项目创建/编辑表单的基础信息部分，包含项目名称（必填）、
  *              官网 URL（必填）、所属公链和描述（支持 Markdown）。
  * @module renderer/components/airdrops
  */
@@ -34,7 +34,7 @@ interface BasicInfoSectionProps {
 /**
  * BasicInfoSection — 基础信息区块
  *
- * 包含空投名称、官网、所属公链和描述四个输入字段。
+ * 包含项目名称、官网、所属公链和描述四个输入字段。
  * 名称和官网为必填项，带红色星号标记和校验错误提示。
  * 描述区域提示支持 Markdown 语法。
  *
@@ -57,7 +57,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({ form, onChange, err
         <h3 className="text-sm font-semibold">{t('airdrops.sectionBasic')}</h3>
       </header>
 
-      {/* 空投名称（必填） */}
+      {/* 项目名称（必填） */}
       <div>
         <label className="block text-xs font-medium text-text-secondary mb-1">
           {t('airdrops.name')} <span className="text-danger">*</span>

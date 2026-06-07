@@ -1,6 +1,6 @@
 /**
- * @file AirdropCard — 空投项目卡片组件
- * @description 渲染空投项目列表中的卡片视图，包含项目名称、状态、类型、描述、链接、任务和收益摘要。
+ * @file AirdropCard — 项目卡片组件
+ * @description 渲染项目列表中的卡片视图，包含项目名称、状态、类型、描述、链接、任务和收益摘要。
  *              支持点击查看详情、编辑和删除操作。
  * @module renderer/components/airdrops
  */
@@ -26,7 +26,7 @@ import {
 } from './airdrop-mappers'
 
 interface AirdropCardProps {
-  /** 空投项目数据 */
+  /** 项目数据 */
   project: AirdropProject
   /** 编辑回调 */
   onEdit: (id: string) => void
@@ -40,12 +40,12 @@ interface AirdropCardProps {
 const FOOTER_LINK_CAP = 3
 
 /**
- * AirdropCard — 空投项目卡片组件
+ * AirdropCard — 项目卡片组件
  *
- * 在列表中以卡片形式展示空投项目的核心信息，包含名称、状态标签、类型标签、描述摘要、
+ * 在列表中以卡片形式展示项目的核心信息，包含名称、状态标签、类型标签、描述摘要、
  * 关联账号池/脚本模板、链接列表、任务数量和收益摘要。点击卡片主体进入详情页。
  *
- * @param project  - 空投项目数据
+ * @param project  - 项目数据
  * @param onEdit   - 编辑回调
  * @param onDelete - 删除回调
  * @param onView   - 查看详情回调

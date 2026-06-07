@@ -1,6 +1,6 @@
 /**
- * @file LinksSection — 空投表单链接区块
- * @description 渲染空投表单的链接编辑区域，支持添加/删除/修改链接条目，
+ * @file LinksSection — 项目表单链接区块
+ * @description 渲染项目表单的链接编辑区域，支持添加/删除/修改链接条目，
  *              每条记录包含标签和 URL。
  * @module renderer/components/airdrops
  */

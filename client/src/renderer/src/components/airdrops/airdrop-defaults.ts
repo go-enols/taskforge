@@ -1,6 +1,6 @@
 /**
- * @file airdrop-defaults — 空投表单数据默认值与数据转换
- * @description 定义空投表单的数据结构（AirdropFormData 及各子表单接口）、
+ * @file airdrop-defaults — 项目表单数据默认值与数据转换
+ * @description 定义项目表单的数据结构（AirdropFormData 及各子表单接口）、
  *              空表单生成函数、空条目工厂函数、AirdropProject 与表单数据间的双向转换、
  *              以及基本字段校验逻辑。
  * @module renderer/components/airdrops
@@ -95,7 +95,7 @@ export interface AirdropEarningFormData {
   notes: string
 }
 
-/** 空投表单完整数据结构 */
+/** 项目表单完整数据结构 */
 export interface AirdropFormData {
   /** 项目名称 */
   name: string
@@ -127,7 +127,7 @@ export interface AirdropFormData {
   earnings: AirdropEarningFormData[]
 }
 
-/** 创建空白的空投表单数据，用于创建模式 */
+/** 创建空白的项目表单数据，用于创建模式 */
 export const emptyForm = (): AirdropFormData => ({
   name: '',
   website: '',
@@ -194,7 +194,7 @@ const splitCommaSeparated = (raw: string): string[] =>
  *
  * tags/labels 数组合并为逗号分隔字符串，方便用户在文本框中编辑。
  *
- * @param p - 空投项目数据
+ * @param p - 项目数据
  * @returns 表单数据
  */
 export const toFormData = (p: AirdropProject): AirdropFormData => ({

@@ -1,6 +1,6 @@
 /**
- * @file TagsSection — 空投表单标签区块
- * @description 渲染空投表单的标签和分类标记编辑区域，提供两个文本输入框，
+ * @file TagsSection — 项目表单标签区块
+ * @description 渲染项目表单的标签和分类标记编辑区域，提供两个文本输入框，
  *              以逗号分隔的形式编辑 tags（功能标签）和 labels（分类标记）。
  * @module renderer/components/airdrops
  */

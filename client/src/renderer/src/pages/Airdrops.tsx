@@ -1,6 +1,6 @@
 /**
- * @file Airdrops — 空投项目管理页
- * @description 管理空投项目的完整生命周期：创建、编辑、查看详情、删除。
+ * @file Airdrops — 项目追踪管理页
+ * @description 管理项目的完整生命周期：创建、编辑、查看详情、删除。
  *              含 KPI 统计条、卡片网格、搜索分页和关联脚本/账号池选择。
  * @module renderer/pages
  */
@@ -30,10 +30,10 @@ import {
 } from '../components/common'
 import { toast } from '../utils/toast'
 
-/** 每页显示空投项目数 */
+/** 每页显示项目数 */
 const PAGE_SIZE = 12
 
-/** 空投分析数据的默认空值 */
+/** 分析数据的默认空值 */
 const DEFAULT_ANALYTICS: AirdropAnalytics = {
   totalAirdrops: 0,
   ongoingCount: 0,
@@ -46,10 +46,10 @@ const DEFAULT_ANALYTICS: AirdropAnalytics = {
 }
 
 /**
- * Airdrops — 空投项目管理页面组件
+ * Airdrops — 项目管理页面组件
  *
- * 主页面包含 KPI 统计条、搜索栏、空投卡片网格和分页。
- * 支持创建/编辑/查看详情/删除空投项目，关联任务脚本模板和账号池。
+ * 主页面包含 KPI 统计条、搜索栏、项目卡片网格和分页。
+ * 支持创建/编辑/查看详情/删除项目，关联任务脚本模板和账号池。
  */
 const Airdrops: React.FC = () => {
   const { t } = useTranslation()

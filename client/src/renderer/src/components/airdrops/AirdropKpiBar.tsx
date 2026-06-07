@@ -1,6 +1,6 @@
 /**
- * @file AirdropKpiBar — 空投 KPI 指标栏组件
- * @description 展示空投相关的核心 KPI 指标：总空投数、进行中数、已领取数、总收益 USD。
+ * @file AirdropKpiBar — 项目 KPI 指标栏组件
+ * @description 展示项目相关的核心 KPI 指标：项目总数、进行中数、已完成数、总收益 USD。
  *              底部展示收益最高的前 2 种代币摘要。
  * @module renderer/components/airdrops
  */
@@ -30,13 +30,13 @@ interface KpiTile {
 }
 
 /**
- * AirdropKpiBar — 空投 KPI 指标栏组件
+ * AirdropKpiBar — 项目 KPI 指标栏组件
  *
- * 以四格网格展示空投分析指标（总数/进行中/已领取/收益 USD），
+ * 以四格网格展示项目分析指标（总数/进行中/已完成/收益 USD），
  * 底部额外显示收益最高的前 2 种代币的金额和价值。
- * 用于 Dashboard 页面的空投概览区域。
+ * 用于 Dashboard 页面的项目概览区域。
  *
- * @param analytics - 空投分析统计数据
+ * @param analytics - 分析统计数据
  */
 const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
   const { t } = useTranslation()

@@ -1,6 +1,6 @@
 /**
- * @file airdrop-mappers — 空投数据映射与格式化工具
- * @description 提供空投项目状态/类型的颜色映射、i18n key 映射、边框类名生成、
+ * @file airdrop-mappers — 项目数据映射与格式化工具
+ * @description 提供项目状态/类型的颜色映射、i18n key 映射、边框类名生成、
  *              收益摘要聚合和 USD 金额格式化等纯函数工具。
  * @module renderer/components/airdrops
  */
@@ -61,7 +61,7 @@ export const typeLabelKey: Record<AirdropProjectType, string> = {
  *
  * 为卡片添加 2-3px 左边框，以颜色快速指示项目状态。
  *
- * @param status - 空投项目状态
+ * @param status - 项目状态
  * @returns Tailwind 边框颜色类
  */
 export const statusBorderClass = (status: AirdropStatus): string => {
@@ -82,9 +82,9 @@ export const statusBorderClass = (status: AirdropStatus): string => {
 /**
  * 根据状态返回 KPI 磁贴的背景强调色
  *
- * 用于空投 KPI 指标栏中各状态磁贴的视觉区分。
+ * 用于 KPI 指标栏中各状态磁贴的视觉区分。
  *
- * @param status - 空投项目状态
+ * @param status - 项目状态
  * @returns Tailwind 边框和背景类
  */
 export const statusAccent = (status: AirdropStatus): string => {
@@ -102,7 +102,7 @@ export const statusAccent = (status: AirdropStatus): string => {
   }
 }
 
-/** 空投项目各项数量的统计结果 */
+/** 项目各项数量的统计结果 */
 export interface AirdropCounts {
   /** 链接数量 */
   links: number
@@ -112,7 +112,7 @@ export interface AirdropCounts {
   earnings: number
 }
 
-/** 统计空投项目的链接、任务和收益记录数量 */
+/** 统计项目的链接、任务和收益记录数量 */
 export const summarizeCounts = (
   links: AirdropLink[],
   tasks: AirdropTaskItem[],

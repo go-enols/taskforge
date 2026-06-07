@@ -298,9 +298,9 @@
     "noResults": "没有匹配的结果"
   },
   "airdrops": {
-    "title": "空投项目",
-    "createAirdrop": "添加空投",
-    "searchPlaceholder": "搜索空投...",
+    "title": "项目追踪",
+    "createAirdrop": "新建项目",
+    "searchPlaceholder": "搜索项目...",
     "name": "名称",
     "chain": "链",
     "status": "状态",
@@ -308,8 +308,8 @@
     "description": "描述",
     "tags": "标签",
     "actions": "操作",
-    "noAirdrops": "暂无空投项目",
-    "confirmDelete": "确认删除此空投项目？",
+    "noAirdrops": "暂无项目",
+    "confirmDelete": "确认删除此项目？",
     "statusOngoing": "进行中",
     "statusCompleted": "已完成",
     "statusCancelled": "已取消",
@@ -320,7 +320,7 @@
     "typeQuest": "任务",
     "typeSocial": "社交",
     "typeOther": "其他",
-    "editAirdrop": "编辑空投",
+    "editAirdrop": "编辑项目",
     "detail": "详情",
     "links": "链接",
     "addLink": "添加链接",
@@ -360,11 +360,11 @@
     "sectionEarnings": "收益",
     "sectionTags": "标签与备注",
     "kpi": {
-      "total": "空投总数",
+      "total": "项目总数",
       "ongoing": "进行中",
-      "claimed": "已领取",
+      "claimed": "已完成",
       "earnings": "累计收益 (USD)",
-      "topTokens": "代币分布"
+      "topTokens": "主要代币"
     },
     "fieldRequired": "此项必填",
     "viewDetails": "查看详情",

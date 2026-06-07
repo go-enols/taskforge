@@ -1,6 +1,6 @@
 /**
- * @file EligibilitySection — 空投表单资格标准区块
- * @description 渲染空投表单的资格标准编辑区域，支持添加/删除/修改资格条目，
+ * @file EligibilitySection — 项目表单资格标准区块
+ * @description 渲染项目表单的资格标准编辑区域，支持添加/删除/修改资格条目，
  *              每条记录包含描述、要求类型、要求值、是否强制、是否已满足和备注。
  * @module renderer/components/airdrops
  */

@@ -1,6 +1,6 @@
 /**
- * @file TasksSection — 空投表单任务区块
- * @description 渲染空投表单的任务项编辑区域，支持添加/删除/修改任务条目，
+ * @file TasksSection — 项目表单任务区块
+ * @description 渲染项目表单的任务项编辑区域，支持添加/删除/修改任务条目，
  *              每条记录包含标题、状态选择、描述、截止日期和备注。
  * @module renderer/components/airdrops
  */
