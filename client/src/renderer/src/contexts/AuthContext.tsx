@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { marketplaceApi } from '../api'
+import { setOnAuthFailure } from '../transport'
 
 export type UserRole = 'admin' | 'developer' | 'user'
 
@@ -27,6 +29,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate()
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -141,13 +144,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     localStorage.removeItem('marketplace_jwt')
     localStorage.removeItem('marketplace_user')
-    // Local auth state is already cleared. A server-side logout failure is
-    // not user-actionable here (token is gone locally), so we log to the
-    // console for diagnostics rather than surfacing a toast.
+
+
+
     marketplaceApi.logout().catch((err: unknown) => {
       console.warn('[auth] server-side logout failed:', err)
     })
   }, [])
+
+  /**
+   * 当 transport 在 HTTP 401 或 IPC UNAUTHORIZED 时调用
+   * 静默清空 user + token（不调 marketplaceApi.logout()，因 server 已经拒绝认证）
+   * 然后跳转 /login（让用户看到登录页 + 重新登录）
+   */
+  useEffect(() => {
+    setOnAuthFailure(() => {
+      setUser(null)
+      setToken(null)
+      localStorage.removeItem('marketplace_jwt')
+      localStorage.removeItem('marketplace_user')
+      // 跳转登录页（如果当前不在登录页）
+      if (window.location.hash !== '#/login' && !window.location.pathname.endsWith('/login')) {
+        navigate('/login', { replace: true })
+      }
+    })
+    return () => setOnAuthFailure(null)
+  }, [navigate])
 
   return (
     <AuthContext.Provider

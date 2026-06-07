@@ -1023,9 +1023,20 @@ const UpdatesSection: React.FC = () => {
     transferred: 0,
     total: 0
   })
+  const [currentAppVersion, setCurrentAppVersion] = useState<string>('')
 
   /* ── Subscribe to auto-updater events ── */
   useEffect(() => {
+    // 拉取当前应用版本用于"已是最新版本"展示
+    appApi
+      .getInfo()
+      .then((info) => {
+        if (info?.version) setCurrentAppVersion(info.version)
+      })
+      .catch(() => {
+        /* best-effort: 静默失败 */
+      })
+
     const unsub = updateApi.onStatus((event) => {
       setUpdateStatus(event.status)
       if (event.status === 'available' && 'data' in event) {
@@ -1115,11 +1126,13 @@ const UpdatesSection: React.FC = () => {
         open={modalOpen}
         status={updateStatus}
         version={updateInfo?.version}
+        currentVersion={currentAppVersion}
         progress={progress}
         errorMessage={updateError}
         onClose={closeModal}
         onDownload={downloadUpdate}
         onInstall={installUpdate}
+        onRetry={checkUpdates}
       />
     </>
   )

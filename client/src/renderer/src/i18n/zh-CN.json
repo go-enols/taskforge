@@ -719,8 +719,13 @@
       "downloading": "正在下载更新文件...",
       "ready": "下载完成，点击下方按钮安装并重启",
       "installing": "正在准备重启...",
-      "error": "更新过程中出现错误"
+      "noUpdates": "你的 TaskForge 已是最新版本，无需更新",
+      "error": "更新过程中出现错误，请重试或检查网络"
     },
+    "noUpdatesTitle": "已是最新版本",
+    "noUpdatesVersion": "当前版本 v{{version}}",
+    "errorTitle": "更新失败",
+    "errorHelpText": "如果持续失败，请检查网络或前往 GitHub Releases 手动下载",
     "percent": "{{percent}}%",
     "downloadedOf": "已下载 {{transferred}} / {{total}} MB",
     "speed": "速度 {{speed}} MB/s",
@@ -730,6 +735,8 @@
       "later": "稍后",
       "installNow": "立即安装",
       "download": "下载",
+      "retry": "重试",
+      "checkAgain": "再检查一次",
       "backgroundHint": "下载在后台进行，可关闭此弹窗"
     }
   },

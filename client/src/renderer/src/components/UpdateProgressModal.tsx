@@ -31,11 +31,13 @@ interface UpdateProgressModalProps {
   open: boolean
   status: UpdateStatus
   version?: string
+  currentVersion?: string
   progress: UpdateProgressData
   errorMessage?: string
   onClose: () => void
   onDownload?: () => void
   onInstall?: () => void
+  onRetry?: () => void
 }
 
 /* ────────── Helpers ────────── */
@@ -118,11 +120,13 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
   open,
   status,
   version,
+  currentVersion,
   progress,
   errorMessage,
   onClose,
   onDownload,
-  onInstall
+  onInstall,
+  onRetry
 }) => {
   const { t } = useTranslation()
 
@@ -165,6 +169,7 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
       case 'available': return 'updates.stepDesc.available'
       case 'downloading': return 'updates.stepDesc.downloading'
       case 'downloaded': return 'updates.stepDesc.ready'
+      case 'not-available': return 'updates.stepDesc.noUpdates'
       case 'error': return 'updates.stepDesc.error'
       default: return null
     }
@@ -184,8 +189,6 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
   const renderButtons = (): React.ReactNode => {
     switch (status) {
       case 'idle':
-      case 'not-available':
-      case 'error':
         return (
           <button
             onClick={safeClose}
@@ -193,6 +196,44 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
           >
             {t('updates.buttons.close')}
           </button>
+        )
+      case 'not-available':
+        return (
+          <div className="flex justify-end gap-2">
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="px-4 py-2 text-sm border border-border-light rounded-lg hover:bg-bg-card-hover transition-colors"
+              >
+                {t('updates.buttons.checkAgain')}
+              </button>
+            )}
+            <button
+              onClick={safeClose}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
+            >
+              {t('updates.buttons.close')}
+            </button>
+          </div>
+        )
+      case 'error':
+        return (
+          <div className="flex justify-end gap-2">
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
+              >
+                {t('updates.buttons.retry')}
+              </button>
+            )}
+            <button
+              onClick={safeClose}
+              className="px-4 py-2 text-sm border border-border-light rounded-lg hover:bg-bg-card-hover transition-colors"
+            >
+              {t('updates.buttons.close')}
+            </button>
+          </div>
         )
       case 'checking':
         return (
@@ -292,6 +333,16 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
         <p className="text-sm text-text-secondary mb-4">
           {t('updates.version')}: <span className="font-mono text-primary">{version}</span>
         </p>
+      )}
+
+      {/* not-available: show current version badge */}
+      {status === 'not-available' && currentVersion && (
+        <div className="flex items-center justify-center gap-2 px-4 py-3 mb-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+          <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+          <span className="text-sm text-text-primary">
+            {t('updates.noUpdatesVersion', { version: currentVersion })}
+          </span>
+        </div>
       )}
 
       {/* Error banner */}

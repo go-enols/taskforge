@@ -16,6 +16,29 @@ interface ApiResult<T = unknown> {
 let activeTransport: TransportType | null = null
 let discoveredPort: number | null = null
 
+/**
+ * 全局 401 拦截回调
+ *
+ * 当 transport 在 HTTP 收到 401 或 IPC 收到 UNAUTHORIZED code 时触发。
+ * AuthContext 用此清空 user/token + 跳转到登录页，
+ * 避免"操作后丢失所有权限"的卡死状态。
+ */
+let onAuthFailure: (() => void) | null = null
+
+export function setOnAuthFailure(handler: (() => void) | null): void {
+  onAuthFailure = handler
+}
+
+function notifyAuthFailure(): void {
+  if (onAuthFailure) {
+    try {
+      onAuthFailure()
+    } catch (err) {
+      console.warn('[transport] onAuthFailure handler threw:', err)
+    }
+  }
+}
+
 function getElectronHttpPort(): number | null {
   try {
     const ep = window.electronAPI
@@ -59,6 +82,8 @@ async function callIPC<T>(channel: string, args: unknown[]): Promise<T> {
   }
   const result = (await electronAPI.invoke(channel, ...args)) as ApiResult<T>
   if (result.error) {
+    // UNAUTHORIZED code 触发全局清空 user + token + 跳转登录
+    if (result.error.code === 'UNAUTHORIZED') notifyAuthFailure()
     throw Object.assign(new Error(result.error.message), {
       code: result.error.code,
       category: result.error.category
@@ -96,6 +121,8 @@ async function tryHttpPort<T>(port: number, channel: string, args: unknown[]): P
     if (!response.ok) {
       const errBody = await response.json().catch(() => null)
       const errMsg = errBody?.error?.message || `HTTP ${response.status}`
+      // 401 触发全局清空 user + token + 跳转登录（解决"操作后丢失所有权限"）
+      if (response.status === 401) notifyAuthFailure()
       throw Object.assign(new Error(errMsg), {
         code: errBody?.error?.code,
         category: errBody?.error?.category
