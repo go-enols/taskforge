@@ -14,6 +14,7 @@ import { Users, Globe, Key, Upload } from 'lucide-react'
 import Accounts from './Accounts'
 import Proxies from './Proxies'
 import CaptchaPage from './Captcha'
+import ImportCenter from '../components/data-import/ImportCenter'
 
 /* ═══════════════════════════════════════════
    Tab type
@@ -144,52 +145,5 @@ export default function Data(): React.ReactElement {
 }
 
 /* ═══════════════════════════════════════════
-   Tab 4: 导入中心（占位）
+   Tab 4: 导入中心 — 实现在 data-import/ImportCenter.tsx
    ═══════════════════════════════════════════ */
-
-/** 导入中心 — P9+ 阶段实际实现，当前为占位页 */
-function ImportCenter(): React.ReactElement {
-  const { t } = useTranslation()
-
-  return (
-    <div className="bg-bg-card border border-border-light rounded-xl p-6 space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary">{t('data.import.title')}</h2>
-        <p className="text-sm text-text-muted mt-1">{t('data.import.subtitle')}</p>
-      </div>
-
-      <div className="p-4 bg-bg-page rounded-lg border border-border-light text-sm text-text-muted space-y-3">
-        <p>
-          P9 阶段实现：统一的 CSV/JSON 导入中心。当前请在 Accounts 或 Proxies Tab 内使用各自的导入按钮。
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <button
-          disabled
-          className="flex items-center gap-2 px-4 py-3 rounded-lg border border-border-light bg-bg-page text-text-muted text-sm cursor-not-allowed"
-          title={t('data.import.accountsHint')}
-        >
-          <Upload size={16} />
-          导入账户 (CSV)
-        </button>
-        <button
-          disabled
-          className="flex items-center gap-2 px-4 py-3 rounded-lg border border-border-light bg-bg-page text-text-muted text-sm cursor-not-allowed"
-          title={t('data.import.proxiesHint')}
-        >
-          <Upload size={16} />
-          导入代理 (CSV)
-        </button>
-        <button
-          disabled
-          className="flex items-center gap-2 px-4 py-3 rounded-lg border border-border-light bg-bg-page text-text-muted text-sm cursor-not-allowed"
-          title={t('data.import.accountsHint')}
-        >
-          <Upload size={16} />
-          导入验证码密钥 (JSON)
-        </button>
-      </div>
-    </div>
-  )
-}

@@ -477,6 +477,85 @@ export const marketplaceApi = {
     return resp.json()
   },
 
+  /** 提交/更新脚本评分 */
+  submitReview: async (
+    scriptId: string,
+    data: { rating: number; comment?: string }
+  ) => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/scripts/${scriptId}/reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(data)
+    })
+    if (!resp.ok) {
+      const errBody = await resp.text()
+      let msg = errBody
+      try {
+        const parsed = JSON.parse(errBody)
+        msg = parsed.error?.message ?? parsed.message ?? errBody
+      } catch { /* keep errBody */ }
+      throw new Error(msg)
+    }
+    return (await resp.json()).data
+  },
+
+  /** 获取脚本评分列表（分页） */
+  getReviews: async (scriptId: string, page = 1, pageSize = 10) => {
+    const base = await getMarketplaceUrl()
+    const resp = await fetch(
+      `${base}/api/scripts/${scriptId}/reviews?page=${page}&pageSize=${pageSize}`
+    )
+    if (!resp.ok) throw new Error(`Failed to fetch reviews: ${resp.status}`)
+    return (await resp.json()).data as {
+      items: Array<Record<string, unknown>>
+      total: number
+      page: number
+      pageSize: number
+      totalPages: number
+    }
+  },
+
+  /** 获取当前用户对脚本的评分 */
+  getMyReview: async (scriptId: string) => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/scripts/${scriptId}/reviews/me`, { headers })
+    if (!resp.ok) return null
+    return (await resp.json()).data as Record<string, unknown> | null
+  },
+
+  /** 删除当前用户对脚本的评分 */
+  deleteMyReview: async (scriptId: string) => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/scripts/${scriptId}/reviews`, {
+      method: 'DELETE',
+      headers
+    })
+    if (!resp.ok) throw new Error(`Failed to delete review: ${resp.status}`)
+    return (await resp.json()).data
+  },
+
+  /** 获取脚本评分统计 */
+  getRatingStats: async (scriptId: string) => {
+    const base = await getMarketplaceUrl()
+    const resp = await fetch(`${base}/api/scripts/${scriptId}/rating-stats`)
+    if (!resp.ok) throw new Error(`Failed to fetch rating stats: ${resp.status}`)
+    return (await resp.json()).data as {
+      avgRating: number
+      count: number
+      distribution: {
+        stars5: number
+        stars4: number
+        stars3: number
+        stars2: number
+        stars1: number
+      }
+    }
+  },
+
   reuploadScript: async (id: string, filePath: string) => {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()

@@ -7,8 +7,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { marketplaceApi, scriptApi, taskApi } from '../api'
-import type { RemoteScript, InstalledScript, Task } from '../types'
+import { marketplaceApi, scriptApi, taskApi, fileApi } from '../api'
+import type { RemoteScript, InstalledScript, Task, ScriptReview, RatingStats } from '../types'
 import type { PermissionSet } from '../../../shared/types'
 import {
   ArrowLeft,
@@ -25,11 +25,16 @@ import {
   Clock,
   User,
   Tag,
-  Hash
+  Hash,
+  Star,
+  MessageSquare,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
+import MarkdownView from '../components/MarkdownView'
 
 /** 标签页类型 */
-type TabKey = 'overview' | 'version' | 'tasks' | 'readme'
+type TabKey = 'overview' | 'version' | 'tasks' | 'readme' | 'ratings'
 
 /** Tab 配置项 */
 interface TabItem {
@@ -42,7 +47,8 @@ const TABS: TabItem[] = [
   { key: 'overview', label: '概述', icon: <FileText size={14} /> },
   { key: 'version', label: '版本', icon: <History size={14} /> },
   { key: 'tasks', label: '我运行过的', icon: <Play size={14} /> },
-  { key: 'readme', label: 'README', icon: <BookOpen size={14} /> }
+  { key: 'readme', label: 'README', icon: <BookOpen size={14} /> },
+  { key: 'ratings', label: '评分', icon: <Star size={14} /> }
 ]
 
 /** 加载中状态组件 */
@@ -373,7 +379,8 @@ export default function ScriptDetailPage(): React.ReactElement {
             scriptName={script.name}
           />
         )}
-        {activeTab === 'readme' && <ReadmeTab script={script} />}
+        {activeTab === 'readme' && <ReadmeTab script={script} installed={installed} />}
+        {activeTab === 'ratings' && <RatingsTab scriptId={scriptId} />}
       </div>
     </div>
   )
@@ -553,18 +560,434 @@ function TasksTab({
 
 /** Tab 4: README — 渲染脚本 README 内容 */
 function ReadmeTab({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  script: _script
+  script: _script,
+  installed
 }: {
   script: RemoteScript
+  installed: InstalledScript | null
 }): React.ReactElement {
+  const [readmeContent, setReadmeContent] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!installed) return
+
+    const loadReadme = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const readmePath = `${installed.installPath}/README.md`
+        const result = await fileApi.readFile(readmePath)
+        if (result.success && result.content) {
+          setReadmeContent(result.content)
+        } else {
+          setReadmeContent(null)
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '加载 README 失败')
+        setReadmeContent(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadReadme()
+  }, [installed])
+
+  // Not installed
+  if (!installed) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-text-muted">
+        <BookOpen size={40} />
+        <p className="text-sm">暂无 README</p>
+        <p className="text-xs text-text-muted/60">
+          安装脚本后查看 README
+        </p>
+      </div>
+    )
+  }
+
+  // Loading
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <p className="text-text-muted text-sm">加载 README...</p>
+      </div>
+    )
+  }
+
+  // Error
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-text-muted">
+        <AlertTriangle size={40} className="text-danger" />
+        <p className="text-sm text-danger">README 加载失败</p>
+        <p className="text-xs text-text-muted/60 break-all">{error}</p>
+      </div>
+    )
+  }
+
+  // No README file
+  if (!readmeContent) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-text-muted">
+        <BookOpen size={40} />
+        <p className="text-sm">暂无 README</p>
+        <p className="text-xs text-text-muted/60">
+          该脚本未包含 README 文件
+        </p>
+      </div>
+    )
+  }
+
+  // Render README
+  return <MarkdownView content={readmeContent} />
+}
+
+/* ================================================================
+ * Tab 5: 评分 — 评分概览 + 分布 + 写/编辑评分 + 评分列表
+ * ================================================================ */
+
+/** 渲染 5 星评分组件 */
+function StarRating({
+  rating,
+  size = 18,
+  interactive = false,
+  onChange
+}: {
+  rating: number
+  size?: number
+  interactive?: boolean
+  onChange?: (r: number) => void
+}): React.ReactElement {
+  const stars = []
+  for (let i = 1; i <= 5; i++) {
+    const filled = i <= Math.floor(rating)
+    const half = !filled && i === Math.ceil(rating) && rating % 1 >= 0.25 && rating % 1 < 0.75
+    stars.push(
+      <button
+        key={i}
+        type="button"
+        disabled={!interactive}
+        onClick={() => interactive && onChange?.(i)}
+        className={`${interactive ? 'cursor-pointer hover:scale-110' : 'cursor-default'} transition-transform`}
+        title={interactive ? `${i} 星` : undefined}
+      >
+        <Star
+          size={size}
+          className={
+            filled
+              ? 'text-warning fill-warning'
+              : half
+                ? 'text-warning fill-warning/50'
+                : 'text-text-muted/30'
+          }
+        />
+      </button>
+    )
+  }
+  return <div className="flex items-center gap-0.5">{stars}</div>
+}
+
+/** 评分概览 + 分布 + 写/编辑评分 + 评分列表 */
+function RatingsTab({
+  scriptId
+}: {
+  scriptId: string
+}): React.ReactElement {
+  const [stats, setStats] = useState<RatingStats | null>(null)
+  const [myReview, setMyReview] = useState<ScriptReview | null>(null)
+  const [reviews, setReviews] = useState<ScriptReview[]>([])
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // 评分表单状态
+  const [myRating, setMyRating] = useState(0)
+  const [myComment, setMyComment] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [editing, setEditing] = useState(false)
+
+  const pageSize = 10
+
+  const fetchData = useCallback(async () => {
+    if (!scriptId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const [s, r, mr] = await Promise.all([
+        marketplaceApi.getRatingStats(scriptId),
+        marketplaceApi.getReviews(scriptId, page, pageSize),
+        marketplaceApi.getMyReview(scriptId).catch(() => null)
+      ])
+      setStats(s)
+      setReviews(r.items as unknown as ScriptReview[])
+      setTotal(r.total)
+      setTotalPages(r.totalPages)
+      if (mr) {
+        setMyReview(mr as unknown as ScriptReview)
+        setMyRating((mr as unknown as ScriptReview).rating)
+        setMyComment((mr as unknown as ScriptReview).comment || '')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [scriptId, page])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  /** 提交评分 */
+  const handleSubmit = async () => {
+    if (myRating < 1 || myRating > 5) return
+    setSubmitting(true)
+    try {
+      const result = await marketplaceApi.submitReview(scriptId, {
+        rating: myRating,
+        comment: myComment.trim() || undefined
+      })
+      setMyReview(result as unknown as ScriptReview)
+      setEditing(false)
+      // 刷新统计和列表
+      const [s, r] = await Promise.all([
+        marketplaceApi.getRatingStats(scriptId),
+        marketplaceApi.getReviews(scriptId, 1, pageSize)
+      ])
+      setStats(s)
+      setReviews(r.items as unknown as ScriptReview[])
+      setTotal(r.total)
+      setTotalPages(r.totalPages)
+      setPage(1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '提交失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  /** 删除评分 */
+  const handleDelete = async () => {
+    try {
+      await marketplaceApi.deleteMyReview(scriptId)
+      setMyReview(null)
+      setMyRating(0)
+      setMyComment('')
+      setEditing(false)
+      const [s, r] = await Promise.all([
+        marketplaceApi.getRatingStats(scriptId),
+        marketplaceApi.getReviews(scriptId, page, pageSize)
+      ])
+      setStats(s)
+      setReviews(r.items as unknown as ScriptReview[])
+      setTotal(r.total)
+      setTotalPages(r.totalPages)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除失败')
+    }
+  }
+
+  if (loading) return <LoadingView />
+  if (error)
+    return <ErrorView message={error} onRetry={fetchData} />
+
+  const distribution = stats?.distribution ?? { stars5: 0, stars4: 0, stars3: 0, stars2: 0, stars1: 0 }
+  const totalCount = stats?.count ?? 0
+  const distEntries = [
+    { stars: 5, count: distribution.stars5 },
+    { stars: 4, count: distribution.stars4 },
+    { stars: 3, count: distribution.stars3 },
+    { stars: 2, count: distribution.stars2 },
+    { stars: 1, count: distribution.stars1 }
+  ]
+
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-3 text-text-muted">
-      <BookOpen size={40} />
-      <p className="text-sm">暂无 README</p>
-      <p className="text-xs text-text-muted/60">
-        README 内容将在后续版本中支持（需脚本包中包含 README 文件）
-      </p>
+    <div className="space-y-6">
+      {/* 评分概览 */}
+      <div className="flex items-start gap-6">
+        <div className="flex flex-col items-center shrink-0">
+          <span className="text-4xl font-bold text-text-primary">
+            {(stats?.avgRating ?? 0).toFixed(1)}
+          </span>
+          <StarRating rating={stats?.avgRating ?? 0} size={14} />
+          <span className="text-xs text-text-muted mt-1">{totalCount} 条评分</span>
+        </div>
+
+        {/* 评分分布 */}
+        <div className="flex-1 space-y-1 min-w-0">
+          {distEntries.map((entry) => (
+            <div key={entry.stars} className="flex items-center gap-2">
+              <span className="text-xs text-text-muted w-6 text-right shrink-0">
+                {entry.stars} 星
+              </span>
+              <div className="flex-1 h-2.5 bg-bg-tertiary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-warning rounded-full transition-all duration-300"
+                  style={{
+                    width: totalCount > 0
+                      ? `${(entry.count / totalCount) * 100}%`
+                      : '0%'
+                  }}
+                />
+              </div>
+              <span className="text-xs text-text-muted w-6 shrink-0">
+                {entry.count}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 我的评分 / 提交评分 */}
+      <div className="border-t border-border-light pt-4">
+        {myReview && !editing ? (
+          <div className="bg-bg-tertiary rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold text-text-primary">你的评分</h4>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-xs text-primary hover:text-primary-hover transition-colors"
+                >
+                  编辑评分
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="text-xs text-danger hover:text-danger/80 transition-colors"
+                >
+                  删除评分
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mb-1">
+              <StarRating rating={myReview.rating} size={14} />
+              <span className="text-xs text-text-muted">
+                {new Date(myReview.updatedAt).toLocaleString('zh-CN')}
+              </span>
+            </div>
+            {myReview.comment && (
+              <p className="text-sm text-text-secondary mt-2">{myReview.comment}</p>
+            )}
+          </div>
+        ) : (
+          <div className="bg-bg-tertiary rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-text-primary mb-3">
+              {editing ? '编辑评分' : '写评分'}
+            </h4>
+            <div className="flex items-center gap-2 mb-3">
+              <StarRating rating={myRating} size={20} interactive onChange={setMyRating} />
+              {myRating > 0 && (
+                <span className="text-xs text-text-muted">
+                  {myRating} 星
+                </span>
+              )}
+            </div>
+            <textarea
+              value={myComment}
+              onChange={(e) => setMyComment(e.target.value)}
+              placeholder="分享你的使用体验（可选）"
+              rows={3}
+              className="w-full bg-bg-card border border-border-light rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted resize-none focus:outline-none focus:border-primary/50 transition-colors mb-3"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSubmit}
+                disabled={myRating < 1 || submitting}
+                className="px-4 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors text-sm font-medium"
+              >
+                {submitting ? '提交中...' : '提交'}
+              </button>
+              {editing && (
+                <button
+                  onClick={() => {
+                    setEditing(false)
+                    if (myReview) {
+                      setMyRating(myReview.rating)
+                      setMyComment(myReview.comment || '')
+                    }
+                  }}
+                  className="px-4 py-1.5 border border-border-light rounded-lg hover:bg-bg-card transition-colors text-sm text-text-secondary"
+                >
+                  取消
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 评分列表 */}
+      <div className="border-t border-border-light pt-4">
+        <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-1.5">
+          <MessageSquare size={14} />
+          所有评分 ({total})
+        </h4>
+
+        {reviews.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-2 text-text-muted">
+            <Star size={32} className="text-text-muted/30" />
+            <p className="text-sm">暂无评分</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {reviews.map((review) => (
+              <div
+                key={review.id}
+                className="bg-bg-tertiary rounded-lg p-3"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+                      {(review.username || '?')[0].toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-text-primary">
+                      {review.username || '匿名用户'}
+                    </span>
+                  </div>
+                  <span className="text-xs text-text-muted">
+                    {new Date(review.createdAt).toLocaleString('zh-CN')}
+                  </span>
+                </div>
+                <StarRating rating={review.rating} size={12} />
+                {review.comment && (
+                  <p className="text-sm text-text-secondary mt-1.5 leading-relaxed">
+                    {review.comment}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 分页 */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="p-1.5 rounded hover:bg-bg-tertiary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-sm text-text-muted">
+              {page} / {totalPages}
+            </span>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="p-1.5 rounded hover:bg-bg-tertiary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -38,6 +38,26 @@ export interface AuthenticatedUser {
   role: 'admin' | 'developer' | 'user'
 }
 
+/** 脚本评分/评论记录 */
+export interface ScriptReview {
+  /** 评分 UUID */
+  id: string
+  /** 关联的脚本 ID */
+  scriptId: string
+  /** 评分用户 ID */
+  userId: string
+  /** 用户名（展示用） */
+  username?: string
+  /** 评分（1-5星） */
+  rating: number
+  /** 评论内容（可选） */
+  comment?: string
+  /** ISO 8601 创建时间 */
+  createdAt: string
+  /** ISO 8601 更新时间 */
+  updatedAt: string
+}
+
 /** 扩展 Express Request，添加 user 属性用于认证后的请求 */
 export interface AuthenticatedRequest extends Request {
   /** 当前认证用户信息（未认证时为 undefined） */

@@ -61,6 +61,8 @@ function rowToScript(row: Record<string, unknown>) {
     createdByName: createdByName || createdBy,
     reviewStatus: (row.review_status as string) || "pending",
     reviewComment: (row.review_comment as string) || "",
+    avgRating: (row.avg_rating as number) ?? 0,
+    reviewCount: (row.review_count as number) ?? 0,
     updatedAt: row.updated_at as string,
   };
 }
@@ -303,6 +305,8 @@ router.post(
         createdBy,
         reviewStatus,
         "",
+        0,
+        0,
         now,
         now,
       );
@@ -605,6 +609,170 @@ router.post("/:id/review", requireRole("admin"), (req: AuthenticatedRequest, res
 
   const row = stmts.scriptGetById.get(req.params.id) as Record<string, unknown>;
   res.json({ data: rowToScript(row) });
+});
+
+/** 获取脚本的当前用户评分（需认证） */
+router.get("/:id/reviews/me", (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ error: { message: "Authentication required", code: "UNAUTHORIZED" } });
+    return;
+  }
+
+  const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
+  if (!existing) {
+    res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
+    return;
+  }
+
+  const row = stmts.reviewGetByUserAndScript.get(req.params.id, req.user.id) as Record<string, unknown> | undefined;
+  if (!row) {
+    res.json({ data: null });
+    return;
+  }
+
+  const review: Record<string, unknown> = { ...row };
+  const user = stmts.userGetById.get(row.user_id as string) as { display_name?: string } | undefined;
+  review.username = user?.display_name || (row.user_id as string);
+  res.json({ data: review });
+});
+
+/** 创建/更新脚本评分（upsert）：任何已认证用户可对脚本评分 */
+router.post("/:id/reviews", (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ error: { message: "Authentication required", code: "UNAUTHORIZED" } });
+    return;
+  }
+
+  const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
+  if (!existing) {
+    res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
+    return;
+  }
+
+  const { rating, comment } = req.body;
+  if (typeof rating !== "number" || rating < 1 || rating > 5) {
+    res.status(400).json({ error: { message: "评分必须为 1-5 之间的数字", code: "VALIDATION_ERROR" } });
+    return;
+  }
+
+  const reviewId = uuidv4()
+
+  const now = new Date().toISOString();
+  const commentStr = typeof comment === "string" ? comment : "";
+
+  // 检查是否已有评分（决定 created_at）
+  const prev = stmts.reviewGetByUserAndScript.get(req.params.id, req.user.id) as Record<string, unknown> | undefined;
+  const createdAt = prev ? (prev.created_at as string) : now;
+
+  stmts.reviewUpsert.run(reviewId, req.params.id, req.user.id, rating, commentStr, createdAt, now);
+
+  // 更新脚本聚合字段
+  const stats = stmts.reviewGetStats.get(req.params.id) as { avg_rating: number | null; count: number } | undefined;
+  const avgRating = stats?.avg_rating ?? 0;
+  const reviewCount = stats?.count ?? 0;
+  stmts.scriptUpdateRatingAgg.run(Math.round(avgRating * 100) / 100, reviewCount, req.params.id);
+
+  const row = stmts.reviewGetByUserAndScript.get(req.params.id, req.user.id) as Record<string, unknown>;
+  const review: Record<string, unknown> = { ...row };
+  review.username = req.user.displayName || req.user.username;
+  res.json({ data: review });
+});
+
+/** 获取脚本的评分列表（公开，分页） */
+router.get("/:id/reviews", (req: AuthenticatedRequest, res: Response) => {
+  const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
+  if (!existing) {
+    res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
+    return;
+  }
+
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize as string) || 10));
+  const offset = (page - 1) * pageSize;
+
+  const rows = stmts.reviewGetByScriptId.all(req.params.id, pageSize, offset) as Record<string, unknown>[];
+  const countRow = stmts.reviewCountByScriptId.get(req.params.id) as { count: number };
+
+  const items = rows.map((row) => {
+    const r: Record<string, unknown> = { ...row };
+    const user = stmts.userGetById.get(row.user_id as string) as { display_name?: string } | undefined;
+    r.username = user?.display_name || (row.user_id as string);
+    return r;
+  });
+
+  res.json({
+    data: {
+      items,
+      total: countRow.count,
+      page,
+      pageSize,
+      totalPages: Math.ceil(countRow.count / pageSize) || 1,
+    },
+  });
+});
+
+/** 删除当前用户的脚本评分 */
+router.delete("/:id/reviews", (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ error: { message: "Authentication required", code: "UNAUTHORIZED" } });
+    return;
+  }
+
+  const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
+  if (!existing) {
+    res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
+    return;
+  }
+
+  const review = stmts.reviewGetByUserAndScript.get(req.params.id, req.user.id) as Record<string, unknown> | undefined;
+  if (!review) {
+    res.status(404).json({ error: { message: "评分不存在", code: "NOT_FOUND" } });
+    return;
+  }
+
+  if (req.user.role !== "admin" && review.user_id !== req.user.id) {
+    res.status(403).json({ error: { message: "只能删除自己的评分", code: "FORBIDDEN" } });
+    return;
+  }
+
+  stmts.reviewDelete.run(review.id);
+
+  // 更新脚本聚合字段
+  const stats = stmts.reviewGetStats.get(req.params.id) as { avg_rating: number | null; count: number } | undefined;
+  const avgRating = stats?.avg_rating ?? 0;
+  const reviewCount = stats?.count ?? 0;
+  stmts.scriptUpdateRatingAgg.run(Math.round(avgRating * 100) / 100, reviewCount, req.params.id);
+
+  res.json({ data: { deleted: true } });
+});
+
+/** 获取脚本评分统计（平均分 + 各星级分布） */
+router.get("/:id/rating-stats", (req: AuthenticatedRequest, res: Response) => {
+  const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
+  if (!existing) {
+    res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
+    return;
+  }
+
+  const row = stmts.reviewGetStats.get(req.params.id) as Record<string, number | null> | undefined;
+  if (!row) {
+    res.json({ data: { avgRating: 0, count: 0, distribution: { stars5: 0, stars4: 0, stars3: 0, stars2: 0, stars1: 0 } } });
+    return;
+  }
+
+  res.json({
+    data: {
+      avgRating: Math.round(((row.avg_rating as number) ?? 0) * 100) / 100,
+      count: (row.count as number) ?? 0,
+      distribution: {
+        stars5: (row.stars5 as number) ?? 0,
+        stars4: (row.stars4 as number) ?? 0,
+        stars3: (row.stars3 as number) ?? 0,
+        stars2: (row.stars2 as number) ?? 0,
+        stars1: (row.stars1 as number) ?? 0,
+      },
+    },
+  });
 });
 
 export default router;

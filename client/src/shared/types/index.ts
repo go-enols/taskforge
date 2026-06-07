@@ -647,8 +647,48 @@ export interface RemoteScript {
   reviewStatus?: string
   /** 审核评论 */
   reviewComment?: string
+  /** 平均评分 */
+  avgRating?: number
+  /** 评分总数 */
+  reviewCount?: number
   /** ISO 8601 更新时间 */
   updatedAt: string
+}
+
+/** 脚本评分/评论 */
+export interface ScriptReview {
+  /** 评分 UUID */
+  id: string
+  /** 关联的脚本 ID */
+  scriptId: string
+  /** 评分用户 ID */
+  userId: string
+  /** 用户名（展示用） */
+  username?: string
+  /** 评分（1-5星） */
+  rating: number
+  /** 评论内容（可选） */
+  comment?: string
+  /** ISO 8601 创建时间 */
+  createdAt: string
+  /** ISO 8601 更新时间 */
+  updatedAt: string
+}
+
+/** 脚本评分统计 */
+export interface RatingStats {
+  /** 平均评分 */
+  avgRating: number
+  /** 评分总数 */
+  count: number
+  /** 各星级分布 */
+  distribution: {
+    stars5: number
+    stars4: number
+    stars3: number
+    stars2: number
+    stars1: number
+  }
 }
 
 /** 服务端模板元数据（从 Marketplace API 获取） */

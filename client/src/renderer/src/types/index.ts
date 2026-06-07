@@ -37,6 +37,8 @@ export type {
   RemoteScript,
   InstalledScript,
   RemoteTemplate,
+  ScriptReview,
+  RatingStats,
   TaskOutput,
   TaskLogBatch,
   TaskProgressUpdate

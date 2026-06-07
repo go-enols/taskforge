@@ -109,7 +109,22 @@ try {
   }
 }
 
-/** 建表语句：scripts（脚本）、templates（模板）、users（用户） */
+/** 迁移：为 scripts 表添加 avg_rating/review_count 列（评分聚合） */
+try {
+  const cols = db.pragma('table_info(scripts)') as Array<{ name: string }>
+  if (!cols.some((c) => c.name === 'avg_rating')) {
+    db.exec('ALTER TABLE scripts ADD COLUMN avg_rating REAL NOT NULL DEFAULT 0')
+    db.exec('ALTER TABLE scripts ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0')
+    console.log('[db] migrated: scripts.avg_rating/review_count columns added')
+  }
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
+    console.error('[db] Migration error:', msg)
+  }
+}
+
+/** 建表语句：scripts（脚本）、templates（模板）、users（用户）、script_reviews（评分/评论） */
 db.exec(`
   CREATE TABLE IF NOT EXISTS scripts (
     id TEXT PRIMARY KEY,
@@ -127,6 +142,8 @@ db.exec(`
     created_by TEXT,
     review_status TEXT NOT NULL DEFAULT 'pending',
     review_comment TEXT DEFAULT '',
+    avg_rating REAL NOT NULL DEFAULT 0,
+    review_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -158,13 +175,27 @@ db.exec(`
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS script_reviews (
+    id TEXT PRIMARY KEY,
+    script_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+    comment TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(script_id, user_id)
+  );
 `)
+
+/** 创建索引：加速按脚本 ID 查询评分 */
+db.exec('CREATE INDEX IF NOT EXISTS idx_script_reviews_script_id ON script_reviews(script_id)')
 
 /** 预编译 SQL 语句集合 */
 const stmts = {
   /** 插入新脚本记录 */
   scriptInsert: db.prepare(
-    'INSERT INTO scripts (id, name, version, description, schema, entry_point, checksum, file_path, tags, changelog, downloads, visible, created_by, review_status, review_comment, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO scripts (id, name, version, description, schema, entry_point, checksum, file_path, tags, changelog, downloads, visible, created_by, review_status, review_comment, avg_rating, review_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ),
   /** 查询所有可见脚本（按更新时间降序） */
   scriptGetAll: db.prepare('SELECT * FROM scripts WHERE visible = 1 ORDER BY updated_at DESC'),
@@ -194,6 +225,33 @@ const stmts = {
   scriptDelete: db.prepare('DELETE FROM scripts WHERE id = ?'),
   /** 增加脚本下载计数 */
   scriptIncrementDownloads: db.prepare('UPDATE scripts SET downloads = downloads + 1 WHERE id = ?'),
+
+  /** 插入/更新评分（upsert：插入，冲突时更新评分和评论） */
+  reviewUpsert: db.prepare(
+    'INSERT INTO script_reviews (id, script_id, user_id, rating, comment, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(script_id, user_id) DO UPDATE SET rating=excluded.rating, comment=excluded.comment, updated_at=excluded.updated_at'
+  ),
+  /** 按脚本 ID 分页查询评分记录（按更新时间降序） */
+  reviewGetByScriptId: db.prepare(
+    'SELECT * FROM script_reviews WHERE script_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'
+  ),
+  /** 按脚本 ID 统计评分总数 */
+  reviewCountByScriptId: db.prepare(
+    'SELECT COUNT(*) as count FROM script_reviews WHERE script_id = ?'
+  ),
+  /** 按用户和脚本查询单条评分 */
+  reviewGetByUserAndScript: db.prepare(
+    'SELECT * FROM script_reviews WHERE script_id = ? AND user_id = ?'
+  ),
+  /** 删除评分 */
+  reviewDelete: db.prepare('DELETE FROM script_reviews WHERE id = ?'),
+  /** 按脚本 ID 查询评分统计（平均分 + 各星级分布） */
+  reviewGetStats: db.prepare(
+    'SELECT AVG(rating) as avg_rating, COUNT(*) as count, SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as stars5, SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as stars4, SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as stars3, SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as stars2, SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as stars1 FROM script_reviews WHERE script_id = ?'
+  ),
+  /** 更新脚本评分聚合字段 */
+  scriptUpdateRatingAgg: db.prepare(
+    'UPDATE scripts SET avg_rating = ?, review_count = ? WHERE id = ?'
+  ),
 
   /** 插入新模板记录 */
   templateInsert: db.prepare(
