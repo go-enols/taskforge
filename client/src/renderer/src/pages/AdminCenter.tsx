@@ -194,10 +194,17 @@ export default function AdminCenter() {
     }
   }, [])
 
+  // 仅首次进入 scripts/templates tab 时才拉取 (避免 mount 时与 ProtectedRoute.refresh 竞态)
+  const [fetchedPending, setFetchedPending] = useState(false)
+
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchPending()
-  }, [fetchPending])
+    if (!fetchedPending && (activeTab === 'scripts' || activeTab === 'templates')) {
+      setFetchedPending(true)
+      fetchPending()
+    }
+  }, [activeTab, fetchedPending, fetchPending])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleReview = async (
     type: 'script' | 'template',
@@ -277,10 +284,17 @@ export default function AdminCenter() {
     }
   }, [marketFetch, t])
 
+  // 仅首次进入 users tab 时才拉取 (避免 mount 时与 ProtectedRoute.refresh 竞态)
+  const [fetchedUsers, setFetchedUsers] = useState(false)
+
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchUsers()
-  }, [fetchUsers])
+    if (!fetchedUsers && activeTab === 'users') {
+      setFetchedUsers(true)
+      fetchUsers()
+    }
+  }, [activeTab, fetchedUsers, fetchUsers])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleCreate = useCallback(async () => {
     setCreateError(null)
