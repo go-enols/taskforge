@@ -6,7 +6,7 @@
  */
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sprout, Activity, CheckCircle2, Wallet } from 'lucide-react'
+import { FolderKanban, PlayCircle, CheckCircle2, TrendingUp } from 'lucide-react'
 import type { AirdropAnalytics, TokenEarnings } from '../../../../shared/types'
 import { formatUsd } from './airdrop-mappers'
 
@@ -49,14 +49,14 @@ const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
     {
       labelKey: 'airdrops.kpi.total',
       value: String(analytics.totalAirdrops),
-      icon: Sprout,
+      icon: FolderKanban,
       accent: 'border-l-primary',
       iconColor: 'text-primary'
     },
     {
       labelKey: 'airdrops.kpi.ongoing',
       value: String(analytics.ongoingCount),
-      icon: Activity,
+      icon: PlayCircle,
       accent: 'border-l-primary',
       iconColor: 'text-primary'
     },
@@ -70,7 +70,7 @@ const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
     {
       labelKey: 'airdrops.kpi.earnings',
       value: formatUsd(analytics.totalEarningsValueUsd),
-      icon: Wallet,
+      icon: TrendingUp,
       accent: 'border-l-success',
       iconColor: 'text-success'
     }

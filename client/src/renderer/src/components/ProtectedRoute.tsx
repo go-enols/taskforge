@@ -34,6 +34,17 @@ export default function ProtectedRoute({ children, roles }: ProtectedRouteProps)
   const { user, loading } = useAuth()
   const navigate = useNavigate()
 
+  // 计算状态（hooks 之前计算，但 useEffect 必须在所有 early-return 之前）
+  const denied = !loading && !!user && !!roles && !roles.includes(user.role)
+
+  // 越权时跳转（hooks 调用必须在所有条件 return 之前）
+  useEffect(() => {
+    if (denied) {
+      toast.warning(t('auth.redirectingHome'))
+      navigate('/', { replace: true })
+    }
+  }, [denied, navigate, t])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -45,15 +56,6 @@ export default function ProtectedRoute({ children, roles }: ProtectedRouteProps)
   if (!user) {
     return <Navigate to="/" replace />
   }
-
-  const denied = roles && !roles.includes(user.role)
-
-  useEffect(() => {
-    if (denied) {
-      toast.warning(t('auth.redirectingHome'))
-      navigate('/', { replace: true })
-    }
-  }, [denied, navigate, t])
 
   if (denied) {
     return null

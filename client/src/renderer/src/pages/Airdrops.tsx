@@ -7,7 +7,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, AlertCircle, Inbox } from 'lucide-react'
+import { Plus, AlertCircle, Briefcase } from 'lucide-react'
 import { airdropApi, accountApi, scriptApi } from '../api'
 import type { AirdropProject, AirdropAnalytics, InstalledScript, TaskTemplate } from '../types'
 import {
@@ -345,7 +345,7 @@ const Airdrops: React.FC = () => {
         </div>
       ) : items.length === 0 ? (
         <EmptyState
-          icon={Inbox}
+            icon={Briefcase}
           title={t('airdrops.noAirdrops')}
           action={
             <button
