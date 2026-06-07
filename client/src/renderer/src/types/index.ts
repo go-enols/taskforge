@@ -41,5 +41,7 @@ export type {
   RatingStats,
   TaskOutput,
   TaskLogBatch,
-  TaskProgressUpdate
+  TaskProgressUpdate,
+  ProjectTemplate,
+  ProjectTemplateField
 } from '../../../shared/types'

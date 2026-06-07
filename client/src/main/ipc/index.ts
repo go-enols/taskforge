@@ -398,7 +398,18 @@ export function registerIpcHandlers(services: Services): void {
   register('airdrop:delete', (id) => store.deleteAirdrop(id as string))
   register('airdrop:analytics', () => store.getAirdropAnalytics())
 
-  // ==================== 应用设置 ====================
+  // projectTemplate CRUD
+  register('projectTemplate:list', () => store.listProjectTemplates())
+  register('projectTemplate:get', (id) => store.getProjectTemplate(id as string))
+  register('projectTemplate:create', (data) =>
+    store.createProjectTemplate(data as Parameters<typeof store.createProjectTemplate>[0])
+  )
+  register('projectTemplate:update', (id, data) =>
+    store.updateProjectTemplate(id as string, data as Parameters<typeof store.updateProjectTemplate>[1])
+  )
+  register('projectTemplate:delete', (id) => store.deleteProjectTemplate(id as string))
+
+
   register('setting:get', (key) => store.getSetting(key as string))
   register('setting:set', (key, value) => store.setSetting(key as string, value as string))
   register('setting:getAll', () => store.getAllSettings())

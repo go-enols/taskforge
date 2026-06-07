@@ -14,6 +14,7 @@ import EligibilitySection from './AirdropFormSections/EligibilitySection'
 import TasksSection from './AirdropFormSections/TasksSection'
 import EarningsSection from './AirdropFormSections/EarningsSection'
 import TagsSection from './AirdropFormSections/TagsSection'
+import ProjectTemplateSection from './AirdropFormSections/ProjectTemplateSection'
 
 export type AirdropFormMode = 'create' | 'edit'
 
@@ -130,6 +131,8 @@ const AirdropFormModal: React.FC<AirdropFormModalProps> = ({
             onSubmit={handleSubmit}
             className="flex-1 overflow-y-auto px-6 py-4 space-y-5"
           >
+            <ProjectTemplateSection form={local} onChange={setForm} />
+            <div className="border-t border-border-light/60" />
             <BasicInfoSection form={local} onChange={setForm} errors={basicError} />
             <div className="border-t border-border-light/60" />
             <ClassificationSection

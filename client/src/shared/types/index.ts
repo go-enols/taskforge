@@ -236,6 +236,36 @@ export type AirdropStatus = 'ongoing' | 'completed' | 'cancelled' | 'claimed'
 /** 空投项目类型 */
 export type AirdropProjectType = 'testnet' | 'mainnet' | 'galxe' | 'quest' | 'social' | 'other'
 
+/**
+ * 项目模板字段定义 (JSON Schema 子集)
+ *
+ * 支持的属性 (简化版, 不依赖完整 JSON Schema 校验库):
+ * - type: 'string' | 'number' | 'boolean' | 'select'
+ * - title: 字段显示名
+ * - required: 是否必填
+ * - default: 默认值
+ * - options: select 专用, 选项数组
+ * - placeholder: 输入提示
+ */
+export interface ProjectTemplateField {
+  /** 字段名 (英文, 作为 customFields 对象的 key) */
+  name: string
+  /** 字段显示名 (中文 / i18n key) */
+  title: string
+  /** 字段类型 */
+  type: 'string' | 'number' | 'boolean' | 'select'
+  /** 是否必填 */
+  required?: boolean
+  /** 默认值 */
+  default?: string | number | boolean
+  /** select 专用: 选项列表 */
+  options?: Array<{ label: string; value: string }>
+  /** 输入提示 */
+  placeholder?: string
+  /** 帮助说明 (悬浮提示) */
+  description?: string
+}
+
 /** 空投链接（标签 + URL） */
 export interface AirdropLink {
   /** 链接标签 */
@@ -303,7 +333,11 @@ export interface AirdropProject {
   id: string
   /** 项目名称 */
   name: string
-  /** 所属链 */
+  /**
+   * 所属链 — 已废弃, 保留仅为向后兼容旧数据。
+   * 未来如需链信息, 应通过项目模板的自定义字段表达。
+   * @deprecated 自 696858f 之后已从 UI 移除, 改用 templateId + customFields
+   */
   chain: string
   /** 项目状态 */
   status: AirdropStatus
@@ -329,6 +363,41 @@ export interface AirdropProject {
   tags: string[]
   /** 系统标签 */
   labels: string[]
+  /** 使用的项目模板 ID（关联 project_templates 表，可选） */
+  templateId?: string
+  /** 模板驱动的自定义字段值（key=字段名, value=用户填的值） */
+  customFields?: Record<string, unknown>
+  /** ISO 8601 创建时间 */
+  createdAt: string
+  /** ISO 8601 更新时间 */
+  updatedAt: string
+}
+
+/**
+ * 项目模板 — 用户可自定义的"项目结构定义"
+ *
+ * 设计目标: 让用户从模板创建项目, 模板里定义该类项目需要填的字段
+ * (通过 JSON Schema 风格的字段数组), 项目存储时把字段值存到 AirdropProject.customFields。
+ *
+ * 跟 "templates" (账户模板) 表不冲突 — 那是脚本 schema, 这是项目 metadata schema。
+ */
+export interface ProjectTemplate {
+  /** UUID */
+  id: string
+  /** 模板名称 (显示用) */
+  name: string
+  /** 模板描述 */
+  description: string
+  /** 图标 (lucide-react icon name, e.g. "Folder", "Briefcase") */
+  icon: string
+  /** 模板驱动字段 (按顺序渲染) */
+  fields: ProjectTemplateField[]
+  /** 是否内置模板 (内置不可删, 只能禁用) */
+  builtIn: boolean
+  /** 是否启用 (用户可禁用某个模板) */
+  enabled: boolean
+  /** 排序权重, 数字越小越靠前 */
+  sortOrder: number
   /** ISO 8601 创建时间 */
   createdAt: string
   /** ISO 8601 更新时间 */

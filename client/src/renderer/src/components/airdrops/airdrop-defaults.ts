@@ -101,8 +101,6 @@ export interface AirdropFormData {
   name: string
   /** 官网 URL */
   website: string
-  /** 所属公链 */
-  chain: string
   /** 项目描述（支持 Markdown） */
   description: string
   /** 关联脚本模板 ID（可选） */
@@ -125,13 +123,16 @@ export interface AirdropFormData {
   tasks: AirdropTaskFormData[]
   /** 收益记录列表 */
   earnings: AirdropEarningFormData[]
+  /** 使用的项目模板 ID（可选，关联到 project_templates 表） */
+  templateId: string
+  /** 模板驱动的自定义字段值（key=字段名, value=用户填的值） */
+  customFields: Record<string, unknown>
 }
 
 /** 创建空白的项目表单数据，用于创建模式 */
 export const emptyForm = (): AirdropFormData => ({
   name: '',
   website: '',
-  chain: '',
   description: '',
   scriptTemplateId: '',
   accountPool: '',
@@ -142,7 +143,9 @@ export const emptyForm = (): AirdropFormData => ({
   links: [],
   eligibilityCriteria: [],
   tasks: [],
-  earnings: []
+  earnings: [],
+  templateId: '',
+  customFields: {}
 })
 
 /** 创建空白的链接条目（用于添加新行） */
@@ -200,7 +203,6 @@ const splitCommaSeparated = (raw: string): string[] =>
 export const toFormData = (p: AirdropProject): AirdropFormData => ({
   name: p.name ?? '',
   website: p.website ?? '',
-  chain: p.chain ?? '',
   description: p.description ?? '',
   scriptTemplateId: p.scriptTemplateId ?? '',
   accountPool: p.accountPool ?? '',
@@ -236,7 +238,9 @@ export const toFormData = (p: AirdropProject): AirdropFormData => ({
     valueUsd: Number(e.valueUsd) || 0,
     date: e.date ?? '',
     notes: e.notes ?? ''
-  }))
+  })),
+  templateId: p.templateId ?? '',
+  customFields: p.customFields ?? {}
 })
 
 /**
@@ -251,7 +255,7 @@ export const toFormData = (p: AirdropProject): AirdropFormData => ({
 export const fromFormData = (fd: AirdropFormData): Omit<AirdropProject, 'id' | 'createdAt' | 'updatedAt'> => ({
   name: fd.name.trim(),
   website: fd.website.trim(),
-  chain: fd.chain.trim(),
+  chain: '', // deprecated: 留空保持向后兼容
   description: fd.description.trim(),
   scriptTemplateId: fd.scriptTemplateId.trim() || undefined,
   accountPool: fd.accountPool.trim(),
@@ -288,7 +292,9 @@ export const fromFormData = (fd: AirdropFormData): Omit<AirdropProject, 'id' | '
       date: e.date,
       notes: e.notes.trim()
     }))
-    .filter((e) => e.token.length > 0)
+    .filter((e) => e.token.length > 0),
+  templateId: fd.templateId.trim() || undefined,
+  customFields: fd.customFields
 })
 
 /** 基本字段校验结果类型：校验通过或返回第一个失败的字段名 */

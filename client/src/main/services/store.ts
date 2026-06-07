@@ -32,7 +32,9 @@ import type {
   RecentTaskResult,
   TemplateUsage,
   TemplateRanking,
-  WeeklyTrend
+  WeeklyTrend,
+  ProjectTemplate,
+  ProjectTemplateField
 } from '../../shared/types'
 import { WalletRepository } from './repositories/wallet'
 import { ProxyRepository } from './repositories/proxy'
@@ -310,6 +312,19 @@ export class StoreService {
         fields TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS project_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        icon TEXT NOT NULL DEFAULT 'Folder',
+        fields TEXT NOT NULL DEFAULT '[]',
+        built_in INTEGER NOT NULL DEFAULT 0,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 100,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_task_logs_task_id ON task_logs(task_id);
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       CREATE INDEX IF NOT EXISTS idx_wallets_wallet_type ON wallets(wallet_type);
@@ -322,9 +337,10 @@ export class StoreService {
     // Migrations: add columns that may be missing from existing tables
     this.migrateAirdropProjects()
     this.migrateProxies()
+    this.seedProjectTemplates()
   }
 
-  /** 迁移：为 airdrop_projects 表添加后续新增的字段（website, script_template_id, account_pool） */
+  /** 迁移：为 airdrop_projects 表添加后续新增的字段（website, script_template_id, account_pool, template_id, custom_fields） */
   private migrateAirdropProjects(): void {
     const cols = this.db.prepare("PRAGMA table_info('airdrop_projects')").all() as Array<{
       name: string
@@ -333,7 +349,9 @@ export class StoreService {
     const migrations: Record<string, string> = {
       website: "ALTER TABLE airdrop_projects ADD COLUMN website TEXT NOT NULL DEFAULT ''",
       script_template_id: 'ALTER TABLE airdrop_projects ADD COLUMN script_template_id TEXT',
-      account_pool: "ALTER TABLE airdrop_projects ADD COLUMN account_pool TEXT NOT NULL DEFAULT ''"
+      account_pool: "ALTER TABLE airdrop_projects ADD COLUMN account_pool TEXT NOT NULL DEFAULT ''",
+      template_id: 'ALTER TABLE airdrop_projects ADD COLUMN template_id TEXT',
+      custom_fields: "ALTER TABLE airdrop_projects ADD COLUMN custom_fields TEXT NOT NULL DEFAULT '{}'"
     }
     for (const [col, sql] of Object.entries(migrations)) {
       if (!names.has(col)) {
@@ -348,6 +366,83 @@ export class StoreService {
     const names = new Set(cols.map((c) => c.name))
     if (!names.has('format')) {
       this.db.exec("ALTER TABLE proxies ADD COLUMN format TEXT NOT NULL DEFAULT 'manual'")
+    }
+  }
+
+  /**
+   * 种子：首次启动时插入 2 个内置项目模板
+   * 用 INSERT OR IGNORE 防重复 — 用户已存在同 id 模板则不覆盖
+   */
+  private seedProjectTemplates(): void {
+    const now = nowISO()
+    const builtIns: Array<Omit<ProjectTemplate, 'createdAt' | 'updatedAt'>> = [
+      {
+        id: 'built-in:basic-project',
+        name: '基础项目',
+        description: '最简单的项目模板, 包含项目名称、官网、描述 (基础信息已有, 无需额外字段)',
+        icon: 'Folder',
+        fields: [],
+        builtIn: true,
+        enabled: true,
+        sortOrder: 10
+      },
+      {
+        id: 'built-in:tracked-project',
+        name: '可追踪项目',
+        description: '适合需要跟踪进度的项目, 额外字段: 目标 / 截止日期 / 优先级 / 状态备注',
+        icon: 'Target',
+        fields: [
+          {
+            name: 'goal',
+            title: '目标',
+            type: 'string',
+            placeholder: '例如: 1000 真实用户 / 10 万美元融资 / ...',
+            description: '本项目要达成的核心目标'
+          },
+          {
+            name: 'priority',
+            title: '优先级',
+            type: 'select',
+            default: 'medium',
+            options: [
+              { label: '高', value: 'high' },
+              { label: '中', value: 'medium' },
+              { label: '低', value: 'low' }
+            ]
+          },
+          {
+            name: 'deadline',
+            title: '截止日期',
+            type: 'string',
+            placeholder: 'YYYY-MM-DD 或留空'
+          },
+          {
+            name: 'progress',
+            title: '进度 (0-100)',
+            type: 'number',
+            default: 0
+          }
+        ],
+        builtIn: true,
+        enabled: true,
+        sortOrder: 20
+      }
+    ]
+    for (const t of builtIns) {
+      const existing = this.stmt('projectTemplate.exists').get(t.id)
+      if (existing) continue
+      this.stmt('projectTemplate.insert').run(
+        t.id,
+        t.name,
+        t.description,
+        t.icon,
+        toJson(t.fields),
+        t.builtIn ? 1 : 0,
+        t.enabled ? 1 : 0,
+        t.sortOrder,
+        now,
+        now
+      )
     }
   }
 
@@ -424,17 +519,35 @@ export class StoreService {
     s.set(
       'airdrop.insert',
       db.prepare(
-        'INSERT INTO airdrop_projects (id, name, chain, status, project_type, description, website, script_template_id, account_pool, links, eligibility_criteria, tasks, earnings, tags, labels, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO airdrop_projects (id, name, chain, status, project_type, description, website, script_template_id, account_pool, links, eligibility_criteria, tasks, earnings, tags, labels, template_id, custom_fields, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
     )
     s.set('airdrop.getById', db.prepare('SELECT * FROM airdrop_projects WHERE id = ?'))
     s.set(
       'airdrop.update',
       db.prepare(
-        'UPDATE airdrop_projects SET name=?, chain=?, status=?, project_type=?, description=?, website=?, script_template_id=?, account_pool=?, links=?, eligibility_criteria=?, tasks=?, earnings=?, tags=?, labels=?, updated_at=? WHERE id=?'
+        'UPDATE airdrop_projects SET name=?, chain=?, status=?, project_type=?, description=?, website=?, script_template_id=?, account_pool=?, links=?, eligibility_criteria=?, tasks=?, earnings=?, tags=?, labels=?, template_id=?, custom_fields=?, updated_at=? WHERE id=?'
       )
     )
     s.set('airdrop.delete', db.prepare('DELETE FROM airdrop_projects WHERE id = ?'))
+
+    // project_templates CRUD
+    s.set(
+      'projectTemplate.insert',
+      db.prepare(
+        'INSERT INTO project_templates (id, name, description, icon, fields, built_in, enabled, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      )
+    )
+    s.set(
+      'projectTemplate.update',
+      db.prepare(
+        'UPDATE project_templates SET name=?, description=?, icon=?, fields=?, built_in=?, enabled=?, sort_order=?, updated_at=? WHERE id=?'
+      )
+    )
+    s.set('projectTemplate.delete', db.prepare('DELETE FROM project_templates WHERE id = ?'))
+    s.set('projectTemplate.getById', db.prepare('SELECT * FROM project_templates WHERE id = ?'))
+    s.set('projectTemplate.list', db.prepare('SELECT * FROM project_templates ORDER BY sort_order ASC, created_at ASC'))
+    s.set('projectTemplate.exists', db.prepare('SELECT 1 FROM project_templates WHERE id = ?'))
 
     s.set('setting.get', db.prepare('SELECT value FROM settings WHERE key = ?'))
     s.set('setting.set', db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'))
@@ -565,6 +678,24 @@ export class StoreService {
       earnings: fromJsonArray(row.earnings as JsonField),
       tags: fromJsonArray<string>(row.tags as JsonField),
       labels: fromJsonArray<string>(row.labels as JsonField),
+      templateId: (row.template_id as string | null) ?? undefined,
+      customFields: fromJson<Record<string, unknown>>(row.custom_fields as JsonField) ?? {},
+      createdAt: row.created_at as string,
+      updatedAt: row.updated_at as string
+    }
+  }
+
+  /** 行映射：数据库行 → ProjectTemplate 对象 */
+  private rowToProjectTemplate(row: Record<string, unknown>): ProjectTemplate {
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      description: row.description as string,
+      icon: row.icon as string,
+      fields: fromJson<ProjectTemplateField[]>(row.fields as JsonField) ?? [],
+      builtIn: (row.built_in as number) === 1,
+      enabled: (row.enabled as number) === 1,
+      sortOrder: row.sort_order as number,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string
     }
@@ -1068,6 +1199,8 @@ export class StoreService {
       toJson(data.earnings),
       toJson(data.tags),
       toJson(data.labels),
+      data.templateId ?? null,
+      toJson(data.customFields ?? {}),
       now,
       now
     )
@@ -1096,10 +1229,10 @@ export class StoreService {
   listAirdrops(page = 1, pageSize = 20, search?: string): ListResponse<AirdropProject> {
     if (search) {
       const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM airdrop_projects WHERE name LIKE ? OR chain LIKE ? OR description LIKE ?'
+        'SELECT COUNT(*) as cnt FROM airdrop_projects WHERE name LIKE ? OR description LIKE ? OR tags LIKE ?'
       )
       const listStmt = this.db.prepare(
-        'SELECT * FROM airdrop_projects WHERE name LIKE ? OR chain LIKE ? OR description LIKE ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'
+        'SELECT * FROM airdrop_projects WHERE name LIKE ? OR description LIKE ? OR tags LIKE ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'
       )
       return this.paginate(
         countStmt,
@@ -1146,6 +1279,8 @@ export class StoreService {
       toJson(updated.earnings),
       toJson(updated.tags),
       toJson(updated.labels),
+      updated.templateId ?? null,
+      toJson(updated.customFields ?? {}),
       updated.updatedAt,
       id
     )
@@ -1791,6 +1926,70 @@ export class StoreService {
   deleteAllLogs(): number {
     const result = this.db.prepare('DELETE FROM app_logs').run()
     return result.changes
+  }
+
+  // ── ProjectTemplate CRUD ─────────────────────────────────────
+
+  /** 列出所有项目模板 (按 sortOrder ASC, createdAt ASC) */
+  listProjectTemplates(): ProjectTemplate[] {
+    const rows = this.stmt('projectTemplate.list').all() as Record<string, unknown>[]
+    return rows.map((r) => this.rowToProjectTemplate(r))
+  }
+
+  /** 获取单个项目模板 */
+  getProjectTemplate(id: string): ProjectTemplate | null {
+    const row = this.stmt('projectTemplate.getById').get(id) as Record<string, unknown> | undefined
+    return row ? this.rowToProjectTemplate(row) : null
+  }
+
+  /** 创建项目模板 */
+  createProjectTemplate(data: Omit<ProjectTemplate, 'id' | 'createdAt' | 'updatedAt'>): ProjectTemplate {
+    const id = uuidv4()
+    const now = nowISO()
+    this.stmt('projectTemplate.insert').run(
+      id,
+      data.name,
+      data.description,
+      data.icon,
+      toJson(data.fields),
+      data.builtIn ? 1 : 0,
+      data.enabled ? 1 : 0,
+      data.sortOrder,
+      now,
+      now
+    )
+    return this.getProjectTemplate(id)!
+  }
+
+  /** 更新项目模板 */
+  updateProjectTemplate(
+    id: string,
+    data: Partial<Omit<ProjectTemplate, 'id' | 'createdAt' | 'updatedAt'>>
+  ): ProjectTemplate | null {
+    const existing = this.getProjectTemplate(id)
+    if (!existing) return null
+    const updated = { ...existing, ...data, updatedAt: nowISO() }
+    this.stmt('projectTemplate.update').run(
+      updated.name,
+      updated.description,
+      updated.icon,
+      toJson(updated.fields),
+      updated.builtIn ? 1 : 0,
+      updated.enabled ? 1 : 0,
+      updated.sortOrder,
+      updated.updatedAt,
+      id
+    )
+    return this.getProjectTemplate(id)
+  }
+
+  /** 删除项目模板 (内置模板不允许删除) */
+  deleteProjectTemplate(id: string): boolean {
+    const existing = this.getProjectTemplate(id)
+    if (!existing) return false
+    if (existing.builtIn) return false
+    const result = this.stmt('projectTemplate.delete').run(id)
+    return result.changes > 0
   }
 
   /** 关闭数据库连接（应用退出时调用） */

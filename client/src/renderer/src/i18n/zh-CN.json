@@ -61,6 +61,12 @@
     "showPrivateKey": "显示私钥",
     "hidePrivateKey": "隐藏私钥"
   },
+  "projectTemplate": {
+    "sectionTitle": "项目模板",
+    "selectTemplateHint": "选择模板（已加载 {{count}} 个）",
+    "changeTemplate": "更换/移除",
+    "builtIn": "内置"
+  },
   "nav": {
     "dashboard": "仪表盘",
     "tasks": "任务",

@@ -18,7 +18,8 @@ import type {
   InstalledScript,
   RemoteTemplate,
   TaskTemplate,
-  TaskOutput
+  TaskOutput,
+  ProjectTemplate
 } from './types'
 import { call } from './transport'
 
@@ -158,6 +159,16 @@ export const captchaKeyApi = {
   update: (id: string, data: Partial<CaptchaKey>) =>
     call<CaptchaKey>('captchaKey:update', [id, data]),
   delete: (id: string) => call<void>('captchaKey:delete', [id])
+}
+
+export const projectTemplateApi = {
+  list: () => call<ProjectTemplate[]>('projectTemplate:list'),
+  get: (id: string) => call<ProjectTemplate | null>('projectTemplate:get', [id]),
+  create: (data: Omit<ProjectTemplate, 'id' | 'createdAt' | 'updatedAt'>) =>
+    call<ProjectTemplate>('projectTemplate:create', [data]),
+  update: (id: string, data: Partial<Omit<ProjectTemplate, 'id' | 'createdAt' | 'updatedAt'>>) =>
+    call<ProjectTemplate>('projectTemplate:update', [id, data]),
+  delete: (id: string) => call<boolean>('projectTemplate:delete', [id])
 }
 
 export const proxyProviderApi = {

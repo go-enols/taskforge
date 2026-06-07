@@ -109,11 +109,6 @@ const AirdropCard: React.FC<AirdropCardProps> = ({ project, onEdit, onDelete, on
         >
           {t(typeLabelKey[project.projectType])}
         </span>
-        {project.chain && (
-          <span className="inline-flex items-center px-2 py-0.5 text-[11px] rounded-full font-medium bg-bg-tertiary text-text-secondary">
-            {project.chain}
-          </span>
-        )}
       </div>
 
       {/* 描述文本（最多 3 行截断） */}
