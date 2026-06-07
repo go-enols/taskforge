@@ -1,0 +1,22 @@
+{
+  "id": "sdk-example",
+  "name": "SDK Example",
+  "version": "1.0.0",
+  "description": "演示 TaskForge 脚本 SDK 用法: 结构化 JSON 日志、进度上报、结果报告",
+  "entryPoint": "index.js",
+  "runtime": "node",
+  "requiredAccountTemplateIds": [],
+  "schema": {
+    "type": "object",
+    "properties": {
+      "delayMs": {
+        "type": "number",
+        "title": "每步延迟(毫秒)",
+        "default": 200
+      }
+    }
+  },
+  "permissions": [],
+  "tags": ["example", "sdk"],
+  "changelog": "1.0.0 初始版本, 演示 SDK 协议"
+}

@@ -186,6 +186,25 @@ export class ScriptFetcher {
     }
 
     logger.info('Script downloaded', { scriptId, version: script.version })
+
+    // 检查 manifest 声明的 requiredAccountTemplateIds 中哪些账户模板本地未下载
+    // 注意: 这里是软检查, 仍然返回 installed 让 UI 决定是否提示
+    const requiredIds = manifest.requiredAccountTemplateIds as string[] | undefined
+    if (requiredIds && requiredIds.length > 0) {
+      const templatesRes = this.store.listTemplates(1, 9999)
+      const installedIds = new Set(templatesRes.items.map((t) => t.id))
+      const missing = requiredIds.filter((id) => !installedIds.has(id))
+      if (missing.length > 0) {
+        logger.warn('Script requires account templates not installed locally', {
+          scriptId,
+          requiredIds,
+          missing
+        })
+        // 把缺失列表挂到返回对象上 (前端 UI 可读)
+        ;(installed as InstalledScript & { missingAccountTemplates?: string[] }).missingAccountTemplates = missing
+      }
+    }
+
     return installed
   }
 

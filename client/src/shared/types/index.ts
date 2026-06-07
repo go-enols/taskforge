@@ -761,6 +761,12 @@ export interface InstalledScript {
   updatedAt: string
   /** 从 manifest.json 提取的运行时权限声明 */
   permissions: PermissionSet
+  /**
+   * manifest.json 声明的 requiredAccountTemplateIds 中, 本地尚未下载的账户模板 ID 列表
+   * 仅在 downloadScript 后由 ScriptFetcher 软检查附加, 用于 UI 提示用户去 Marketplace 下载
+   * 缺省 undefined 表示脚本不需要任何账户模板, 或所有依赖已就绪
+   */
+  missingAccountTemplates?: string[]
 }
 
 /** 任务执行输出 */

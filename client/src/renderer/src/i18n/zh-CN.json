@@ -294,6 +294,7 @@
     "isLocal": "本地",
     "updatedAt": "更新时间",
     "actions": "操作",
+    "scriptNeedsTemplates": "脚本已安装，但还需要 {{count}} 个账户模板才能运行，请到 Marketplace 下载",
     "noTemplates": "暂无账户模板",
     "noScripts": "暂无任务脚本",
     "confirmDelete": "确认删除此模板？",

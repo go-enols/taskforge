@@ -609,9 +609,54 @@ PYTHONPATH, CLASSPATH
 - **日志** → 子进程 stdout/stderr 自动捕获并写入 `task_logs` 表
 - **输出** → 任务完成后保留 stdout/stderr（最后 10KB）
 
-### 6.3 脚本 SDK（计划中）
+### 6.3 脚本 SDK（已实现 — 696858f）
 
-当前通过环境变量向脚本注入配置，通过 stdout/stderr 接收日志。未来计划建立正式 SDK。
+脚本与主进程之间通过 **stdin/stdout NDJSON 协议**（每行一个 JSON 对象，类似 LSP）通信。
+完全向后兼容老的纯文本 stdout 脚本：解析器对每行尝试 `JSON.parse`，非 JSON 行走原始 `logBuffer.push('info', line)`。
+
+#### 6.3.1 协议消息
+
+**脚本 → 主进程**（stdout）：
+
+| type | 必填字段 | 用途 |
+|---|---|---|
+| `log` | `level` (`debug`/`info`/`warn`/`error`), `message` | 结构化日志 → task_logs 表 |
+| `progress` | `percent` (0-100), `message?` | 任务进度，UI 实时显示 |
+| `error` | `message` | 错误日志（level=error） |
+| `result` | `ok` (boolean), `data?`, `error?` | 脚本主动报告最终结果 |
+
+**主进程 → 脚本**（stdin）：
+
+| type/id | 字段 | 用途 |
+|---|---|---|
+| `shutdown` | — | 主进程通知脚本优雅退出（SIGTERM 前） |
+
+#### 6.3.2 极简 SDK（Node.js 零依赖示例）
+
+```js
+// 脚本入口 index.js
+function sdk(level, message, fields) {
+  process.stdout.write(JSON.stringify({ type: 'log', level, message, fields }) + '\n')
+}
+function progress(percent, message) {
+  process.stdout.write(JSON.stringify({ type: 'progress', percent, message }) + '\n')
+}
+
+// 业务
+sdk('info', '开始执行')
+progress(0, '初始化')
+// ...
+progress(100, '完成')
+process.stdout.write(JSON.stringify({ type: 'result', ok: true, data: { count: 42 } }) + '\n')
+```
+
+#### 6.3.3 解析器位置
+`client/src/main/services/sdk-protocol.ts` 的 `SdkLineParser` 类：
+- `feed(chunk)`: 投递 stdout 数据块（按 `\n` 切分）
+- `flush()`: 进程退出时调用，处理残留不完整行
+- `waitForResponse(id, timeoutMs)`: 主进程发起 RPC 后等脚本响应（暂未启用）
+
+TaskService 在 `task.ts:339-355` 位置把 stdout 改走 `SdkLineParser.feed()`，stderr 仍走纯文本（脚本 SDK 不期望从 stderr 发 JSON）。
 
 ### 6.4 脚本下载流程
 

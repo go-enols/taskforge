@@ -7,6 +7,7 @@ import { app } from 'electron'
 import { createLogger } from '../utils/logger'
 import { LogBuffer } from '../utils/log-buffer'
 import type { LogEntry } from '../utils/log-buffer'
+import { SdkLineParser } from './sdk-protocol'
 import type { StoreService } from './store'
 import type { TaskOutput, TaskLogBatch, PermissionSet } from '../../shared/types'
 
@@ -336,19 +337,34 @@ export class TaskService {
 
       running.process = proc
 
+      // 用 SdkLineParser 解析 stdout: 支持结构化 JSON-RPC + 兼容纯文本
+      const parser = new SdkLineParser({
+        logBuffer,
+        onProgress: (percent, message) => {
+          running.progress = { percent, message: message ?? '' }
+        },
+        onResult: (ok, data, error) => {
+          // 脚本通过 {type:"result"} 报告最终结果, 写入日志便于用户查看
+          if (ok) {
+            logBuffer.push('info', `[sdk] result: ${JSON.stringify(data)}`)
+          } else {
+            logBuffer.push('error', `[sdk] result error: ${error ?? 'unknown'}`)
+          }
+        }
+      })
+
       proc.stdout?.on('data', (data: Buffer) => {
         if (running.isSoftPaused) return
         const text = data.toString()
         running.stdout += text
-        for (const line of text.split('\n')) {
-          if (line.trim()) logBuffer.push('info', line)
-        }
+        parser.feed(text)
       })
 
       proc.stderr?.on('data', (data: Buffer) => {
         if (running.isSoftPaused) return
         const text = data.toString()
         running.stderr += text
+        // stderr 仍按纯文本处理 (脚本 SDK 不期望从 stderr 发 JSON)
         for (const line of text.split('\n')) {
           if (line.trim()) logBuffer.push('error', line)
         }
@@ -356,6 +372,7 @@ export class TaskService {
 
       proc.on('exit', (code) => {
         if (!this.runningTasks.has(id)) return
+        parser.flush()
         logBuffer.destroy()
         const status = code === 0 ? 'complete' : 'error'
         const output: TaskOutput = {

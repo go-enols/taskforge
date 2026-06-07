@@ -143,8 +143,16 @@ const Templates: React.FC = () => {
   const handleInstallScript = async (id: string): Promise<void> => {
     setInstallingId(id)
     try {
-      await scriptApi.download(id)
+      const installed = await scriptApi.download(id)
       await loadInstalled()
+      // 若 ScriptFetcher 检测到脚本所需的账户模板本地未下载, 提示用户去 Marketplace 下载
+      if (installed?.missingAccountTemplates && installed.missingAccountTemplates.length > 0) {
+        toast.warning(
+          t('templates.scriptNeedsTemplates', {
+            count: installed.missingAccountTemplates.length
+          })
+        )
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('common.error'))
     } finally {

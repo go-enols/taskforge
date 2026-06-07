@@ -256,6 +256,29 @@ router.post(
           throw new Error();
         }
         manifestSchema = mSchema;
+
+        // 校验可选字段 requiredAccountTemplateIds (string[])
+        if (manifest.requiredAccountTemplateIds !== undefined) {
+          const ids = manifest.requiredAccountTemplateIds;
+          if (!Array.isArray(ids) || !ids.every((x) => typeof x === "string")) {
+            manifestErr =
+              "manifest.json 中 requiredAccountTemplateIds 必须为 string[] (UUID 数组)";
+            throw new Error();
+          }
+        }
+
+        // 校验可选字段 permissions (string[] from "network"|"filesystem")
+        if (manifest.permissions !== undefined) {
+          const perms = manifest.permissions;
+          const validPerms = ["network", "filesystem"];
+          if (
+            !Array.isArray(perms) ||
+            !perms.every((p) => typeof p === "string" && validPerms.includes(p))
+          ) {
+            manifestErr = `manifest.json 中 permissions 必须为 string[]，取值只能是: ${validPerms.join(", ")}`;
+            throw new Error();
+          }
+        }
       }
     } catch (err) {
       if (!manifestErr) {
@@ -541,6 +564,25 @@ router.post(
         if (!mSchema || typeof mSchema !== "object" || mSchema.type !== "object") {
           manifestErr = 'manifest.json 中 schema 必须为 { "type": "object", ... } 格式的 JSON Schema';
           throw new Error();
+        }
+
+        // 校验可选字段 requiredAccountTemplateIds (string[])
+        if (manifest.requiredAccountTemplateIds !== undefined) {
+          const ids = manifest.requiredAccountTemplateIds;
+          if (!Array.isArray(ids) || !ids.every((x) => typeof x === "string")) {
+            manifestErr = "manifest.json 中 requiredAccountTemplateIds 必须为 string[] (UUID 数组)";
+            throw new Error();
+          }
+        }
+
+        // 校验可选字段 permissions (string[] from "network"|"filesystem")
+        if (manifest.permissions !== undefined) {
+          const perms = manifest.permissions;
+          const validPerms = ["network", "filesystem"];
+          if (!Array.isArray(perms) || !perms.every((p) => typeof p === "string" && validPerms.includes(p))) {
+            manifestErr = `manifest.json 中 permissions 必须为 string[]，取值只能是: ${validPerms.join(", ")}`;
+            throw new Error();
+          }
         }
       }
     } catch (err) {
