@@ -15,6 +15,7 @@ import {
   marketplaceApi,
   shellApi,
   windowApi,
+  updateApi,
   getMarketplaceUrl
 } from '../api'
 import { useAuth } from '../contexts/AuthContext'
@@ -36,6 +37,10 @@ import {
 } from 'lucide-react'
 import { toast, toastError } from '../utils/toast'
 import ThemeToggle from '../components/ThemeToggle'
+import UpdateProgressModal, {
+  type UpdateStatus,
+  type UpdateProgressData
+} from '../components/UpdateProgressModal'
 import { Modal, ConfirmDialog, StaggeredFadeIn } from '../components/common'
 import { getVisibleSections, type SectionId, type UserRole } from './settings-sections'
 
@@ -1009,30 +1014,50 @@ const SystemSection: React.FC = () => {
 
 const UpdatesSection: React.FC = () => {
   const { t } = useTranslation()
-  const [updateStatus, setUpdateStatus] = useState<
-    'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
-  >('idle')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle')
   const [updateInfo, setUpdateInfo] = useState<{ version: string } | null>(null)
   const [updateError, setUpdateError] = useState('')
-  const [progress, setProgress] = useState({ percent: 0, transferred: 0, total: 0 })
+  const [progress, setProgress] = useState<UpdateProgressData>({
+    percent: 0,
+    transferred: 0,
+    total: 0
+  })
 
+  /* ── Subscribe to auto-updater events ── */
   useEffect(() => {
-    const handler = (...args: unknown[]): void => {
-      const p = args[0] as { status: string; data?: unknown }
-      setUpdateStatus(p.status as typeof updateStatus)
-      if (p.status === 'available') setUpdateInfo(p.data as { version: string })
-      if (p.status === 'downloading') setProgress(p.data as typeof progress)
-      if (p.status === 'error') setUpdateError(String(p.data ?? ''))
-    }
-    const unsub = window.electronAPI?.on?.('update:status', handler)
-    return () => {
-      if (typeof unsub === 'function') unsub()
-    }
+    const unsub = updateApi.onStatus((event) => {
+      setUpdateStatus(event.status)
+      if (event.status === 'available' && 'data' in event) {
+        const data = event.data as { version: string }
+        setUpdateInfo(data)
+      }
+      if (event.status === 'downloading' && 'data' in event) {
+        const data = event.data as UpdateProgressData
+        setProgress(data)
+      }
+      if (event.status === 'downloaded' && 'data' in event) {
+        const data = event.data as { version: string }
+        setUpdateInfo(data)
+      }
+      if (event.status === 'error' && 'data' in event) {
+        setUpdateError(event.data as string)
+      }
+      if (event.status === 'not-available') {
+        setUpdateInfo(null)
+      }
+    })
+    return unsub
   }, [])
+
+  /* ── Actions ── */
 
   const checkUpdates = async (): Promise<void> => {
     setUpdateStatus('checking')
     setUpdateError('')
+    setUpdateInfo(null)
+    setProgress({ percent: 0, transferred: 0, total: 0 })
+    setModalOpen(true)
     try {
       await window.electronAPI?.invoke?.('update:check')
     } catch {
@@ -1059,6 +1084,14 @@ const UpdatesSection: React.FC = () => {
     }
   }
 
+  const closeModal = (): void => {
+    setModalOpen(false)
+    setUpdateStatus('idle')
+    setUpdateError('')
+    setUpdateInfo(null)
+    setProgress({ percent: 0, transferred: 0, total: 0 })
+  }
+
   return (
     <>
       <div className="flex items-center justify-between mb-3">
@@ -1077,54 +1110,17 @@ const UpdatesSection: React.FC = () => {
           {t('updates.checkNow')}
         </button>
       </div>
-      {updateError && (
-        <div className="px-3 py-2 text-sm text-danger bg-danger-light rounded-lg">
-          {updateError}
-        </div>
-      )}
-      {(updateStatus === 'available' || updateStatus === 'downloading') && updateInfo && (
-        <div className="px-3 py-3 bg-primary-light border border-primary/30 rounded-lg space-y-2">
-          <p className="text-sm text-primary">
-            <strong>{t('updates.updateAvailable')}</strong> {t('updates.version')}:{' '}
-            <span className="font-mono">{updateInfo.version}</span>
-          </p>
-          <button
-            onClick={downloadUpdate}
-            disabled={updateStatus === 'downloading'}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
-          >
-            <Download size={14} />
-            {t('updates.downloadUpdate')}
-          </button>
-          {updateStatus === 'downloading' && progress.total > 0 && (
-            <div className="w-full bg-bg-tertiary rounded-full h-2 mt-1">
-              <div
-                className="bg-primary h-2 rounded-full transition-all"
-                style={{ width: `${progress.percent}%` }}
-              />
-              <p className="text-xs text-primary mt-1">
-                {Math.round(progress.percent)}% —{' '}
-                {(progress.transferred / 1024 / 1024).toFixed(1)}MB /{' '}
-                {(progress.total / 1024 / 1024).toFixed(1)}MB
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-      {updateStatus === 'downloaded' && (
-        <div className="px-3 py-3 bg-success-light border border-success/30 rounded-lg">
-          <p className="text-sm text-success mb-2">{t('updates.updateReady')}</p>
-          <button
-            onClick={installUpdate}
-            className="px-3 py-1.5 text-sm bg-success text-white rounded-lg hover:bg-success-hover transition-colors"
-          >
-            {t('updates.restartInstall')}
-          </button>
-        </div>
-      )}
-      {updateStatus === 'not-available' && (
-        <p className="text-sm text-text-muted">{t('updates.noUpdates')}</p>
-      )}
+
+      <UpdateProgressModal
+        open={modalOpen}
+        status={updateStatus}
+        version={updateInfo?.version}
+        progress={progress}
+        errorMessage={updateError}
+        onClose={closeModal}
+        onDownload={downloadUpdate}
+        onInstall={installUpdate}
+      />
     </>
   )
 }

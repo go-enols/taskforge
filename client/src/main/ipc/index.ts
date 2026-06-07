@@ -421,6 +421,46 @@ export function registerIpcHandlers(services: Services): void {
   register('log:deleteLogs', () => store.deleteAllLogs())
 
   // ==================== 自动更新 ====================
+  /* ────────── Update ────────── */
+
+  /**
+   * 向所有 BrowserWindow 广播更新状态事件
+   * @param payload - 更新事件数据
+   */
+  const broadcastUpdateStatus = (payload: Record<string, unknown>): void => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('update:status', payload)
+    }
+  }
+
+  // 注册 autoUpdater 事件监听，推送到渲染进程
+  autoUpdater.on('checking-for-update', () => {
+    broadcastUpdateStatus({ status: 'checking' })
+  })
+  autoUpdater.on('update-available', (info) => {
+    broadcastUpdateStatus({ status: 'available', data: { version: info.version } })
+  })
+  autoUpdater.on('update-not-available', () => {
+    broadcastUpdateStatus({ status: 'not-available' })
+  })
+  autoUpdater.on('download-progress', (progress) => {
+    broadcastUpdateStatus({
+      status: 'downloading',
+      data: {
+        percent: progress.percent,
+        transferred: progress.transferred,
+        total: progress.total,
+        bytesPerSecond: progress.bytesPerSecond
+      }
+    })
+  })
+  autoUpdater.on('update-downloaded', (info) => {
+    broadcastUpdateStatus({ status: 'downloaded', data: { version: info.version } })
+  })
+  autoUpdater.on('error', (err) => {
+    broadcastUpdateStatus({ status: 'error', data: err?.message ?? String(err) })
+  })
+
   register('update:check', () => {
     autoUpdater.checkForUpdates()
     return null

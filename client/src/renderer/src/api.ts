@@ -168,10 +168,25 @@ export const proxyProviderApi = {
   delete: (id: string) => call<void>('proxyProvider:delete', [id])
 }
 
+export type UpdateEvent =
+  | { status: 'checking' }
+  | { status: 'available'; data: { version: string } }
+  | { status: 'not-available' }
+  | { status: 'downloading'; data: { percent: number; transferred: number; total: number; bytesPerSecond: number } }
+  | { status: 'downloaded'; data: { version: string } }
+  | { status: 'error'; data: string }
+
 export const updateApi = {
   check: () => call<void>('update:check'),
   download: () => call<void>('update:download'),
-  install: () => call<void>('update:install')
+  install: () => call<void>('update:install'),
+  onStatus: (handler: (event: UpdateEvent) => void): (() => void) => {
+    const unsub = window.electronAPI?.on?.('update:status', (...args: unknown[]) => {
+      const event = args[0] as UpdateEvent
+      handler(event)
+    })
+    return unsub ?? (() => {})
+  }
 }
 
 export const windowApi = {

@@ -28,8 +28,8 @@ let scriptFetcher: ScriptFetcher
 /** 定时任务调度器实�?*/
 let schedulerService: SchedulerService
 
-/** 自动更新：检查到更新后自动下载、退出时自动安装 */
-autoUpdater.autoDownload = true
+/** 自动更新：由用户在弹窗中手动触发下载，退出时自动安装 */
+autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = true
 
 /**
