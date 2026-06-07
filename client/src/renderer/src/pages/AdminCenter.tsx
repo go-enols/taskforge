@@ -1,10 +1,9 @@
 /**
- * @file AdminCenter — 管理中心（合并审核、用户管理、系统日志）
+ * @file AdminCenter — 管理中心 (审核 + 用户管理)
  * @description 管理员一站式控制台：
- *   - Tab 1: 脚本审核（原 AdminReviewPage 脚本 tab）
- *   - Tab 2: 模板审核（原 AdminReviewPage 模板 tab）
- *   - Tab 3: 用户管理（原 UserManagement）
- *   - Tab 4: 系统日志（原 Logs）
+ *   - Tab 1: 脚本审核
+ *   - Tab 2: 模板审核
+ *   - Tab 3: 用户管理
  * @module renderer/pages
  */
 
@@ -14,42 +13,37 @@ import {
   Shield,
   FileText,
   Users,
-  ScrollText,
   Check,
   X,
   Clock,
   ChevronDown,
   ChevronRight,
   Download,
-  RefreshCw,
-  Trash2,
-  Calendar,
   UserPlus,
   Copy,
   Eye,
   EyeOff,
   RotateCcw,
   Loader2,
-  Edit3
+  Edit3,
+  Trash2
 } from 'lucide-react'
-import { marketplaceApi, getMarketplaceUrl, getMarketplaceHeaders, logApi } from '../api'
+import { marketplaceApi, getMarketplaceUrl, getMarketplaceHeaders } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../utils/toast'
-import { ConfirmDialog, SearchInput } from '../components/common'
-import { useDebounce } from '../hooks'
-import type { RemoteScript, RemoteTemplate, AppLog, ListResponse } from '../types'
+import { ConfirmDialog } from '../components/common'
+import type { RemoteScript, RemoteTemplate } from '../types'
 
 /* ═══════════════════════════════════════════
    Tab type
    ═══════════════════════════════════════════ */
 
-type AdminTab = 'scripts' | 'templates' | 'users' | 'logs'
+type AdminTab = 'scripts' | 'templates' | 'users'
 
 const TAB_ITEMS: { key: AdminTab; icon: typeof Shield; labelKey: string }[] = [
   { key: 'scripts', icon: Shield, labelKey: 'review.scripts' },
   { key: 'templates', icon: FileText, labelKey: 'review.templates' },
-  { key: 'users', icon: Users, labelKey: 'userManagement.title' },
-  { key: 'logs', icon: ScrollText, labelKey: 'logs.title' }
+  { key: 'users', icon: Users, labelKey: 'userManagement.title' }
 ]
 
 /* ═══════════════════════════════════════════
@@ -87,28 +81,6 @@ const roleBadge: Record<string, string> = {
   admin: 'bg-purple/10 text-purple',
   developer: 'bg-primary/10 text-primary',
   user: 'bg-text-muted/10 text-text-muted'
-}
-
-/* ═══════════════════════════════════════════
-   Logs helpers
-   ═══════════════════════════════════════════ */
-
-const INITIAL_LIMIT = 50
-
-const levelColor: Record<string, string> = {
-  debug: 'bg-bg-tertiary text-text-secondary',
-  info: 'bg-primary-light text-primary',
-  warn: 'bg-warning-light text-warning',
-  error: 'bg-danger-light text-danger'
-}
-
-const LEVELS = ['debug', 'info', 'warn', 'error'] as const
-
-const levelLabelKey: Record<string, string> = {
-  debug: 'logs.levelDebug',
-  info: 'logs.levelInfo',
-  warn: 'logs.levelWarn',
-  error: 'logs.levelError'
 }
 
 /* ═══════════════════════════════════════════
@@ -151,20 +123,6 @@ export default function AdminCenter() {
   const [deleting, setDeleting] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
-  /* ── Logs state ── */
-  const [logData, setLogData] = useState<ListResponse<AppLog> | null>(null)
-  const [logCategories, setLogCategories] = useState<string[]>([])
-  const [logSearch, setLogSearch] = useState('')
-  const debouncedLogSearch = useDebounce(logSearch, 300)
-  const [logLevel, setLogLevel] = useState('')
-  const [logCategory, setLogCategory] = useState('')
-  const [logSince, setLogSince] = useState('')
-  const [logUntil, setLogUntil] = useState('')
-  const [logsLoading, setLogsLoading] = useState(false)
-  const [logLimit, setLogLimit] = useState(INITIAL_LIMIT)
-  const [showClearConfirm, setShowClearConfirm] = useState(false)
-  const [clearingLogs, setClearingLogs] = useState(false)
-
   /* ═══════════════════════════════════════════
      Review logic
      ═══════════════════════════════════════════ */
@@ -194,7 +152,6 @@ export default function AdminCenter() {
     }
   }, [])
 
-  // 仅首次进入 scripts/templates tab 时才拉取 (避免 mount 时与 ProtectedRoute.refresh 竞态)
   const [fetchedPending, setFetchedPending] = useState(false)
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -227,9 +184,6 @@ export default function AdminCenter() {
       setReviewingId(null)
     }
   }
-
-  const reviewType = (): 'script' | 'template' =>
-    activeTab === 'scripts' ? 'script' : 'template'
 
   const downloadScript = async (item: RemoteScript) => {
     try {
@@ -284,7 +238,6 @@ export default function AdminCenter() {
     }
   }, [marketFetch, t])
 
-  // 仅首次进入 users tab 时才拉取 (避免 mount 时与 ProtectedRoute.refresh 竞态)
   const [fetchedUsers, setFetchedUsers] = useState(false)
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -396,100 +349,6 @@ export default function AdminCenter() {
   }, [])
 
   /* ═══════════════════════════════════════════
-     Logs logic
-     ═══════════════════════════════════════════ */
-
-  const fetchLogData = useCallback(async () => {
-    setLogsLoading(true)
-    try {
-      const res = await logApi.query(
-        logLevel || undefined,
-        logCategory || undefined,
-        debouncedLogSearch || undefined,
-        logSince || undefined,
-        logUntil || undefined,
-        logLimit
-      )
-      setLogData(res)
-    } catch {
-      setLogData(null)
-    } finally {
-      setLogsLoading(false)
-    }
-  }, [logLevel, logCategory, debouncedLogSearch, logSince, logUntil, logLimit])
-
-  const fetchLogCategories = useCallback(async (): Promise<void> => {
-    try {
-      const cats = await logApi.getCategories()
-      setLogCategories(cats)
-    } catch {
-      // silently ignore
-    }
-  }, [])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchLogCategories()
-  }, [fetchLogCategories])
-
-  useEffect(() => {
-    if (activeTab !== 'logs') return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchLogData()
-  }, [fetchLogData, activeTab])
-
-  const handleLogRefresh = (): void => {
-    fetchLogData()
-    fetchLogCategories()
-  }
-
-  const loadMoreLogs = (): void => {
-    setLogLimit((l) => l + INITIAL_LIMIT)
-  }
-
-  const handleClearLogs = async (): Promise<void> => {
-    setClearingLogs(true)
-    try {
-      await logApi.deleteLogs()
-      setShowClearConfirm(false)
-      setLogLimit(INITIAL_LIMIT)
-      fetchLogData()
-    } catch {
-      toast.error(t('common.operationFailed'))
-    } finally {
-      setClearingLogs(false)
-    }
-  }
-
-  const handleExportLogs = (): void => {
-    if (!logData?.items.length) return
-    const exportData = logData.items.map((log) => ({
-      timestamp: log.timestamp,
-      level: log.level,
-      category: log.category,
-      message: log.message,
-      fields: log.fields
-    }))
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `logs_${new Date().toISOString().replace(/[:.]/g, '-')}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  const formatTime = (ts: string): string => {
-    try {
-      return new Date(ts).toLocaleString()
-    } catch {
-      return ts
-    }
-  }
-
-  /* ═══════════════════════════════════════════
      Access guard
      ═══════════════════════════════════════════ */
 
@@ -584,70 +443,68 @@ export default function AdminCenter() {
                 {/* Expandable details */}
                 <button
                   onClick={() => toggleExpanded(item.id)}
-                  className="flex items-center gap-1 text-xs text-text-muted hover:text-text-primary mb-3 transition-colors"
+                  className="flex items-center gap-1 text-xs text-text-muted hover:text-primary transition-colors mb-3"
                 >
                   {expandedItems.has(item.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   {expandedItems.has(item.id) ? t('review.hideSchema') : t('review.viewSchema')}
                 </button>
 
                 {expandedItems.has(item.id) && (
-                  <div className="mb-3 pl-2 border-l-2 border-border-light space-y-3">
+                  <div className="space-y-3 mb-3 pl-2 border-l-2 border-border-light">
                     {/* Schema JSON viewer */}
-                    <div>
-                      <p className="text-xs font-medium text-text-muted mb-1">{t('review.schema')}</p>
-                      <pre className="bg-bg-input rounded-lg p-3 text-xs text-text-secondary overflow-x-auto max-h-64 overflow-y-auto font-mono whitespace-pre-wrap">
-                        {JSON.stringify(item.schema, null, 2)}
-                      </pre>
-                    </div>
+                    {item.schema && (
+                      <div>
+                        <p className="text-xs font-medium text-text-muted mb-1">Schema</p>
+                        <pre className="text-xs bg-bg-input p-2 rounded overflow-x-auto max-h-60">
+                          {JSON.stringify(item.schema, null, 2)}
+                        </pre>
+                      </div>
+                    )}
 
                     {/* Script-specific fields */}
                     {isScriptsTab && (
-                      <>
-                        <div>
-                          <p className="text-xs font-medium text-text-muted mb-1">{t('review.entryPoint')}</p>
-                          <code className="text-xs text-text-secondary bg-bg-input px-2 py-0.5 rounded font-mono">
-                            {(item as RemoteScript).entryPoint || '—'}
-                          </code>
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-text-muted">Entry Point: </span>
+                            <span className="font-mono">{(item as RemoteScript).entryPoint || '—'}</span>
+                          </div>
+                          <div>
+                            <span className="text-text-muted">Checksum: </span>
+                            <span className="font-mono">{(item as RemoteScript).checksum || '—'}</span>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-medium text-text-muted mb-1">{t('review.checksum')}</p>
-                          <code className="text-xs text-text-secondary bg-bg-input px-2 py-0.5 rounded font-mono break-all">
-                            {(item as RemoteScript).checksum || '—'}
-                          </code>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-text-muted mb-1">{t('review.tags')}</p>
-                          {(item as RemoteScript).tags && (item as RemoteScript).tags!.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {(item as RemoteScript).tags!.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-text-muted">—</span>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-text-muted mb-1">{t('review.changelog')}</p>
-                          <p className="text-xs text-text-secondary">
-                            {(item as RemoteScript).changelog || t('review.noChangelog')}
-                          </p>
-                        </div>
-                      </>
+
+                        {(item as RemoteScript).tags && (item as RemoteScript).tags!.length > 0 && (
+                          <div>
+                            <span className="text-xs text-text-muted">Tags: </span>
+                            {(item as RemoteScript).tags!.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-block text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-secondary mr-1"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {(item as RemoteScript).changelog && (
+                          <div>
+                            <p className="text-xs font-medium text-text-muted mb-1">Changelog</p>
+                            <p className="text-xs text-text-secondary whitespace-pre-wrap">
+                              {(item as RemoteScript).changelog || t('review.noChangelog')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* Template-specific: show type */}
                     {!isScriptsTab && (
                       <div>
-                        <p className="text-xs font-medium text-text-muted mb-1">{t('common.type')}</p>
-                        <code className="text-xs text-text-secondary bg-bg-input px-2 py-0.5 rounded font-mono">
-                          {(item as RemoteTemplate).type || '—'}
-                        </code>
+                        <span className="text-xs text-text-muted">Type: </span>
+                        <span className="text-xs font-mono">{(item as RemoteTemplate).type || '—'}</span>
                       </div>
                     )}
                   </div>
@@ -662,34 +519,29 @@ export default function AdminCenter() {
                     value={reviewingId === item.id ? reviewComment : ''}
                     onChange={(e) => {
                       setReviewComment(e.target.value)
-                      setReviewingId(item.id)
                     }}
                     placeholder={t('review.commentPlaceholder')}
-                    className="w-full px-3 py-2 rounded-lg border border-border-light bg-bg-input text-sm text-text-primary focus:border-primary outline-none resize-none"
                     rows={2}
+                    className="w-full px-3 py-2 rounded-lg border border-border-light bg-bg-input text-sm text-text-primary focus:border-primary outline-none transition-colors resize-none"
                   />
                 </div>
 
                 {/* Action buttons */}
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() =>
-                      handleReview(reviewType(), item.id, 'approve')
-                    }
+                    onClick={() => handleReview(isScriptsTab ? 'script' : 'template', item.id, 'approve')}
                     disabled={reviewingId === item.id}
-                    className="flex items-center gap-1 px-4 py-2 rounded-lg bg-success text-white text-sm font-medium hover:bg-success/90 disabled:opacity-50 transition-colors"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-success text-white hover:bg-success/90 disabled:opacity-50 transition-colors"
                   >
-                    <Check size={16} />
+                    <Check size={14} />
                     {t('review.approve')}
                   </button>
                   <button
-                    onClick={() =>
-                      handleReview(reviewType(), item.id, 'reject')
-                    }
+                    onClick={() => handleReview(isScriptsTab ? 'script' : 'template', item.id, 'reject')}
                     disabled={reviewingId === item.id}
-                    className="flex items-center gap-1 px-4 py-2 rounded-lg bg-danger text-white text-sm font-medium hover:bg-danger/90 disabled:opacity-50 transition-colors"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-danger text-white hover:bg-danger/90 disabled:opacity-50 transition-colors"
                   >
-                    <X size={16} />
+                    <X size={14} />
                     {t('review.reject')}
                   </button>
                 </div>
@@ -796,48 +648,47 @@ export default function AdminCenter() {
                           >
                             {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
                           </button>
-                          <button
-                            className={`p-1 rounded hover:bg-bg-tertiary/50 ${copiedId === user.id ? 'text-success' : 'text-text-muted'}`}
-                            onClick={() => handleCopy(user.apiKey, user.id)}
-                          >
-                            {copiedId === user.id ? (
-                              <Check size={14} />
-                            ) : (
+                          {copiedId === user.id ? (
+                            <span className="text-xs text-success flex items-center gap-1">
+                              <Check size={12} />
+                              {t('common.copySuccess')}
+                            </span>
+                          ) : (
+                            <button
+                              className="p-1 rounded hover:bg-bg-tertiary/50 text-text-muted"
+                              onClick={() => handleCopy(user.apiKey, user.id)}
+                            >
                               <Copy size={14} />
-                            )}
-                          </button>
+                            </button>
+                          )}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-text-muted">
+                      <td className="px-3 py-2.5 text-sm text-text-secondary">
                         {formatDate(user.createdAt)}
                       </td>
                       <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => {
                               setEditTarget(user)
-                              setEditForm({
-                                displayName: user.displayName || '',
-                                password: '',
-                                role: user.role
-                              })
+                              setEditForm({ displayName: user.displayName, password: '', role: user.role })
                               setEditError(null)
                             }}
-                            className="p-1.5 rounded hover:bg-bg-tertiary/50 text-text-muted"
+                            className="p-1 rounded hover:bg-bg-tertiary/50 text-primary"
                             title={t('common.edit')}
                           >
                             <Edit3 size={14} />
                           </button>
                           <button
                             onClick={() => setRegenerateTarget(user)}
-                            className="p-1.5 rounded hover:bg-bg-tertiary/50 text-text-muted"
+                            className="p-1 rounded hover:bg-bg-tertiary/50 text-warning"
                             title={t('userManagement.regenerateKey')}
                           >
                             <RotateCcw size={14} />
                           </button>
                           <button
                             onClick={() => setDeleteTarget(user)}
-                            className="p-1.5 rounded hover:bg-danger-light text-danger"
+                            className="p-1 rounded hover:bg-bg-tertiary/50 text-danger"
                             title={t('userManagement.deleteUser')}
                           >
                             <Trash2 size={14} />
@@ -1076,179 +927,6 @@ export default function AdminCenter() {
     </div>
   )
 
-  const renderLogsTab = () => (
-    <div className="space-y-4">
-      {/* 页面标题与筛选操作栏 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t('logs.title')}</h1>
-        <div className="flex items-center gap-3">
-          <SearchInput
-            value={logSearch}
-            onChange={setLogSearch}
-            placeholder={t('common.search') + '...'}
-            inputClassName="pl-9 pr-3 py-1.5 text-sm border border-border-light rounded-lg bg-bg-card focus:outline-none focus:ring-2 focus:ring-primary w-48"
-          />
-          {/* 日志级别筛选 */}
-          <select
-            value={logLevel}
-            onChange={(e) => setLogLevel(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-border-light rounded-lg bg-bg-card focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">{t('logs.level')}</option>
-            {LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {t(levelLabelKey[l])}
-              </option>
-            ))}
-          </select>
-          {/* 日志分类筛选 */}
-          <select
-            value={logCategory}
-            onChange={(e) => setLogCategory(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-border-light rounded-lg bg-bg-card focus:outline-none focus:ring-2 focus:ring-primary max-w-40"
-          >
-            <option value="">{t('common.type')}</option>
-            {logCategories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          {/* 时间范围筛选 */}
-          <div className="flex items-center gap-1">
-            <Calendar size={14} className="text-text-muted" />
-            <input
-              type="date"
-              value={logSince}
-              onChange={(e) => setLogSince(e.target.value)}
-              className="px-2 py-1.5 text-sm border border-border-light rounded-lg bg-bg-card focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            <span className="text-text-muted text-xs">~</span>
-            <input
-              type="date"
-              value={logUntil}
-              onChange={(e) => setLogUntil(e.target.value)}
-              className="px-2 py-1.5 text-sm border border-border-light rounded-lg bg-bg-card focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <button
-            onClick={handleExportLogs}
-            disabled={!logData?.items.length}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border-light rounded-lg hover:bg-bg-tertiary transition-colors disabled:opacity-40"
-          >
-            <Download size={16} />
-            {t('logs.exportLogs')}
-          </button>
-          <button
-            onClick={() => setShowClearConfirm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-danger/30 text-danger rounded-lg hover:bg-danger-light transition-colors"
-          >
-            <Trash2 size={16} />
-            {t('logs.clearLogs')}
-          </button>
-          <button
-            onClick={handleLogRefresh}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border-light rounded-lg hover:bg-bg-tertiary transition-colors"
-          >
-            <RefreshCw size={16} className={logsLoading ? 'animate-spin' : ''} />
-            {t('common.refresh')}
-          </button>
-        </div>
-      </div>
-
-      {logsLoading && !logData ? (
-        <div className="text-center py-12 text-text-muted">{t('common.loading')}</div>
-      ) : !logData?.items.length ? (
-        <div className="text-center py-12 text-text-muted">{t('logs.noLogs')}</div>
-      ) : (
-        <>
-          {/* 日志表格 */}
-          <div className="overflow-x-auto border border-border-light rounded-lg">
-            <table className="w-full text-sm">
-              <thead className="bg-bg-tertiary">
-                <tr>
-                  <th className="px-4 py-2.5 text-left font-medium text-text-secondary w-44">
-                    {t('logs.timestamp')}
-                  </th>
-                  <th className="px-4 py-2.5 text-left font-medium text-text-secondary w-20">
-                    {t('logs.level')}
-                  </th>
-                  <th className="px-4 py-2.5 text-left font-medium text-text-secondary w-32">
-                    {t('common.type')}
-                  </th>
-                  <th className="px-4 py-2.5 text-left font-medium text-text-secondary">
-                    {t('logs.message')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-light">
-                {logData.items.map((log) => (
-                  <tr key={log.id} className="hover:bg-bg-tertiary">
-                    <td className="px-4 py-2.5 font-mono text-xs text-text-muted">
-                      {formatTime(log.timestamp)}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${levelColor[log.level] || levelColor.debug}`}
-                      >
-                        {t(levelLabelKey[log.level] || log.level)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-text-secondary">{log.category}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono break-all max-w-xl">
-                      {log.message}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {logData.items.length < logData.total && (
-            <div className="flex justify-center">
-              <button
-                onClick={loadMoreLogs}
-                className="px-4 py-1.5 text-sm border border-border-light rounded-lg hover:bg-bg-tertiary transition-colors"
-              >
-                {t('logs.loadMore')} ({logData.items.length}/{logData.total})
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {showClearConfirm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          onClick={() => setShowClearConfirm(false)}
-        >
-          <div
-            className="bg-bg-card rounded-xl shadow-xl w-full max-w-sm p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold mb-2">{t('logs.clearLogs')}</h2>
-            <p className="text-sm text-text-secondary mb-6">{t('logs.confirmClearLogs')}</p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowClearConfirm(false)}
-                className="px-4 py-1.5 text-sm border border-border-light rounded-lg hover:bg-bg-tertiary"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleClearLogs}
-                disabled={clearingLogs}
-                className="px-4 py-1.5 text-sm bg-danger text-white rounded-lg hover:bg-danger-hover disabled:opacity-50"
-              >
-                {clearingLogs ? t('common.loading') : t('common.delete')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-
   /* ═══════════════════════════════════════════
      Main render
      ═══════════════════════════════════════════ */
@@ -1277,7 +955,6 @@ export default function AdminCenter() {
       {activeTab === 'scripts' && renderReviewTab('scripts')}
       {activeTab === 'templates' && renderReviewTab('templates')}
       {activeTab === 'users' && renderUsersTab()}
-      {activeTab === 'logs' && renderLogsTab()}
     </div>
   )
 }
