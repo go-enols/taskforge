@@ -20,17 +20,30 @@ let discoveredPort: number | null = null
  * 全局 401 拦截回调
  *
  * 当 transport 在 HTTP 收到 401 或 IPC 收到 UNAUTHORIZED code 时触发。
- * AuthContext 用此清空 user/token + 跳转到登录页，
- * 避免"操作后丢失所有权限"的卡死状态。
+ * 采用 2 次累积失败才触发的防抖策略，避免单次网络闪断误登出。
+ * AuthContext 用此清空 user/token + 跳转到登录页。
  */
 let onAuthFailure: (() => void) | null = null
+let authFailCount = 0
+let authFailTimer: ReturnType<typeof setTimeout> | null = null
+const AUTH_FAIL_RESET_MS = 5000 // 5 秒内累积 2 次 401 才触发
 
 export function setOnAuthFailure(handler: (() => void) | null): void {
   onAuthFailure = handler
 }
 
 function notifyAuthFailure(): void {
-  if (onAuthFailure) {
+  authFailCount++
+  if (authFailTimer) clearTimeout(authFailTimer)
+  authFailTimer = setTimeout(() => {
+    authFailCount = 0
+    authFailTimer = null
+  }, AUTH_FAIL_RESET_MS)
+
+  if (authFailCount >= 2 && onAuthFailure) {
+    authFailCount = 0
+    if (authFailTimer) clearTimeout(authFailTimer)
+    authFailTimer = null
     try {
       onAuthFailure()
     } catch (err) {

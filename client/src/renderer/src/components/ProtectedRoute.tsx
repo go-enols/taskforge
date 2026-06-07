@@ -31,10 +31,16 @@ interface ProtectedRouteProps {
  */
 export default function ProtectedRoute({ children, roles }: ProtectedRouteProps): React.ReactElement | null {
   const { t } = useTranslation()
-  const { user, loading } = useAuth()
+  const { user, loading, refresh } = useAuth()
   const navigate = useNavigate()
 
-  // 计算状态（hooks 之前计算，但 useEffect 必须在所有 early-return 之前）
+  // 每次路由切换时刷新用户角色 确保 admin 改 role 后立即生效
+  useEffect(() => {
+    if (!loading && user) {
+      refresh()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const denied = !loading && !!user && !!roles && !roles.includes(user.role)
 
   // 越权时跳转（hooks 调用必须在所有条件 return 之前）

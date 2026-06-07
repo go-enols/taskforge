@@ -110,7 +110,7 @@ router.post("/register", async (req: AuthenticatedRequest, res: Response) => {
   }
 
   const id = uuidv4()
-  const passwordHash = await bcrypt.hash(password, 10)
+  const passwordHash = await bcrypt.hash(password, 8)
   const apiKey = randomBytes(32).toString("hex")
   const now = new Date().toISOString()
 
@@ -182,7 +182,7 @@ router.post("/setup", async (req: AuthenticatedRequest, res: Response) => {
   }
 
   const id = uuidv4()
-  const passwordHash = await bcrypt.hash(password, 10)
+  const passwordHash = await bcrypt.hash(password, 8)
   const apiKey = randomBytes(32).toString("hex")
   const now = new Date().toISOString()
 
