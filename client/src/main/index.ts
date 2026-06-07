@@ -11,7 +11,6 @@ import icon from '../../resources/icon.png?asset'
 import { registerIpcHandlers } from './ipc'
 import { StoreService } from './services/store'
 import { EncryptionService } from './services/encryption'
-import { WalletService } from './services/wallet'
 import { TaskService } from './services/task'
 import { ScriptFetcher } from './services/script-fetcher'
 import { SchedulerService } from './services/scheduler'
@@ -104,7 +103,7 @@ app.whenReady().then(async () => {
   const encryption = new EncryptionService()
   store = new StoreService(dbPath, encryption)
   // 初始化各业务服务
-  const walletService = new WalletService(store)
+
   taskService = new TaskService(store, {
     /** 向所有渲染进程窗口发送任务相关事�?*/
     rendererSender: (channel, data) => {
@@ -122,7 +121,6 @@ app.whenReady().then(async () => {
   // 注册所�?IPC 处理器（双向通信），连接渲染进程与主进程服务
   registerIpcHandlers({
     store,
-    walletService,
     taskService,
     scriptFetcher,
     walletRepo: store.walletRepo,

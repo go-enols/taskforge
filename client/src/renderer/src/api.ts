@@ -35,17 +35,7 @@ export const walletApi = {
   update: (id: string, data: Partial<Omit<Wallet, 'id' | 'createdAt'>>) =>
     call<Wallet>('wallet:update', [id, data]),
   delete: (id: string) => call<void>('wallet:delete', [id]),
-  batchDelete: (ids: string[]) => call<void>('wallet:batchDelete', [ids]),
-  generateMnemonic: () => call<string>('wallet:generateMnemonic'),
-  generateKeypair: (walletType: string) =>
-    call<{ address: string; privateKey: string; walletType: string }>('wallet:generateKeypair', [
-      walletType
-    ]),
-  deriveFromMnemonic: (mnemonic: string, count: number, walletTypes: string[]) =>
-    call<Array<{ index: number; walletType: string; address: string; privateKey: string }>>(
-      'wallet:deriveFromMnemonic',
-      [mnemonic, count, walletTypes]
-    )
+  batchDelete: (ids: string[]) => call<void>('wallet:batchDelete', [ids])
 }
 
 export const accountApi = {

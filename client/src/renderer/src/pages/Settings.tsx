@@ -723,7 +723,7 @@ const MarketplaceSection: React.FC = () => {
             <button
               onClick={() => setRevealKey((v) => !v)}
               className="p-2 text-text-muted hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors"
-              title={revealKey ? t('wallets.hidePrivateKey') : t('wallets.showPrivateKey')}
+              title={revealKey ? t('common.hidePrivateKey') : t('common.showPrivateKey')}
             >
               {revealKey ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>

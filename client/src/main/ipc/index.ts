@@ -8,7 +8,6 @@
 import { ipcMain, IpcMainInvokeEvent, app, dialog, BrowserWindow, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { StoreService } from '../services/store'
-import { WalletService } from '../services/wallet'
 import { TaskService } from '../services/task'
 import { ScriptFetcher } from '../services/script-fetcher'
 import { WalletRepository } from '../services/repositories/wallet'
@@ -68,8 +67,6 @@ function restoreWindowAfterDialog(win: BrowserWindow): void {
 interface Services {
   /** 数据库存储服务 */
   store: StoreService
-  /** 钱包管理服务（密钥生成、派生） */
-  walletService: WalletService
   /** 任务执行引擎（子进程管理） */
   taskService: TaskService
   /** 远程脚本下载器 */
@@ -189,7 +186,7 @@ function register(channel: string, handler: ApiHandler): void {
  * @param services - 所有需要注入的服务与仓库实例
  */
 export function registerIpcHandlers(services: Services): void {
-  const { store, walletService, taskService, scriptFetcher, walletRepo, proxyRepo, taskRepo } =
+  const { store, taskService, scriptFetcher, walletRepo, proxyRepo, taskRepo } =
     services
 
   // ==================== 应用信息 ====================
@@ -214,13 +211,6 @@ export function registerIpcHandlers(services: Services): void {
   )
   register('wallet:delete', (id) => walletRepo.deleteWallet(id as string))
   register('wallet:batchDelete', (ids) => walletRepo.batchDeleteWallets(ids as string[]))
-  register('wallet:generateMnemonic', () => walletService.generateMnemonic())
-  register('wallet:generateKeypair', (walletType) =>
-    walletService.generateKeypair(walletType as string)
-  )
-  register('wallet:deriveFromMnemonic', (mnemonic, count, walletTypes) =>
-    walletService.deriveFromMnemonic(mnemonic as string, count as number, walletTypes as string[])
-  )
 
   // ==================== 账户管理 ====================
   register('account:list', (_page?, _pageSize?, _search?) =>
