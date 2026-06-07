@@ -729,7 +729,8 @@
       "close": "关闭",
       "later": "稍后",
       "installNow": "立即安装",
-      "download": "下载更新"
+      "download": "下载",
+      "backgroundHint": "下载在后台进行，可关闭此弹窗"
     }
   },
   "window": {

@@ -126,13 +126,18 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  /** Whether the user is allowed to close the modal */
-  const canClose = status === 'idle' || status === 'not-available' || status === 'error' || status === 'downloaded'
+  /**
+   * Whether the close button is enabled.
+   * - idle / not-available / error / downloaded: user is allowed to close freely
+   * - checking / available / downloading: we still let the user close (the modal
+   *   is just a UI affordance; the autoUpdater task can't be cancelled programmatically
+   *   and will keep running in the background). We just hide the icon-button
+   *   affordance and show a single "close" button instead of "cancel".
+   */
+  const canClose = true
 
-  /** Safe close that only works in terminal states */
-  const safeClose = (): void => {
-    if (canClose) onClose()
-  }
+  /** Always-available close (since the modal is purely a UI overlay) */
+  const safeClose = (): void => onClose()
 
   const steps = useMemo(() => computeSteps(status, t), [status, t])
 
@@ -195,7 +200,7 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
             onClick={safeClose}
             className="px-4 py-2 text-sm border border-border-light rounded-lg hover:bg-bg-card-hover transition-colors"
           >
-            {t('updates.buttons.cancel')}
+            {t('updates.buttons.close')}
           </button>
         )
       case 'available':
@@ -217,7 +222,19 @@ const UpdateProgressModal: React.FC<UpdateProgressModalProps> = ({
           </div>
         )
       case 'downloading':
-        return null
+        return (
+          <div className="flex items-center justify-between w-full">
+            <p className="text-xs text-text-muted">
+              {t('updates.buttons.backgroundHint')}
+            </p>
+            <button
+              onClick={safeClose}
+              className="px-4 py-2 text-sm border border-border-light rounded-lg hover:bg-bg-card-hover transition-colors"
+            >
+              {t('updates.buttons.close')}
+            </button>
+          </div>
+        )
       case 'downloaded':
         return (
           <div className="flex justify-end gap-2">
