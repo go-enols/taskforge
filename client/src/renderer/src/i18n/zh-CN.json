@@ -73,6 +73,7 @@
     "dataAccounts": "账户",
     "dataProxies": "代理",
     "dataCaptcha": "验证码",
+    "dataImport": "导入中心",
     "developerCenter": "开发者中心",
     "adminCenter": "管理中心",
     "debug": "调试",
@@ -88,6 +89,13 @@
       "proxies": "代理数",
       "tasks": "任务数"
     },
+    "runningTasks": "进行中的任务",
+    "completedToday": "今日完成",
+    "failedToday": "今日失败",
+    "installedScripts": "已安装脚本",
+    "taskTimeline": "任务时间线",
+    "marketUpdates": "市场更新",
+    "browseMarketplace": "浏览市场",
     "refresh": {
       "title": "刷新数据",
       "label": "刷新"
@@ -95,9 +103,6 @@
     "createAccount": "创建账户",
     "createTask": "创建任务",
     "addProxy": "添加代理",
-    "addAirdrop": "添加空投",
-    "airdropOverview": "空投概览",
-    "ongoingAirdrops": "进行中的空投",
     "upcomingDeadlines": "即将截止",
     "quickActions": "快捷操作",
     "recentActivity": "最近活动",
@@ -112,9 +117,9 @@
     },
     "taskStatusDistribution": "任务状态分布",
     "roleMessage": {
-      "admin": "专注系统管理与审核",
-      "developer": "专注脚本开发、测试与模板编写",
-      "user": "下载模板配置账号，下载脚本即可运行"
+      "admin": "专注系统治理、脚本审核与平台统计",
+      "developer": "专注脚本开发、测试与发布管理",
+      "user": "下载脚本、配置数据源、运行任务"
     }
   },
   "accounts": {
@@ -863,5 +868,15 @@
     "pendingCount": "待审核项目: {{count}}",
     "noPending": "暂无待审核项目",
     "submitted": "提交时间"
+  },
+  "data": {
+    "title": "数据管理",
+    "subtitle": "管理你的账户、代理、验证码密钥",
+    "import": {
+      "title": "批量导入",
+      "subtitle": "支持 CSV / JSON 批量导入",
+      "accountsHint": "从 Accounts Tab 使用导入按钮",
+      "proxiesHint": "从 Proxies Tab 使用导入按钮"
+    }
   }
 }
