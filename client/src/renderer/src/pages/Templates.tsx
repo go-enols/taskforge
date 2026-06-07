@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { templateApi, marketplaceApi, getMarketplaceUrl, scriptApi, dialogApi } from '../api'
 import { useAuth } from '../contexts/AuthContext'
@@ -32,6 +33,7 @@ import {
  * 支持搜索、安装/卸载、以及管理可见性操作。
  */
 const Templates: React.FC = () => {
+  const navigate = useNavigate()
   const { t } = useTranslation()
   const { user: marketUser, isAdmin, isDeveloper } = useAuth()
   const canManage = isAdmin || isDeveloper
@@ -507,10 +509,11 @@ const Templates: React.FC = () => {
                  {filteredScripts.map((script) => {
                    const status = getScriptStatus(script.id, script.version)
                    return (
-                     <div
-                       key={script.id}
-                       className="flex flex-col p-4 rounded-xl border border-border-light bg-bg-card hover:border-primary/30 transition-colors gap-2.5"
-                     >
+                      <div
+                        key={script.id}
+                        onClick={() => navigate('/marketplace/scripts/' + script.id)}
+                        className="flex flex-col p-4 rounded-xl border border-border-light bg-bg-card hover:border-primary/30 transition-colors gap-2.5 cursor-pointer"
+                      >
                        {/* 头部：图标 + 名称 + 版本 + 标签 + 状态徽章 */}
                        <div className="flex items-start gap-2">
                          <div className="p-1.5 rounded-lg bg-primary/10 shrink-0">
@@ -552,10 +555,10 @@ const Templates: React.FC = () => {
                          </div>
                        )}
 
-                       {/* 更新日志 */}
-                       {script.changelog && (
-                         <details className="text-xs">
-                           <summary className="text-text-muted cursor-pointer hover:text-text-secondary flex items-center gap-1">
+                        {/* 更新日志 */}
+                        {script.changelog && (
+                          <details className="text-xs" onClick={(e) => e.stopPropagation()}>
+                            <summary className="text-text-muted cursor-pointer hover:text-text-secondary flex items-center gap-1">
                              <ChevronDown size={10} />
                              {t('templates.changelog')}
                            </summary>
@@ -570,42 +573,42 @@ const Templates: React.FC = () => {
                          </span>
                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
                            {isAdmin && (
-                             <label className="flex items-center gap-1 cursor-pointer">
-                               <span className="text-xs text-text-muted">{script.visible ? '可见' : '隐藏'}</span>
-                               <button
-                                 onClick={() => handleToggleVisibility('script', script.id, script.visible)}
-                                 className={`w-7 h-3.5 rounded-full transition-colors ${script.visible ? 'bg-success' : 'bg-text-muted/40'}`}
+                              <label className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-xs text-text-muted">{script.visible ? '可见' : '隐藏'}</span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleToggleVisibility('script', script.id, script.visible) }}
+                                  className={`w-7 h-3.5 rounded-full transition-colors ${script.visible ? 'bg-success' : 'bg-text-muted/40'}`}
                                >
                                  <span className={`block w-3 h-3 rounded-full bg-white transition-transform ${script.visible ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                                </button>
                              </label>
                            )}
                             {canManage && (
-                              <button
-                                onClick={() => handleReuploadScript(script.id)}
+                               <button
+                                onClick={(e) => { e.stopPropagation(); handleReuploadScript(script.id) }}
                                 className="flex items-center gap-1 px-2 py-1 rounded border border-border-light text-text-secondary text-xs hover:border-primary hover:text-primary transition-colors"
                               >
                                 <Upload size={11} />更新
                               </button>
                             )}
                             {canDeleteItem(script.createdBy) && (
-                              <button
-                                onClick={() => handleDeleteScript(script.id)}
+                               <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteScript(script.id) }}
                                 className="flex items-center gap-1 px-2 py-1 rounded border border-border-light text-text-secondary text-xs hover:border-danger hover:text-danger transition-colors"
                               >
                                 <Trash2 size={11} />删除
                               </button>
                             )}
                             {status !== 'none' && (
-                              <button
-                                onClick={() => handleUninstallScript(script.id)}
+                               <button
+                                onClick={(e) => { e.stopPropagation(); handleUninstallScript(script.id) }}
                                 className="flex items-center gap-1 px-2 py-1 rounded border border-border-light text-text-secondary text-xs hover:border-danger hover:text-danger transition-colors"
                               >
                                 <Trash2 size={11} />卸载
                               </button>
                             )}
                             <button
-                              onClick={() => handleInstallScript(script.id)}
+                              onClick={(e) => { e.stopPropagation(); handleInstallScript(script.id) }}
                               disabled={installingId === script.id}
                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary-hover disabled:opacity-50 transition-colors"
                            >

@@ -31,14 +31,14 @@ const Airdrops = lazy(() => import("./pages/Airdrops"))
 const Stats = lazy(() => import("./pages/Stats"))
 /** 懒加载页面组件：定时任务 */
 const Scheduler = lazy(() => import("./pages/Scheduler"))
-/** 懒加载页面组件：日志 */
-const Logs = lazy(() => import("./pages/Logs"))
 /** 懒加载页面组件：设置 */
 const Settings = lazy(() => import("./pages/Settings"))
-/** 懒加载页面组件：快速开发（开发者中心占位，P4 合并） */
-const QuickDev = lazy(() => import("./pages/QuickDev"))
-/** 懒加载页面组件：管理员审核（管理中心占位，P5 合并） */
-const AdminReviewPage = lazy(() => import("./pages/AdminReviewPage"))
+/** 懒加载页面组件：开发者中心（项目脚手架 + 待审核 + 我的脚本 + SDK 文档） */
+const DeveloperCenter = lazy(() => import("./pages/DeveloperCenter"))
+/** 懒加载页面组件：管理中心（审核 + 用户管理 + 日志） */
+const AdminCenter = lazy(() => import("./pages/AdminCenter"))
+/** 懒加载页面组件：脚本详情页 */
+const ScriptDetail = lazy(() => import("./pages/ScriptDetail"))
 /** 懒加载页面组件：调试页 */
 const DebugPage = lazy(() => import("./pages/DebugPage"))
 /** 懒加载页面组件：登录页 */
@@ -80,6 +80,7 @@ function AppContent(): React.ReactElement {
           <Route element={<KeepAliveOutlet />}>
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+            <Route path="/marketplace/scripts/:id" element={<ProtectedRoute><ScriptDetail /></ProtectedRoute>} />
             <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
             <Route path="/data/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
             <Route path="/data/proxies" element={<ProtectedRoute><Proxies /></ProtectedRoute>} />
@@ -88,9 +89,8 @@ function AppContent(): React.ReactElement {
             <Route path="/scheduler" element={<ProtectedRoute><Scheduler /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/stats" element={<ProtectedRoute roles={["admin"]}><Stats /></ProtectedRoute>} />
-            <Route path="/logs" element={<ProtectedRoute roles={["admin"]}><Logs /></ProtectedRoute>} />
-            <Route path="/dev" element={<ProtectedRoute roles={["admin", "developer"]}><QuickDev /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute roles={["admin"]}><AdminReviewPage /></ProtectedRoute>} />
+            <Route path="/dev" element={<ProtectedRoute roles={["admin", "developer"]}><DeveloperCenter /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute roles={["admin"]}><AdminCenter /></ProtectedRoute>} />
             <Route path="/debug" element={<ProtectedRoute roles={["admin", "developer"]}><DebugPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
