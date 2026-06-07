@@ -151,7 +151,8 @@ export const logApi = {
 }
 
 export const captchaKeyApi = {
-  list: () => call<ListResponse<CaptchaKey>>('captchaKey:list'),
+  list: (page = 1, pageSize = 20, search?: string) =>
+    call<ListResponse<CaptchaKey>>('captchaKey:list', [page, pageSize, search]),
   create: (data: Omit<CaptchaKey, 'id' | 'createdAt'>) =>
     call<CaptchaKey>('captchaKey:create', [data]),
   update: (id: string, data: Partial<CaptchaKey>) =>
