@@ -51,3 +51,7 @@ publish:
   provider: github
   owner: go-enols
   repo: taskforge
+  releaseType: release
+  vPrefixedTagName: true
+  channel: latest
+  publishAutoUpdate: true

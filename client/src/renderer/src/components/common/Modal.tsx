@@ -2,9 +2,12 @@
  * @file Modal — 通用模态框组件
  * @description 提供基础的模态框容器，支持打开/关闭、Escape 键关闭、背景遮罩点击关闭、
  *              可配置最大宽度和滚动行为。打开时锁定 body 滚动。
+ *              内部使用 React Portal 渲染到 document.body，绕过任何祖先 stacking context
+ *              （transform/filter/perspective 等）的影响，确保遮罩铺满整个视口。
  * @module renderer/components/common
  */
 import React, { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ModalProps {
   /** 是否打开模态框 */
@@ -26,6 +29,7 @@ interface ModalProps {
  *
  * 提供带有半透明背景遮罩的模态对话框，支持键盘（Escape）和点击遮罩关闭。
  * 打开时阻止 body 滚动，关闭时恢复。
+ * 通过 React Portal 渲染到 document.body，避免被任何祖先容器的 stacking context 限制。
  *
  * @param open      - 是否显示
  * @param onClose   - 关闭回调
@@ -44,7 +48,6 @@ const Modal: React.FC<ModalProps> = ({
 }) => {
   const ref = useRef<HTMLDivElement>(null)
 
-  // 打开时锁定 body 滚动，关闭时恢复
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
@@ -57,7 +60,7 @@ const Modal: React.FC<ModalProps> = ({
 
   if (!open) return null
 
-  return (
+  const modal = (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center animate-modal-enter"
       role="dialog"
@@ -66,11 +69,15 @@ const Modal: React.FC<ModalProps> = ({
       ref={ref}
       tabIndex={-1}
     >
-      {/* 半透明背景遮罩 */}
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      {/* 模态框面板 */}
+      {/* 半透明背景遮罩：使用 z-0 让其位于面板之下、fixed 容器之内 */}
       <div
-        className={`modal-panel relative bg-bg-card rounded-xl shadow-xl ring-1 ring-border-light p-6 w-full ${maxWidth} ${scrollable ? 'max-h-[90vh] overflow-y-auto' : ''}`}
+        className="absolute inset-0 z-0 bg-black/60"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* 模态框面板：z-10 位于遮罩之上 */}
+      <div
+        className={`modal-panel relative z-10 bg-bg-card rounded-xl shadow-xl ring-1 ring-border-light p-6 w-full ${maxWidth} ${scrollable ? 'max-h-[90vh] overflow-y-auto' : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold text-text-primary mb-4">{title}</h2>
@@ -78,6 +85,8 @@ const Modal: React.FC<ModalProps> = ({
       </div>
     </div>
   )
+
+  return createPortal(modal, document.body)
 }
 
 export default Modal
