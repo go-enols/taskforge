@@ -758,9 +758,9 @@ const Tasks: React.FC = () => {
                     {allSelected ? <CheckSquareIcon size={16} /> : <SquareIcon size={16} />}
                   </button>
                 </th>
-                <th className="px-4 py-3 font-medium text-text-muted">{t('common.status')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted">{t('tasks.startTime')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted">{t('tasks.endTime')}</th>
+                <th className="px-4 py-3 font-medium text-text-muted w-[100px]">{t('common.status')}</th>
+                <th className="px-4 py-3 font-medium text-text-muted w-[160px]">{t('tasks.startTime')}</th>
+                <th className="px-4 py-3 font-medium text-text-muted w-[160px]">{t('tasks.endTime')}</th>
                 <th className="px-4 py-3 font-medium text-text-muted text-right">
                   {t('tasks.actions')}
                 </th>
