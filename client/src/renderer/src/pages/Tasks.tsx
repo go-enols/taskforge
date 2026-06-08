@@ -749,7 +749,7 @@ const Tasks: React.FC = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-bg-tertiary">
-                <th className="px-4 py-3 w-10">
+                <th className="px-4 py-3 w-10 text-center">
                   <button
                     onClick={toggleSelectAll}
                     className="text-text-muted hover:text-text-primary transition-colors"
@@ -758,10 +758,10 @@ const Tasks: React.FC = () => {
                     {allSelected ? <CheckSquareIcon size={16} /> : <SquareIcon size={16} />}
                   </button>
                 </th>
-                <th className="px-4 py-3 font-medium text-text-muted w-[100px]">{t('common.status')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted w-[160px]">{t('tasks.startTime')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted w-[160px]">{t('tasks.endTime')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted text-right">
+                <th className="px-4 py-3 font-medium text-text-muted text-center w-[100px]">{t('common.status')}</th>
+                <th className="px-4 py-3 font-medium text-text-muted text-center w-[160px]">{t('tasks.startTime')}</th>
+                <th className="px-4 py-3 font-medium text-text-muted text-center w-[160px]">{t('tasks.endTime')}</th>
+                <th className="px-4 py-3 font-medium text-text-muted text-center flex-1">
                   {t('tasks.actions')}
                 </th>
               </tr>
@@ -772,9 +772,12 @@ const Tasks: React.FC = () => {
                   <td colSpan={5} className="p-0">
                     <div
                       onClick={() => handleToggleExpand(task.id)}
-                      className="grid items-center cursor-pointer hover:bg-bg-card-hover transition-colors grid-cols-[40px_100px_160px_160px_auto]"
+                      className="flex items-center cursor-pointer hover:bg-bg-card-hover transition-colors"
                     >
-                      <div className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div
+                        className="px-4 py-3 w-10 shrink-0 flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <button
                           onClick={() => toggleSelect(task.id)}
                           className="text-text-muted hover:text-text-primary transition-colors"
@@ -787,7 +790,7 @@ const Tasks: React.FC = () => {
                           )}
                         </button>
                       </div>
-                      <div className="px-4 py-3">
+                      <div className="px-4 py-3 w-[100px] shrink-0 flex items-center justify-center">
                         <span
                           className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-status-${task.status}-bg text-status-${task.status}-text`}
                         >
@@ -797,14 +800,14 @@ const Tasks: React.FC = () => {
                           {t(`tasks.status.${task.status}`)}
                         </span>
                       </div>
-                      <div className="px-4 py-3 text-text-secondary text-xs">
+                      <div className="px-4 py-3 w-[160px] shrink-0 text-text-secondary text-xs text-center">
                         {formatTime(task.startedAt)}
                       </div>
-                      <div className="px-4 py-3 text-text-secondary text-xs">
+                      <div className="px-4 py-3 w-[160px] shrink-0 text-text-secondary text-xs text-center">
                         {formatTime(task.endedAt)}
                       </div>
                       <div
-                        className="flex items-center justify-end gap-1 px-4 py-3"
+                        className="px-4 py-3 flex-1 flex items-center justify-center gap-1"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {renderActionButtons(task)}
