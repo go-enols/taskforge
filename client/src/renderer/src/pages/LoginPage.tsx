@@ -442,8 +442,8 @@ export default function LoginPage(): React.ReactElement {
 
   if (detecting) {
     return (
-      <div className="h-screen flex flex-col bg-[#0a0a0f]">
-        <TitleBar />
+      <div className="h-screen flex flex-col bg-[#050510]">
+        <TitleBar dark />
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-spin rounded-full h-10 w-10 border-2 border-white/20 border-t-primary" />
         </div>
@@ -457,7 +457,7 @@ export default function LoginPage(): React.ReactElement {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#050510] relative">
-      <TitleBar />
+      <TitleBar dark />
 
       {/* 页面级统一背景：让左右无缝衔接 */}
       <div className="absolute inset-0 pointer-events-none">
@@ -626,8 +626,8 @@ export default function LoginPage(): React.ReactElement {
             </div>
 
             {/* 登录卡片：渐变描边 + 浅色磨砂玻璃（光面高光玻璃效果） */}
-            <div className="relative p-[1px] rounded-3xl bg-gradient-to-br from-white/20 via-white/5 to-white/10 shadow-2xl shadow-black/40">
-              <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl border border-white/10 p-8 lg:p-10 relative overflow-hidden">
+            <div className="relative p-[1px] rounded-3xl bg-gradient-to-br from-white/30 via-white/10 to-white/20 shadow-2xl shadow-black/60">
+              <div className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl rounded-3xl border border-white/20 p-8 lg:p-10 relative overflow-hidden">
                 {/* 顶部高光线 — 玻璃卡片的标志性细节 */}
                 <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                 {/* 品牌标识 */}

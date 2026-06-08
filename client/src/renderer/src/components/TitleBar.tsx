@@ -25,8 +25,11 @@ const noDragStyle = { WebkitAppRegion: 'no-drag' } as unknown as React.CSSProper
  * - Windows/Linux：左侧显示应用图标和名称 + 右侧主题切换 + 最小化/最大化/关闭按钮
  *
  * 通过 windowApi 与 Electron 主进程通信执行窗口操作。
+ *
+ * Props:
+ * - dark?: boolean — 启用深色透明样式，适用于全屏深色背景页面（如登录页）
  */
-const TitleBar: React.FC = () => {
+const TitleBar: React.FC<{ dark?: boolean }> = ({ dark = false }) => {
   const { t } = useTranslation()
   const [platform, setPlatform] = useState<string>('')
   const [maximized, setMaximized] = useState<boolean>(false)
@@ -77,7 +80,11 @@ const TitleBar: React.FC = () => {
   if (platform === 'darwin') {
     return (
       <header
-        className="flex-shrink-0 flex items-center justify-end h-7 bg-bg-card border-b border-border-light px-2"
+        className={`flex-shrink-0 flex items-center justify-end h-7 px-2 ${
+          dark
+            ? 'bg-[#0a0a14]/60 backdrop-blur-md border-b border-white/5'
+            : 'bg-bg-card border-b border-border-light'
+        }`}
         style={dragStyle}
       >
         <div style={noDragStyle}>
@@ -103,13 +110,27 @@ const TitleBar: React.FC = () => {
   // Windows/Linux 平台：完整标题栏
   return (
     <header
-      className="flex-shrink-0 flex items-center justify-between h-8 bg-bg-card border-b border-border-light select-none"
+      className={`flex-shrink-0 flex items-center justify-between h-8 select-none ${
+        dark
+          ? 'bg-[#0a0a14]/60 backdrop-blur-md border-b border-white/5'
+          : 'bg-bg-card border-b border-border-light'
+      }`}
       style={dragStyle}
     >
       {/* 左侧：应用图标和名称 */}
       <div className="flex items-center gap-2 px-3">
-        <Leaf size={14} className="text-primary" />
-        <span className="text-xs font-semibold text-text-primary tracking-wide">TaskForge</span>
+        {dark ? (
+          <div className="w-3.5 h-3.5 rounded-md bg-gradient-to-br from-primary via-purple-500 to-pink-500 shadow-sm shadow-primary/30" />
+        ) : (
+          <Leaf size={14} className="text-primary" />
+        )}
+        <span
+          className={`text-xs font-semibold tracking-wide ${
+            dark ? 'text-white/80' : 'text-text-primary'
+          }`}
+        >
+          TaskForge
+        </span>
       </div>
 
       {/* 右侧：主题切换 + 窗口控制按钮 */}
@@ -123,7 +144,11 @@ const TitleBar: React.FC = () => {
           onClick={onMinimize}
           aria-label={t('window.minimize')}
           title={t('window.minimize')}
-          className="flex items-center justify-center w-11 h-8 text-text-secondary hover:bg-bg-tertiary transition-colors focus-ring"
+          className={`flex items-center justify-center w-11 h-8 transition-colors focus-ring ${
+            dark
+              ? 'text-white/60 hover:bg-white/10 hover:text-white'
+              : 'text-text-secondary hover:bg-bg-tertiary'
+          }`}
           style={noDragStyle}
         >
           <Minus size={14} />
@@ -134,7 +159,11 @@ const TitleBar: React.FC = () => {
           onClick={onToggleMaximize}
           aria-label={maximized ? t('window.restore') : t('window.maximize')}
           title={maximized ? t('window.restore') : t('window.maximize')}
-          className="flex items-center justify-center w-11 h-8 text-text-secondary hover:bg-bg-tertiary transition-colors focus-ring"
+          className={`flex items-center justify-center w-11 h-8 transition-colors focus-ring ${
+            dark
+              ? 'text-white/60 hover:bg-white/10 hover:text-white'
+              : 'text-text-secondary hover:bg-bg-tertiary'
+          }`}
           style={noDragStyle}
         >
           {maximized ? <Copy size={12} /> : <Square size={12} />}
@@ -145,7 +174,11 @@ const TitleBar: React.FC = () => {
           onClick={onClose}
           aria-label={t('window.close')}
           title={t('window.close')}
-          className="flex items-center justify-center w-11 h-8 text-text-secondary hover:bg-danger hover:text-white transition-colors focus-ring"
+          className={`flex items-center justify-center w-11 h-8 transition-colors focus-ring ${
+            dark
+              ? 'text-white/60 hover:bg-danger hover:text-white'
+              : 'text-text-secondary hover:bg-danger hover:text-white'
+          }`}
           style={noDragStyle}
         >
           <X size={14} />
