@@ -145,8 +145,8 @@ const TerminalPreview: React.FC = () => {
       ref={ref}
       className="relative rounded-2xl overflow-hidden shadow-2xl shadow-primary/10 ring-1 ring-white/10"
     >
-      {/* 终端窗口：标题栏 */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-slate-900/90 border-b border-white/5">
+      {/* 终端窗口：标题栏（终端始终深色为 UX 约定，但边框跟随主题） */}
+      <div className="flex items-center gap-2 px-4 py-3 bg-slate-900/90 border-b border-border-light">
         <span className="w-3 h-3 rounded-full bg-red-400/80" />
         <span className="w-3 h-3 rounded-full bg-amber-400/80" />
         <span className="w-3 h-3 rounded-full bg-emerald-400/80" />
@@ -241,10 +241,10 @@ const FeatureCard: React.FC<{
         transform: inView ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.98)',
         opacity: inView ? 1 : 0
       }}
-      className="transition-all duration-700 ease-out group p-[1px] rounded-2xl bg-gradient-to-br from-white/20 via-white/5 to-white/10 hover:from-white/40 hover:to-white/20 hover:scale-[1.02] hover:shadow-2xl hover:shadow-primary/10"
+      className="transition-all duration-700 ease-out group p-[1px] rounded-2xl bg-gradient-to-br from-primary/30 via-primary/10 to-purple-500/20 hover:from-primary/50 hover:to-purple-500/30 hover:scale-[1.02] hover:shadow-2xl hover:shadow-primary/10"
     >
       <div
-        className={`bg-black/40 backdrop-blur-sm rounded-2xl h-full border border-white/5 group-hover:border-white/10 transition-colors ${
+        className={`bg-bg-card backdrop-blur-sm rounded-2xl h-full border border-border-light group-hover:border-border-hover transition-colors ${
           compact ? 'p-3.5' : 'p-6'
         }`}
       >
@@ -257,7 +257,7 @@ const FeatureCard: React.FC<{
             {icon}
           </div>
           <h3
-            className={`font-semibold text-white tracking-tight leading-tight ${
+            className={`font-semibold text-text-primary tracking-tight leading-tight ${
               compact ? 'text-[13px] pt-1' : 'text-lg mb-2'
             }`}
           >
@@ -265,7 +265,7 @@ const FeatureCard: React.FC<{
           </h3>
         </div>
         <p
-          className={`text-white/60 leading-relaxed ${
+          className={`text-text-secondary leading-relaxed ${
             compact ? 'text-[11px] leading-[1.5] line-clamp-2' : 'text-sm'
           }`}
         >
@@ -297,6 +297,24 @@ export default function LoginPage(): React.ReactElement {
   const [serverLoading, setServerLoading] = useState(false)
   const [detecting, setDetecting] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(true)
+
+  /**
+   * 监听 html.dark 类，动态同步到 isDark。
+   * TitleBar 的 dark prop 仅在主题为深色时启用（浅色主题使用普通样式）。
+   * MutationObserver 监听 class 变化，主题切换时自动重渲染。
+   */
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof document === 'undefined') return false
+    return document.documentElement.classList.contains('dark')
+  })
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const obs = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'))
+    })
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => obs.disconnect()
+  }, [])
 
   /** Hero 区域进入动画（页面加载即触发） */
   const heroIn = useInView<HTMLDivElement>()
@@ -442,10 +460,10 @@ export default function LoginPage(): React.ReactElement {
 
   if (detecting) {
     return (
-      <div className="h-screen flex flex-col bg-[#050510]">
-        <TitleBar dark />
+      <div className="h-screen flex flex-col bg-bg-page">
+        <TitleBar dark={isDark} />
         <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-2 border-white/20 border-t-primary" />
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-border-light border-t-primary" />
         </div>
       </div>
     )
@@ -456,13 +474,13 @@ export default function LoginPage(): React.ReactElement {
     : ['login', 'register']
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-[#050510] relative">
-      <TitleBar dark />
+    <div className="h-screen flex flex-col overflow-hidden bg-bg-page relative">
+      <TitleBar dark={isDark} />
 
-      {/* 页面级统一背景：让左右无缝衔接 */}
+      {/* 页面级统一背景：让左右无缝衔接 — 使用主题色变量，浅色/深色均自适应 */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,#1a1740_0%,#0a0a14_40%,#050510_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,#1a1438_0%,transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,var(--color-primary)/0.08,transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,var(--color-purple)/0.06,transparent_60%)]" />
       </div>
       {/* 细网格 — 整页统一 */}
       <div
@@ -491,19 +509,15 @@ export default function LoginPage(): React.ReactElement {
         <div className="hidden lg:flex lg:w-[60%] relative overflow-hidden">
           {/* 背景已移至页面级（左/右共享同一渐变） */}
 
-{/* ── 动画 mesh gradient：3 个慢速漂浮的彩色光球（已减弱） ── */}
+{/* ── 动画 mesh gradient：2 个慢速漂浮的彩色光球（浅深色均自适应） ── */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div
-              className="absolute -top-32 -left-32 w-[420px] h-[420px] rounded-full bg-primary/15 blur-3xl"
+              className="absolute -top-32 -left-32 w-[420px] h-[420px] rounded-full bg-primary/10 blur-3xl"
               style={{ animation: 'float-1 12s ease-in-out infinite' }}
             />
             <div
-              className="absolute top-1/4 -right-40 w-[380px] h-[380px] rounded-full bg-purple-500/12 blur-3xl"
+              className="absolute -bottom-20 -right-32 w-[380px] h-[380px] rounded-full bg-purple-500/8 blur-3xl"
               style={{ animation: 'float-2 14s ease-in-out infinite' }}
-            />
-            <div
-              className="absolute -bottom-20 left-1/3 w-[340px] h-[340px] rounded-full bg-cyan-500/10 blur-3xl"
-              style={{ animation: 'float-4 18s ease-in-out infinite' }}
             />
           </div>
 
@@ -516,18 +530,6 @@ export default function LoginPage(): React.ReactElement {
             @keyframes float-2 {
               0%, 100% { transform: translate(0, 0) scale(1); }
               50% { transform: translate(-50px, 60px) scale(1.15); }
-            }
-            @keyframes float-3 {
-              0%, 100% { transform: translate(0, 0) scale(1); }
-              50% { transform: translate(40px, -50px) scale(0.95); }
-            }
-            @keyframes float-4 {
-              0%, 100% { transform: translate(0, 0) scale(1); }
-              50% { transform: translate(-40px, -30px) scale(1.08); }
-            }
-            @keyframes float-5 {
-              0%, 100% { transform: translate(0, 0) scale(1); }
-              50% { transform: translate(30px, 40px) scale(1.05); }
             }
             @keyframes gradient-shift {
               0%, 100% { background-position: 0% 50%; }
@@ -543,8 +545,8 @@ export default function LoginPage(): React.ReactElement {
                 <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-white/0 via-white/10 to-white/0 opacity-50" />
               </div>
               <div>
-                <div className="text-white font-semibold text-sm tracking-tight">TaskForge</div>
-                <div className="text-white/40 text-[10px] tracking-widest uppercase">Forge · Automate · Run</div>
+                <div className="text-text-primary font-semibold text-sm tracking-tight">TaskForge</div>
+                <div className="text-text-muted text-[10px] tracking-widest uppercase">Forge · Automate · Run</div>
               </div>
             </div>
 
@@ -560,7 +562,7 @@ export default function LoginPage(): React.ReactElement {
                 className="transition-all duration-1000 ease-out flex flex-col justify-center pr-2"
               >
                 {/* Eyebrow */}
-                <div className="inline-flex self-start items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] backdrop-blur-sm border border-white/10 text-[11px] text-white/80 mb-4 shadow-lg shadow-primary/5">
+                <div className="inline-flex self-start items-center gap-2 px-3 py-1 rounded-full bg-bg-card backdrop-blur-sm border border-border-light text-[11px] text-text-secondary mb-4 shadow-lg shadow-primary/5">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary" />
@@ -570,15 +572,15 @@ export default function LoginPage(): React.ReactElement {
                 </div>
 
                 {/* 标题 */}
-                <h1 className="text-4xl xl:text-5xl 2xl:text-6xl font-bold text-white leading-[1.05] tracking-[-0.03em] mb-4">
-                  <span className="block text-white/90">{t('login.heroTitlePrefix')}</span>
+                <h1 className="text-4xl xl:text-5xl 2xl:text-6xl font-bold text-text-primary leading-[1.05] tracking-[-0.03em] mb-4">
+                  <span className="block text-text-primary">{t('login.heroTitlePrefix')}</span>
                   <span className="block bg-gradient-to-r from-primary via-purple-400 to-pink-400 bg-clip-text text-transparent animate-[gradient-shift_8s_ease-in-out_infinite] bg-[length:200%_auto]">
                     {t('login.heroTitleGradient')}
                   </span>
                 </h1>
 
                 {/* 副标题 */}
-                <p className="text-sm xl:text-base text-white/60 leading-[1.7] tracking-wide">
+                <p className="text-sm xl:text-base text-text-secondary leading-[1.7] tracking-wide">
                   {t('login.heroSubtitle')}
                 </p>
               </div>
@@ -605,8 +607,8 @@ export default function LoginPage(): React.ReactElement {
             </div>
 
             {/* 底部标语 */}
-            <div className="mt-4 pt-3 border-t border-white/5">
-              <p className="text-[10px] text-white/30 tracking-[0.3em] uppercase text-center">
+            <div className="mt-4 pt-3 border-t border-border-light">
+              <p className="text-[10px] text-text-muted tracking-[0.3em] uppercase text-center">
                 {t('login.bottomTagline')}
               </p>
             </div>
@@ -622,14 +624,14 @@ export default function LoginPage(): React.ReactElement {
           <div className="relative w-full max-w-md">
             {/* 移动端才显示的品牌名 */}
             <div className="lg:hidden text-center mb-6">
-              <h1 className="text-2xl font-bold text-white">TaskForge</h1>
+              <h1 className="text-2xl font-bold text-text-primary">TaskForge</h1>
             </div>
 
-            {/* 登录卡片：渐变描边 + 浅色磨砂玻璃（光面高光玻璃效果） */}
-            <div className="relative p-[1px] rounded-3xl bg-gradient-to-br from-white/30 via-white/10 to-white/20 shadow-2xl shadow-black/60">
-              <div className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl rounded-3xl border border-white/20 p-8 lg:p-10 relative overflow-hidden">
+            {/* 登录卡片：渐变描边 + 主题卡片背景（浅深色均自适应） */}
+            <div className="relative p-[1px] rounded-3xl bg-gradient-to-br from-primary/40 via-primary/15 to-purple-500/20 shadow-2xl">
+              <div className="bg-bg-card backdrop-blur-2xl rounded-3xl border border-border-light p-8 lg:p-10 relative overflow-hidden">
                 {/* 顶部高光线 — 玻璃卡片的标志性细节 */}
-                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
                 {/* 品牌标识 */}
                 <div className="flex items-center gap-3 mb-7">
                   <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-primary/30 ring-1 ring-white/20">
@@ -637,10 +639,10 @@ export default function LoginPage(): React.ReactElement {
                     <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-white/0 via-white/10 to-white/0 opacity-50" />
                   </div>
                   <div>
-                    <div className="text-white font-semibold text-base tracking-tight">
+                    <div className="text-text-primary font-semibold text-base tracking-tight">
                       TaskForge
                     </div>
-                    <div className="text-white/40 text-xs tracking-wide">
+                    <div className="text-text-muted text-xs tracking-wide">
                       {t('login.tabLogin')} · {t('login.tabRegister')}
                     </div>
                   </div>
@@ -648,10 +650,10 @@ export default function LoginPage(): React.ReactElement {
 
                 {/* Tab + 表单头部 */}
                 <div className="mb-6">
-                  <h2 className="text-2xl font-semibold text-white mb-1 tracking-tight">
+                  <h2 className="text-2xl font-semibold text-text-primary mb-1 tracking-tight">
                     {t(modeTitles[mode].titleKey)}
                   </h2>
-                  <p className="text-sm text-white/50">
+                  <p className="text-sm text-text-secondary">
                     {mode === 'setup' && '首次启动，请创建管理员账号'}
                     {mode === 'login' && '欢迎回来，请输入凭据登录'}
                     {mode === 'register' && '创建新账号加入 TaskForge'}
@@ -660,7 +662,7 @@ export default function LoginPage(): React.ReactElement {
 
                 {/* Server URL */}
                 <div className="mb-5">
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-text-secondary mb-1.5">
                     {t('login.serverUrl')}
                   </label>
                   <div className="flex gap-2">
@@ -669,12 +671,12 @@ export default function LoginPage(): React.ReactElement {
                       value={serverUrl}
                       onChange={(e) => setServerUrl(e.target.value)}
                       placeholder={t('login.serverUrlPlaceholder')}
-                      className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
+                      className="flex-1 px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
                     />
                     <button
                       onClick={handleSaveUrl}
                       disabled={serverLoading}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white/80 hover:bg-white/10 hover:border-white/20 transition-all text-sm disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-bg-input border border-border-light rounded-lg text-text-secondary hover:bg-bg-tertiary hover:border-border-hover transition-all text-sm disabled:opacity-50"
                     >
                       <Server className={`w-3.5 h-3.5 ${serverLoading ? 'animate-pulse' : ''}`} />
                       {t('login.connect')}
@@ -683,7 +685,7 @@ export default function LoginPage(): React.ReactElement {
                 </div>
 
                 {/* Mode Tabs */}
-                <div className="flex bg-black/30 rounded-lg p-1 mb-6 border border-white/5">
+                <div className="flex bg-bg-tertiary rounded-lg p-1 mb-6 border border-border-light">
                   {visibleModes.map((m) => (
                     <button
                       key={m}
@@ -691,7 +693,7 @@ export default function LoginPage(): React.ReactElement {
                       className={`group flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-all ${
                         mode === m
                           ? 'bg-gradient-to-r from-primary to-primary-hover text-white shadow-sm shadow-primary/30'
-                          : 'text-white/60 hover:text-white hover:bg-white/5'
+                          : 'text-text-secondary hover:text-text-primary hover:bg-bg-card-hover'
                       }`}
                     >
                       <span
@@ -710,7 +712,7 @@ export default function LoginPage(): React.ReactElement {
                 <form onSubmit={handleSubmit} className="space-y-3.5">
                   {(mode === 'register' || mode === 'setup') && (
                     <div>
-                      <label className="block text-xs font-medium text-white/60 mb-1">
+                      <label className="block text-xs font-medium text-text-secondary mb-1">
                         {t('login.displayName')}
                       </label>
                       <input
@@ -718,13 +720,13 @@ export default function LoginPage(): React.ReactElement {
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
                         placeholder={t('login.displayNamePlaceholder')}
-                        className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
+                        className="w-full px-3 py-2.5 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-xs font-medium text-white/60 mb-1">
+                    <label className="block text-xs font-medium text-text-secondary mb-1">
                       {t('login.username')}
                     </label>
                     <input
@@ -733,12 +735,12 @@ export default function LoginPage(): React.ReactElement {
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder={t('login.usernamePlaceholder')}
                       autoFocus
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-white/60 mb-1">
+                    <label className="block text-xs font-medium text-text-secondary mb-1">
                       {t('login.password')}
                     </label>
                     <input
@@ -746,13 +748,13 @@ export default function LoginPage(): React.ReactElement {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={mode === 'setup' ? t('login.passwordSetupPlaceholder') : t('login.passwordPlaceholder')}
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
                     />
                   </div>
 
                   {(mode === 'register' || mode === 'setup') && (
                     <div>
-                      <label className="block text-xs font-medium text-white/60 mb-1">
+                      <label className="block text-xs font-medium text-text-secondary mb-1">
                         {t('login.confirmPassword')}
                       </label>
                       <input
@@ -760,7 +762,7 @@ export default function LoginPage(): React.ReactElement {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder={t('login.confirmPasswordPlaceholder')}
-                        className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
+                        className="w-full px-3 py-2.5 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
                       />
                     </div>
                   )}
@@ -782,14 +784,14 @@ export default function LoginPage(): React.ReactElement {
                 </form>
 
                 {/* 信任徽章 */}
-                <div className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-white/40">
-                  <ShieldCheck size={12} className="text-emerald-400/70" />
+                <div className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-text-muted">
+                  <ShieldCheck size={12} className="text-emerald-500/70" />
                   <span>{t('login.securedLocally')}</span>
                 </div>
               </div>
             </div>
 
-            <p className="text-center text-white/30 text-xs mt-4">{t('login.version')}</p>
+            <p className="text-center text-text-muted text-xs mt-4">{t('login.version')}</p>
           </div>
         </div>
       </div>
