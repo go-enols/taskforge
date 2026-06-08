@@ -148,6 +148,10 @@ export class StoreService {
     this._walletRepo = new WalletRepository(this.db, encryption)
     this._proxyRepo = new ProxyRepository(this.db)
     this._taskRepo = new TaskRepository(this.db)
+    // seedProjectTemplates 必须在 prepareStatements() 之后调用, 否则
+    // 它用到的 prepared statement (projectTemplate.exists / .insert)
+    // 还没注册, 会抛 "Prepared statement not found"
+    this.seedProjectTemplates()
     Logger.setDbLogger((level, category, message, fields) => {
       this.addAppLog(level, category, message, fields)
     })
@@ -337,7 +341,6 @@ export class StoreService {
     // Migrations: add columns that may be missing from existing tables
     this.migrateAirdropProjects()
     this.migrateProxies()
-    this.seedProjectTemplates()
   }
 
   /** 迁移：为 airdrop_projects 表添加后续新增的字段（website, script_template_id, account_pool, template_id, custom_fields） */

@@ -24,6 +24,7 @@ import type {
   ProjectTemplate
 } from '../../../../shared/types'
 import { projectTemplateApi } from '../../api'
+import MarkdownView from '../MarkdownView'
 import {
   statusColorMap,
   typeColorMap,
@@ -156,14 +157,14 @@ const AirdropDetailModal: React.FC<AirdropDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Description */}
+        {/* Description (Markdown rendered) */}
         {project.description && (
           <div className="mb-4">
             <div className="text-[11px] text-text-muted font-medium mb-1">
               {t('airdrops.description')}
             </div>
-            <div className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed p-3 rounded-lg bg-bg-card-hover/40 border border-border-light/40 max-h-48 overflow-y-auto">
-              {project.description}
+            <div className="p-3 rounded-lg bg-bg-card-hover/40 border border-border-light/40">
+              <MarkdownView content={project.description} />
             </div>
           </div>
         )}

@@ -165,6 +165,20 @@ db.exec(`
     updated_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS project_templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    icon TEXT NOT NULL DEFAULT 'Folder',
+    fields TEXT NOT NULL DEFAULT '[]',
+    visible INTEGER NOT NULL DEFAULT 1,
+    created_by TEXT,
+    review_status TEXT NOT NULL DEFAULT 'pending',
+    review_comment TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
@@ -285,6 +299,44 @@ const stmts = {
   templateDelete: db.prepare('DELETE FROM templates WHERE id = ?'),
   /** 增加模板下载计数 */
   templateIncrementDownloads: db.prepare('UPDATE templates SET downloads = downloads + 1 WHERE id = ?'),
+
+  // project_templates CRUD (用户自定义的项目元数据模板, 9eb1428+ 同步)
+  /** 插入项目模板 */
+  projectTemplateInsert: db.prepare(
+    'INSERT INTO project_templates (id, name, description, icon, fields, visible, created_by, review_status, review_comment, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ),
+  /** 列出所有可见项目模板 */
+  projectTemplateGetAll: db.prepare(
+    'SELECT * FROM project_templates WHERE visible = 1 ORDER BY created_at DESC'
+  ),
+  /** 管理员列出所有项目模板 */
+  projectTemplateGetAllAdmin: db.prepare(
+    'SELECT * FROM project_templates ORDER BY created_at DESC'
+  ),
+  /** 按 ID 查询 */
+  projectTemplateGetById: db.prepare('SELECT * FROM project_templates WHERE id = ?'),
+  /** 按作者查询 */
+  projectTemplateGetByAuthor: db.prepare(
+    'SELECT * FROM project_templates WHERE created_by = ? ORDER BY created_at DESC'
+  ),
+  /** 待审核 */
+  projectTemplateGetPending: db.prepare(
+    "SELECT * FROM project_templates WHERE review_status = 'pending' ORDER BY created_at DESC"
+  ),
+  /** 更新 */
+  projectTemplateUpdate: db.prepare(
+    'UPDATE project_templates SET name=?, description=?, icon=?, fields=?, visible=?, updated_at=? WHERE id=?'
+  ),
+  /** 切换可见性 */
+  projectTemplatePatch: db.prepare(
+    'UPDATE project_templates SET visible=? WHERE id=?'
+  ),
+  /** 审核 */
+  projectTemplateReview: db.prepare(
+    'UPDATE project_templates SET review_status=?, review_comment=?, visible=?, updated_at=? WHERE id=?'
+  ),
+  /** 删除 */
+  projectTemplateDelete: db.prepare('DELETE FROM project_templates WHERE id = ?'),
 
   /** 插入新用户 */
   userInsert: db.prepare('INSERT INTO users (id, username, password_hash, display_name, role, api_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),

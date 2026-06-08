@@ -13,6 +13,7 @@ import authRouter from "./routes/auth";
 import scriptsRouter from "./routes/scripts";
 import templatesRouter from "./routes/templates";
 import usersRouter from "./routes/users";
+import projectTemplatesRouter from "./routes/project-templates";
 import { stmts } from "./db";
 
 // Ensure keys are generated and loaded
@@ -80,6 +81,7 @@ app.use("/api/auth", authLimiter, authRouter);
 /** 脚本/模板/用户路由（需要认证 + 限流） */
 app.use("/api/scripts", authMiddleware, apiLimiter, scriptsRouter);
 app.use("/api/templates", authMiddleware, apiLimiter, templatesRouter);
+app.use("/api/project-templates", authMiddleware, apiLimiter, projectTemplatesRouter);
 app.use("/api/users", authMiddleware, apiLimiter, usersRouter);
 
 // Global error handler

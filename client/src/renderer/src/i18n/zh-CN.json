@@ -70,6 +70,13 @@
     "changeTemplate": "更换/移除",
     "builtIn": "内置"
   },
+  "markdownEditor": {
+    "edit": "编辑",
+    "preview": "预览",
+    "markdownSupported": "支持 Markdown",
+    "empty": "无内容, 输入文本后点击「预览」查看效果",
+    "descriptionPlaceholder": "用 Markdown 描述项目: 目标/步骤/注意事项...\n\n支持: **粗体** *斜体* `代码` - 列表 - [链接](url) - 表格"
+  },
   "projectTemplates": {
     "title": "项目模板管理",
     "subtitle": "创建自定义项目模板, 模板字段会自动驱动新建项目表单",

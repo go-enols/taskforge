@@ -1,7 +1,7 @@
 /**
  * @file BasicInfoSection — 项目表单基础信息区块
  * @description 渲染项目创建/编辑表单的基础信息部分，包含项目名称（必填）、
- *              官网 URL（必填）和描述（支持 Markdown）。
+ *              官网 URL（必填）和描述（Markdown 编辑器）。
  *              不再包含"所属公链"字段 (chain) — 该字段在产品定位升级时
  *              移除, 项目模板系统替代其位置。
  * @module renderer/components/airdrops
@@ -11,6 +11,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { FileText, Globe, AlignLeft } from 'lucide-react'
 import type { AirdropFormData } from '../airdrop-defaults'
+import MarkdownEditor from '../../MarkdownEditor'
 
 /** 基础信息字段的校验错误映射 */
 export interface BasicInfoErrors {
@@ -95,21 +96,17 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({ form, onChange, err
         {errors.website && <p className="text-[11px] text-danger mt-1">{errors.website}</p>}
       </div>
 
-      {/* 项目描述（支持 Markdown） */}
+      {/* 项目描述 (Markdown 编辑器) */}
       <div>
         <label className="block text-xs font-medium text-text-secondary mb-1 flex items-center gap-1">
           <AlignLeft size={11} />
           {t('airdrops.description')}
-          <span className="text-text-muted text-[11px] font-normal">
-            {t('airdrops.descriptionMarkdownHint')}
-          </span>
         </label>
-        <textarea
-          name="description"
+        <MarkdownEditor
           value={form.description}
-          onChange={(e) => set('description', e.target.value)}
-          rows={4}
-          className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-y font-mono leading-relaxed"
+          onChange={(v) => set('description', v)}
+          rows={6}
+          placeholder={t('markdownEditor.descriptionPlaceholder')}
         />
       </div>
     </section>
