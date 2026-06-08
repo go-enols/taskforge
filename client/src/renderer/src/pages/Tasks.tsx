@@ -769,7 +769,7 @@ const Tasks: React.FC = () => {
             <tbody>
               {items.map((task) => (
                 <tr key={task.id} className="border-b border-border-light/50">
-                  <td colSpan={6} className="p-0">
+                  <td colSpan={5} className="p-0">
                     <div
                       onClick={() => handleToggleExpand(task.id)}
                       className="flex items-center cursor-pointer hover:bg-bg-card-hover transition-colors"
