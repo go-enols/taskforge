@@ -2,7 +2,8 @@
  * @file LoginPage — 登录/注册/初始化页面
  * @description 提供管理员初始化（setup）、用户登录和注册功能。
  *              首次启动时自动检测服务端是否需要初始化。
- *              视觉风格：单列居中布局，使用应用主题 token 保持与主页面风格一致。
+ *              视觉风格：60/40 双栏布局，左侧品牌展示 + 右侧表单卡片，
+ *              完全依赖主题 token 适配明暗主题。
  * @module renderer/pages
  */
 
@@ -163,151 +164,247 @@ export default function LoginPage(): React.ReactElement {
     <div className="h-screen flex flex-col bg-bg-page">
       <TitleBar dark={isDark} />
 
-      <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
-        <div className="w-full max-w-sm">
-          {/* 品牌标识 + 应用名 */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-sm mb-3">
-              <span className="text-text-inverse font-bold text-lg tracking-tight">T</span>
-            </div>
-            <h1 className="text-xl font-semibold text-text-primary tracking-tight">TaskForge</h1>
-            <p className="text-xs text-text-muted mt-1">
-              {mode === 'setup' && '首次启动，请创建管理员账号'}
-              {mode === 'login' && '欢迎回来'}
-              {mode === 'register' && '创建新账号'}
-            </p>
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[3fr_2fr] overflow-hidden">
+        {/* LEFT 60% — brand panel (hidden on mobile) */}
+        <BrandPanel />
+
+        {/* RIGHT 40% — form card */}
+        <div className="flex items-center justify-center p-6 lg:p-8 overflow-y-auto">
+          <div className="w-full max-w-sm animate-fade-in motion-reduce:animate-none">
+            <FormCard
+              mode={mode}
+              needsSetup={needsSetup}
+              visibleModes={visibleModes}
+              modeTitles={modeTitles}
+              onModeChange={setMode}
+              onSubmit={handleSubmit}
+              loading={loading}
+              displayName={displayName}
+              setDisplayName={setDisplayName}
+              username={username}
+              setUsername={setUsername}
+              password={password}
+              setPassword={setPassword}
+              confirmPassword={confirmPassword}
+              setConfirmPassword={setConfirmPassword}
+              serverUrl={serverUrl}
+              setServerUrl={setServerUrl}
+              serverLoading={serverLoading}
+              onSaveUrl={handleSaveUrl}
+            />
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-          {/* 登录卡片：与主应用卡片样式一致 */}
-          <div className="bg-bg-card rounded-xl border border-border-light shadow-sm p-6">
-            {/* Mode Tabs */}
-            <div className="flex bg-bg-tertiary rounded-lg p-1 mb-5 border border-border-light">
-              {visibleModes.map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    mode === m
-                      ? 'bg-primary text-text-inverse shadow-sm'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  {modeTitles[m].icon}
-                  {t(modeTitles[m].titleKey)}
-                </button>
-              ))}
-            </div>
+// ─── BrandPanel — left 60% showcase ─────────────────────────
+const BrandPanel: React.FC = () => {
+  const { t } = useTranslation()
+  return (
+    <div className="relative hidden lg:flex flex-col justify-between p-12 xl:p-16 overflow-hidden bg-bg-page">
+      {/* Single subtle radial gradient — works in both themes */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_28%_38%,var(--color-primary)/0.10,transparent_55%)]"
+      />
 
-            <form onSubmit={handleSubmit} className="space-y-3">
-              {(mode === 'register' || mode === 'setup') && (
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1">
-                    {t('login.displayName')}
-                  </label>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder={t('login.displayNamePlaceholder')}
-                    className="w-full px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                  />
-                </div>
-              )}
+      {/* Top: brand mark + wordmark */}
+      <div className="relative flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary via-purple-500 to-pink-500 shadow-sm shadow-primary/25 flex items-center justify-center">
+          <span className="text-white font-bold text-sm tracking-tight">T</span>
+        </div>
+        <span className="text-base font-semibold text-text-primary tracking-tight">TaskForge</span>
+      </div>
 
-              <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">
-                  {t('login.username')}
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder={t('login.usernamePlaceholder')}
-                  autoFocus
-                  className="w-full px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                />
-              </div>
+      {/* Middle: hero copy */}
+      <div className="relative max-w-lg">
+        <h1 className="text-5xl xl:text-6xl font-bold leading-[1.1] tracking-tight text-text-primary">
+          自动化脚本，<br />
+          <span className="bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
+            分发即用
+          </span>
+          。
+        </h1>
+        <p className="mt-6 text-base text-text-secondary leading-relaxed max-w-md">
+          开发者发布脚本，用户从市场一键安装。沙箱执行、安全可控、所见即所得。
+        </p>
+      </div>
 
-              <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">
-                  {t('login.password')}
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={
-                    mode === 'setup' ? t('login.passwordSetupPlaceholder') : t('login.passwordPlaceholder')
-                  }
-                  className="w-full px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                />
-              </div>
+      {/* Bottom: trust line */}
+      <div className="relative flex items-center gap-1.5 text-xs text-text-muted">
+        <ShieldCheck size={13} className="text-success" />
+        <span>{t('login.securedLocally')}</span>
+      </div>
+    </div>
+  )
+}
 
-              {(mode === 'register' || mode === 'setup') && (
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1">
-                    {t('login.confirmPassword')}
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder={t('login.confirmPasswordPlaceholder')}
-                    className="w-full px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                  />
-                </div>
-              )}
+// ─── FormCard — right 40% standard login card ───────────────
+interface FormCardProps {
+  mode: Mode
+  needsSetup: boolean
+  visibleModes: Mode[]
+  modeTitles: Record<Mode, { titleKey: string; icon: React.ReactNode }>
+  onModeChange: (m: Mode) => void
+  onSubmit: (e: React.FormEvent) => Promise<void>
+  loading: boolean
+  displayName: string
+  setDisplayName: (v: string) => void
+  username: string
+  setUsername: (v: string) => void
+  password: string
+  setPassword: (v: string) => void
+  confirmPassword: string
+  setConfirmPassword: (v: string) => void
+  serverUrl: string
+  setServerUrl: (v: string) => void
+  serverLoading: boolean
+  onSaveUrl: () => Promise<void>
+}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary w-full py-2 mt-1"
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-text-inverse/30 border-t-text-inverse rounded-full animate-spin" />
-                    {t('login.processing')}
-                  </span>
-                ) : (
-                  t(modeTitles[mode].titleKey)
-                )}
-              </button>
-            </form>
+const FormCard: React.FC<FormCardProps> = ({
+  mode,
+  visibleModes,
+  modeTitles,
+  onModeChange,
+  onSubmit,
+  loading,
+  displayName,
+  setDisplayName,
+  username,
+  setUsername,
+  password,
+  setPassword,
+  confirmPassword,
+  setConfirmPassword,
+  serverUrl,
+  setServerUrl,
+  serverLoading,
+  onSaveUrl
+}) => {
+  const { t } = useTranslation()
+  return (
+    <div className="bg-bg-card rounded-2xl border border-border-light shadow-sm p-6 lg:p-8">
+      {/* Mobile brand wordmark (only visible when left panel is hidden) */}
+      <div className="lg:hidden flex items-center gap-2 mb-5">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary via-purple-500 to-pink-500 shadow-sm shadow-primary/25 flex items-center justify-center">
+          <span className="text-white font-bold text-sm">T</span>
+        </div>
+        <span className="text-sm font-semibold text-text-primary">TaskForge</span>
+      </div>
 
-            {/* 服务端地址：单独的小区块，提示需要连接 */}
-            <div className="mt-4 pt-4 border-t border-border-light">
-              <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                {t('login.serverUrl')}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={serverUrl}
-                  onChange={(e) => setServerUrl(e.target.value)}
-                  placeholder={t('login.serverUrlPlaceholder')}
-                  className="flex-1 px-3 py-1.5 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveUrl}
-                  disabled={serverLoading}
-                  className="btn-secondary px-3 py-1.5 text-sm"
-                >
-                  <Server className={`w-3.5 h-3.5 ${serverLoading ? 'animate-pulse' : ''}`} />
-                  {t('login.connect')}
-                </button>
-              </div>
-            </div>
+      {/* Mode tabs */}
+      <div className="flex bg-bg-tertiary rounded-lg p-1 mb-5 border border-border-light">
+        {visibleModes.map((m) => (
+          <button
+            key={m}
+            onClick={() => onModeChange(m)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              mode === m
+                ? 'bg-primary text-text-inverse shadow-sm'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {modeTitles[m].icon}
+            {t(modeTitles[m].titleKey)}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={onSubmit} className="space-y-3">
+        {(mode === 'register' || mode === 'setup') && (
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">
+              {t('login.displayName')}
+            </label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder={t('login.displayNamePlaceholder')}
+              className="w-full px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            />
           </div>
+        )}
 
-          {/* 信任徽章 + 版本 */}
-          <div className="mt-6 flex flex-col items-center gap-2 text-text-muted">
-            <div className="flex items-center gap-1.5 text-[11px]">
-              <ShieldCheck size={12} className="text-success" />
-              <span>{t('login.securedLocally')}</span>
-            </div>
-            <p className="text-[10px]">{t('login.version')}</p>
+        <div>
+          <label className="block text-xs font-medium text-text-secondary mb-1">
+            {t('login.username')}
+          </label>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder={t('login.usernamePlaceholder')}
+            autoFocus
+            className="w-full px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-text-secondary mb-1">
+            {t('login.password')}
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={mode === 'setup' ? t('login.passwordSetupPlaceholder') : t('login.passwordPlaceholder')}
+            className="w-full px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          />
+        </div>
+
+        {(mode === 'register' || mode === 'setup') && (
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">
+              {t('login.confirmPassword')}
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder={t('login.confirmPasswordPlaceholder')}
+              className="w-full px-3 py-2 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            />
           </div>
+        )}
+
+        <button type="submit" disabled={loading} className="btn-primary w-full py-2 mt-1">
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 border-2 border-text-inverse/30 border-t-text-inverse rounded-full animate-spin" />
+              {t('login.processing')}
+            </span>
+          ) : (
+            t(modeTitles[mode].titleKey)
+          )}
+        </button>
+      </form>
+
+      {/* Server URL — small section below the form */}
+      <div className="mt-5 pt-5 border-t border-border-light">
+        <label className="block text-xs font-medium text-text-secondary mb-1.5">
+          {t('login.serverUrl')}
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={serverUrl}
+            onChange={(e) => setServerUrl(e.target.value)}
+            placeholder={t('login.serverUrlPlaceholder')}
+            className="flex-1 px-3 py-1.5 rounded-lg bg-bg-input border border-border-light text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          />
+          <button
+            type="button"
+            onClick={onSaveUrl}
+            disabled={serverLoading}
+            className="btn-secondary px-3 py-1.5 text-sm"
+          >
+            <Server className={`w-3.5 h-3.5 ${serverLoading ? 'animate-pulse' : ''}`} />
+            {t('login.connect')}
+          </button>
         </div>
       </div>
     </div>
