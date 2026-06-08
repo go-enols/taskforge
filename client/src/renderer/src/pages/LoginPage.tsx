@@ -63,46 +63,51 @@ type TerminalLine = {
   prefix?: { symbol: string; color: string }
 }
 
-/** 终端代码演示 — TaskForge 真实输出风格 */
+/**
+ * 终端代码演示 — TaskForge 真实 SDK stdout 协议
+ * 展示脚本与主进程之间的 NDJSON 通信 (见 client/src/main/services/sdk-protocol.ts)
+ * 每行一个 JSON 对象, 主进程按 type 字段派发 (log / progress / result / error)
+ */
 const TERMINAL_LINES: TerminalLine[] = [
   {
-    text: '$ taskforge run my-script',
-    parts: [{ text: '$ taskforge run my-script', color: 'text-slate-100' }]
+    text: '$ node index.js',
+    parts: [{ text: '$ node index.js', color: 'text-slate-100' }]
   },
   {
-    text: 'Loading script: my-script v1.0.0',
-    prefix: { symbol: '✓', color: 'text-emerald-400' },
-    parts: [
-      { text: 'Loading script: ', color: 'text-slate-300' },
-      { text: 'my-script', color: 'text-cyan-300' },
-      { text: ' ', color: 'text-slate-300' },
-      { text: 'v1.0.0', color: 'text-amber-300' }
-    ]
-  },
-  {
-    text: 'Injecting 12 script params',
-    prefix: { symbol: '✓', color: 'text-emerald-400' },
-    parts: [
-      { text: 'Injecting ', color: 'text-slate-300' },
-      { text: '12', color: 'text-pink-300' },
-      { text: ' script params', color: 'text-slate-300' }
-    ]
-  },
-  {
-    text: 'Running in sandbox mode',
+    text: '{ "type": "log", "level": "info", "message": "loaded 3 wallets" }',
     prefix: { symbol: '→', color: 'text-primary' },
     parts: [
-      { text: 'Running in ', color: 'text-slate-300' },
-      { text: 'sandbox', color: 'text-purple-300' },
-      { text: ' mode', color: 'text-slate-300' }
+      { text: '{ "type": ', color: 'text-slate-300' },
+      { text: '"log"', color: 'text-cyan-300' },
+      { text: ', "level": ', color: 'text-slate-300' },
+      { text: '"info"', color: 'text-amber-300' },
+      { text: ', "message": ', color: 'text-slate-300' },
+      { text: '"loaded 3 wallets"', color: 'text-emerald-200' },
+      { text: ' }', color: 'text-slate-300' }
     ]
   },
   {
-    text: 'Completed in 2.3s',
+    text: '{ "type": "progress", "percent": 50 }',
+    prefix: { symbol: '→', color: 'text-primary' },
+    parts: [
+      { text: '{ "type": ', color: 'text-slate-300' },
+      { text: '"progress"', color: 'text-purple-300' },
+      { text: ', "percent": ', color: 'text-slate-300' },
+      { text: '50', color: 'text-pink-300' },
+      { text: ' }', color: 'text-slate-300' }
+    ]
+  },
+  {
+    text: '{ "type": "result", "ok": true, "data": { "count": 42 } }',
     prefix: { symbol: '✓', color: 'text-emerald-400' },
     parts: [
-      { text: 'Completed in ', color: 'text-slate-300' },
-      { text: '2.3s', color: 'text-emerald-300' }
+      { text: '{ "type": ', color: 'text-slate-300' },
+      { text: '"result"', color: 'text-emerald-300' },
+      { text: ', "ok": ', color: 'text-slate-300' },
+      { text: 'true', color: 'text-emerald-300' },
+      { text: ', "data": { "count": ', color: 'text-slate-300' },
+      { text: '42', color: 'text-pink-300' },
+      { text: ' } }', color: 'text-slate-300' }
     ]
   }
 ]
@@ -152,7 +157,7 @@ const TerminalPreview: React.FC = () => {
         <span className="w-3 h-3 rounded-full bg-emerald-400/80" />
         <div className="ml-3 flex items-center gap-1.5 text-xs text-slate-400 font-mono">
           <Terminal size={12} />
-          <span>taskforge · ~/projects</span>
+          <span>script · stdout (ndjson)</span>
         </div>
         <div className="ml-auto flex items-center gap-1 text-[10px] text-slate-500 font-mono">
           <Activity size={10} className="text-emerald-400" />
@@ -627,11 +632,11 @@ export default function LoginPage(): React.ReactElement {
               <h1 className="text-2xl font-bold text-text-primary">TaskForge</h1>
             </div>
 
-            {/* 登录卡片：渐变描边 + 主题卡片背景（浅深色均自适应） */}
-            <div className="relative p-[1px] rounded-3xl bg-gradient-to-br from-primary/40 via-primary/15 to-purple-500/20 shadow-2xl">
-              <div className="bg-bg-card backdrop-blur-2xl rounded-3xl border border-border-light p-8 lg:p-10 relative overflow-hidden">
-                {/* 顶部高光线 — 玻璃卡片的标志性细节 */}
-                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+            {/* 登录卡片：与全站其他卡片一致 — 纯色面板 + 细描边 + 轻阴影，融入页面 */}
+            <div className="relative w-full">
+              {/* 左侧品牌色条：比全包渐变描边更轻量的强调 */}
+              <div className="pointer-events-none absolute left-0 top-4 bottom-4 w-0.5 rounded-full bg-gradient-to-b from-primary via-purple-500 to-pink-500" />
+              <div className="bg-bg-card rounded-2xl border border-border-light shadow-sm p-8 lg:p-10 relative overflow-hidden">
                 {/* 品牌标识 */}
                 <div className="flex items-center gap-3 mb-7">
                   <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-primary/30 ring-1 ring-white/20">
