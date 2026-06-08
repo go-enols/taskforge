@@ -772,9 +772,9 @@ const Tasks: React.FC = () => {
                   <td colSpan={5} className="p-0">
                     <div
                       onClick={() => handleToggleExpand(task.id)}
-                      className="flex items-center cursor-pointer hover:bg-bg-card-hover transition-colors"
+                      className="grid items-center cursor-pointer hover:bg-bg-card-hover transition-colors grid-cols-[40px_100px_160px_160px_auto]"
                     >
-                      <div className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>
+                      <div className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => toggleSelect(task.id)}
                           className="text-text-muted hover:text-text-primary transition-colors"
@@ -787,26 +787,24 @@ const Tasks: React.FC = () => {
                           )}
                         </button>
                       </div>
-                       <div className="flex-1 grid grid-cols-[100px_160px_160px] items-center">
-                        <div className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-status-${task.status}-bg text-status-${task.status}-text`}
-                          >
-                            {task.status === 'running' && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                            )}
-                            {t(`tasks.status.${task.status}`)}
-                          </span>
-                        </div>
-                        <div className="px-4 py-3 text-text-secondary text-xs">
-                          {formatTime(task.startedAt)}
-                        </div>
-                        <div className="px-4 py-3 text-text-secondary text-xs">
-                          {formatTime(task.endedAt)}
-                        </div>
+                      <div className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-status-${task.status}-bg text-status-${task.status}-text`}
+                        >
+                          {task.status === 'running' && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                          )}
+                          {t(`tasks.status.${task.status}`)}
+                        </span>
+                      </div>
+                      <div className="px-4 py-3 text-text-secondary text-xs">
+                        {formatTime(task.startedAt)}
+                      </div>
+                      <div className="px-4 py-3 text-text-secondary text-xs">
+                        {formatTime(task.endedAt)}
                       </div>
                       <div
-                        className="flex items-center gap-1 px-4 py-3"
+                        className="flex items-center justify-end gap-1 px-4 py-3"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {renderActionButtons(task)}
