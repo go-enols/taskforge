@@ -10,7 +10,7 @@ import type { Template } from '../types'
    Types
    ═══════════════════════════════════════════ */
 
-export type DetectableType = 'account' | 'proxy' | 'captcha' | 'unknown'
+export type DetectableType = 'scriptParam' | 'proxy' | 'captcha' | 'unknown'
 
 export interface ParsedRow {
   index: number
@@ -218,7 +218,7 @@ export function detectType(row: Record<string, unknown>): DetectableType {
   // Explicit type field (for mixed tab)
   if (typeof row.type === 'string') {
     const t = row.type.toLowerCase().trim()
-    if (t === 'account') return 'account'
+    if (t === 'scriptParam') return 'scriptParam'
     if (t === 'proxy') return 'proxy'
     if (t === 'captcha') return 'captcha'
   }
@@ -241,7 +241,7 @@ export function detectType(row: Record<string, unknown>): DetectableType {
   if (hasProvider && hasApiKey && !hasPort && !hasHost) return 'captcha'
   if (hasPort && hasHost) return 'proxy'
   if (hasProtocol && hasHost) return 'proxy'
-  if (hasTemplateId) return 'account'
+  if (hasTemplateId) return 'scriptParam'
 
   return 'unknown'
 }
@@ -251,9 +251,9 @@ export function detectType(row: Record<string, unknown>): DetectableType {
    ═══════════════════════════════════════════ */
 
 /**
- * Validate an account row against a template schema.
+ * Validate a script param row against a template schema.
  */
-export function validateAccount(
+export function validateScriptParam(
   row: Record<string, unknown>,
   schemas: Template[]
 ): ValidationResult {
@@ -366,7 +366,7 @@ export function validateCaptcha(row: Record<string, unknown>): ValidationResult 
  * @param text Raw text content
  * @param mode 'csv' | 'json' | 'auto' - auto tries JSON first, then CSV
  * @param expectedType Optional expected type override
- * @param schemas Template schemas for account validation
+ * @param schemas Template schemas for script param validation
  */
 export function parseImportData(
   text: string,
@@ -431,8 +431,8 @@ export function parseImportData(
     let validationResult: ValidationResult = { valid: true, errors: [] }
 
     switch (detectedType) {
-      case 'account':
-        validationResult = validateAccount(typedRow, schemas)
+      case 'scriptParam':
+        validationResult = validateScriptParam(typedRow, schemas)
         break
       case 'proxy':
         validationResult = validateProxy(typedRow)

@@ -1,6 +1,6 @@
 import type {
   Wallet,
-  Account,
+  ScriptParam,
   Proxy,
   Task,
   TaskLog,
@@ -39,17 +39,17 @@ export const walletApi = {
   batchDelete: (ids: string[]) => call<void>('wallet:batchDelete', [ids])
 }
 
-export const accountApi = {
+export const scriptParamApi = {
   list: (page = 1, pageSize = 50, search = '') =>
-    call<ListResponse<Account>>('account:list', [page, pageSize, search]),
-  get: (id: string) => call<Account | null>('account:get', [id]),
-  create: (data: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>) =>
-    call<Account>('account:create', [data]),
-  update: (id: string, data: Partial<Account>) => call<Account>('account:update', [id, data]),
-  delete: (id: string) => call<void>('account:delete', [id]),
-  listPools: () => call<string[]>('account:listPools'),
-  batchCreate: (items: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>[]) =>
-    call<number>('account:batchCreate', [items])
+    call<ListResponse<ScriptParam>>('scriptParam:list', [page, pageSize, search]),
+  get: (id: string) => call<ScriptParam | null>('scriptParam:get', [id]),
+  create: (data: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>) =>
+    call<ScriptParam>('scriptParam:create', [data]),
+  update: (id: string, data: Partial<ScriptParam>) => call<ScriptParam>('scriptParam:update', [id, data]),
+  delete: (id: string) => call<void>('scriptParam:delete', [id]),
+  listPools: () => call<string[]>('scriptParam:listPools'),
+  batchCreate: (items: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>[]) =>
+    call<number>('scriptParam:batchCreate', [items])
 }
 
 export const proxyApi = {
@@ -98,7 +98,7 @@ export const templateApi = {
     call<Template>('template:create', [data]),
   update: (id: string, data: Partial<Template>) => call<Template>('template:update', [id, data]),
   delete: (id: string) => call<void>('template:delete', [id]),
-  checkAccounts: (id: string) => call<number>('template:checkAccounts', [id])
+  checkScriptParams: (id: string) => call<number>('template:checkScriptParams', [id])
 }
 
 export const taskTemplateApi = {

@@ -1,7 +1,7 @@
 /**
  * @file StoreService — SQLite 数据访问层（核心持久层）
  * @description 封装所有数据表的 CRUD 操作，采用 better-sqlite3 同步 API + 预编译语句。
- *              JSON 字段自动序列化/反序列化，提供钱包、账户、代理、任务、空投项目、
+ *              JSON 字段自动序列化/反序列化，提供钱包、脚本参数、代理、任务、空投项目、
  *              模板、设置、验证码密钥、代理提供商、应用日志等实体的统一数据访问接口。
  *              内部维护 WalletRepository / ProxyRepository / TaskRepository 三个子仓库。
  * @module main/services
@@ -11,7 +11,7 @@ import Database from 'better-sqlite3'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   Wallet,
-  Account,
+  ScriptParam,
   Proxy,
   Task,
   TaskLog,
@@ -43,7 +43,7 @@ import { Logger } from '../utils/logger'
 
 export type {
   Wallet,
-  Account,
+  ScriptParam,
   Proxy,
   Task,
   TaskLog,
@@ -119,7 +119,7 @@ function nowISO(): string {
  * ```ts
  * const store = new StoreService('path/to/taskforge.db')
  * const wallets = store.walletRepo.listWallets()
- * const accounts = store.listAccounts(1, 20, 'search term')
+ * const scriptParams = store.listScriptParams(1, 20, 'search term')
  * ```
  */
 export class StoreService {
@@ -185,7 +185,7 @@ export class StoreService {
         created_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS accounts (
+      CREATE TABLE IF NOT EXISTS script_params (
         id TEXT PRIMARY KEY,
         template_id TEXT NOT NULL,
         data TEXT NOT NULL DEFAULT '{}',
@@ -333,14 +333,39 @@ export class StoreService {
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       CREATE INDEX IF NOT EXISTS idx_wallets_wallet_type ON wallets(wallet_type);
       CREATE INDEX IF NOT EXISTS idx_proxies_status ON proxies(status);
-      CREATE INDEX IF NOT EXISTS idx_accounts_pool ON accounts(pool);
+      CREATE INDEX IF NOT EXISTS idx_script_params_pool ON script_params(pool);
       CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled);
       CREATE INDEX IF NOT EXISTS idx_airdrop_projects_status ON airdrop_projects(status);
       CREATE INDEX IF NOT EXISTS idx_app_logs_category ON app_logs(category);
     `)
-    // Migrations: add columns that may be missing from existing tables
+
+    this.migrateAccountsToScriptParams()
     this.migrateAirdropProjects()
     this.migrateProxies()
+  }
+
+  /**
+   * 迁移：把老表 accounts 重命名为 script_params（重命名后保留 account_pool 字段名兼容历史数据）。
+   * 仅当老表存在且新表不存在时执行（首次升级场景）；新装用户由 CREATE TABLE IF NOT EXISTS 处理。
+   */
+  private migrateAccountsToScriptParams(): void {
+    const tables = this.db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('accounts', 'script_params')"
+      )
+      .all() as Array<{ name: string }>
+    const hasOld = tables.some((t) => t.name === 'accounts')
+    const hasNew = tables.some((t) => t.name === 'script_params')
+    if (hasOld && !hasNew) {
+      this.db.exec('ALTER TABLE accounts RENAME TO script_params')
+    }
+    const oldIdx = this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_accounts_pool'")
+      .get() as { name: string } | undefined
+    if (oldIdx) {
+      this.db.exec('DROP INDEX IF EXISTS idx_accounts_pool')
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_script_params_pool ON script_params(pool)')
+    }
   }
 
   /** 迁移：为 airdrop_projects 表添加后续新增的字段（website, script_template_id, account_pool, template_id, custom_fields） */
@@ -455,23 +480,23 @@ export class StoreService {
     const db = this.db
 
     s.set(
-      'account.insert',
+      'scriptParam.insert',
       db.prepare(
-        'INSERT INTO accounts (id, template_id, data, pool, labels, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO script_params (id, template_id, data, pool, labels, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
     )
-    s.set('account.getById', db.prepare('SELECT * FROM accounts WHERE id = ?'))
+    s.set('scriptParam.getById', db.prepare('SELECT * FROM script_params WHERE id = ?'))
     s.set(
-      'account.update',
+      'scriptParam.update',
       db.prepare(
-        'UPDATE accounts SET template_id=?, data=?, pool=?, labels=?, notes=?, updated_at=? WHERE id=?'
+        'UPDATE script_params SET template_id=?, data=?, pool=?, labels=?, notes=?, updated_at=? WHERE id=?'
       )
     )
-    s.set('account.delete', db.prepare('DELETE FROM accounts WHERE id = ?'))
-    s.set('account.count', db.prepare('SELECT COUNT(*) as cnt FROM accounts'))
+    s.set('scriptParam.delete', db.prepare('DELETE FROM script_params WHERE id = ?'))
+    s.set('scriptParam.count', db.prepare('SELECT COUNT(*) as cnt FROM script_params'))
     s.set(
-      'account.countByPool',
-      db.prepare('SELECT pool, COUNT(*) as cnt FROM accounts GROUP BY pool')
+      'scriptParam.countByPool',
+      db.prepare('SELECT pool, COUNT(*) as cnt FROM script_params GROUP BY pool')
     )
 
     s.set(
@@ -606,8 +631,8 @@ export class StoreService {
     return s
   }
 
-  /** 行映射：数据库行 → Account 对象（自动反序列化 data/labels JSON 字段） */
-  private rowToAccount(row: Record<string, unknown>): Account {
+  /** 行映射：数据库行 → ScriptParam 对象（自动反序列化 data/labels JSON 字段） */
+  private rowToScriptParam(row: Record<string, unknown>): ScriptParam {
     return {
       id: row.id as string,
       templateId: row.template_id as string,
@@ -781,15 +806,15 @@ export class StoreService {
   }
 
   /**
-   * 创建账号
+   * 创建脚本参数
    *
-   * @param data - 账号数据（无需提供 id/createdAt/updatedAt，自动生成）
-   * @returns 创建的 Account 对象
+   * @param data - 脚本参数数据（无需提供 id/createdAt/updatedAt，自动生成）
+   * @returns 创建的 ScriptParam 对象
    */
-  createAccount(data: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>): Account {
+  createScriptParam(data: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>): ScriptParam {
     const id = uuidv4()
     const now = nowISO()
-    this.stmt('account.insert').run(
+    this.stmt('scriptParam.insert').run(
       id,
       data.templateId,
       toJson(data.data),
@@ -799,63 +824,63 @@ export class StoreService {
       now,
       now
     )
-    return this.getAccount(id)!
+    return this.getScriptParam(id)!
   }
 
   /**
-   * 根据 ID 获取账号
+   * 根据 ID 获取脚本参数
    *
-   * @param id - 账号 UUID
-   * @returns Account 对象，不存在时返回 null
+   * @param id - 脚本参数 UUID
+   * @returns ScriptParam 对象，不存在时返回 null
    */
-  getAccount(id: string): Account | null {
-    const row = this.stmt('account.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToAccount(row) : null
+  getScriptParam(id: string): ScriptParam | null {
+    const row = this.stmt('scriptParam.getById').get(id) as Record<string, unknown> | undefined
+    return row ? this.rowToScriptParam(row) : null
   }
 
   /**
-   * 分页查询账号列表（支持按 pool 或 notes 模糊搜索）
+   * 分页查询脚本参数列表（支持按 pool 或 notes 模糊搜索）
    *
    * @param page     - 页码（默认 1）
    * @param pageSize - 每页条数（默认 20）
    * @param search   - 可选搜索关键词
    * @returns 分页结果
    */
-  listAccounts(page = 1, pageSize = 20, search?: string): ListResponse<Account> {
+  listScriptParams(page = 1, pageSize = 20, search?: string): ListResponse<ScriptParam> {
     if (search) {
       const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM accounts WHERE pool LIKE ? OR notes LIKE ?'
+        'SELECT COUNT(*) as cnt FROM script_params WHERE pool LIKE ? OR notes LIKE ?'
       )
       const listStmt = this.db.prepare(
-        'SELECT * FROM accounts WHERE pool LIKE ? OR notes LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+        'SELECT * FROM script_params WHERE pool LIKE ? OR notes LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
       )
-      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToAccount(r), [
+      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToScriptParam(r), [
         `%${search}%`,
         `%${search}%`
       ])
     }
-    const countStmt = this.stmt('account.count')
+    const countStmt = this.stmt('scriptParam.count')
     const listStmt = this.db.prepare(
-      'SELECT * FROM accounts ORDER BY created_at DESC LIMIT ? OFFSET ?'
+      'SELECT * FROM script_params ORDER BY created_at DESC LIMIT ? OFFSET ?'
     )
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToAccount(r))
+    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToScriptParam(r))
   }
 
   /**
-   * 更新账号信息
+   * 更新脚本参数
    *
-   * @param id   - 账号 UUID
+   * @param id   - 脚本参数 UUID
    * @param data - 要更新的字段（部分更新）
-   * @returns 更新后的 Account 对象，不存在时返回 null
+   * @returns 更新后的 ScriptParam 对象，不存在时返回 null
    */
-  updateAccount(
+  updateScriptParam(
     id: string,
-    data: Partial<Omit<Account, 'id' | 'createdAt' | 'updatedAt'>>
-  ): Account | null {
-    const existing = this.getAccount(id)
+    data: Partial<Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>>
+  ): ScriptParam | null {
+    const existing = this.getScriptParam(id)
     if (!existing) return null
     const updated = { ...existing, ...data, updatedAt: nowISO() }
-    this.stmt('account.update').run(
+    this.stmt('scriptParam.update').run(
       updated.templateId,
       toJson(updated.data),
       updated.pool,
@@ -864,29 +889,29 @@ export class StoreService {
       updated.updatedAt,
       id
     )
-    return this.getAccount(id)
+    return this.getScriptParam(id)
   }
 
   /**
-   * 删除账号
+   * 删除脚本参数
    *
-   * @param id - 账号 UUID
+   * @param id - 脚本参数 UUID
    * @returns 是否成功删除
    */
-  deleteAccount(id: string): boolean {
-    const result = this.stmt('account.delete').run(id)
+  deleteScriptParam(id: string): boolean {
+    const result = this.stmt('scriptParam.delete').run(id)
     return result.changes > 0
   }
 
   /**
-   * 获取所有不重复的账号池名称
+   * 获取所有不重复的参数池名称
    *
-   * @returns 账号池名称数组（已排序）
+   * @returns 参数池名称数组（已排序）
    */
-  listAccountPools(): string[] {
+  listScriptParamPools(): string[] {
     const rows = this.db
       .prepare(
-        "SELECT DISTINCT pool FROM accounts WHERE pool IS NOT NULL AND pool != '' ORDER BY pool"
+        "SELECT DISTINCT pool FROM script_params WHERE pool IS NOT NULL AND pool != '' ORDER BY pool"
       )
       .all() as Array<{ pool: string }>
     return rows.map((r) => r.pool)
@@ -973,13 +998,13 @@ export class StoreService {
   }
 
   /**
-   * 统计使用指定模板的账号数量
+   * 统计使用指定模板的脚本参数数量
    *
    * @param templateId - 模板 UUID
-   * @returns 账号数量
+   * @returns 脚本参数数量
    */
-  countAccountsByTemplate(templateId: string): number {
-    const row = this.db.prepare('SELECT COUNT(*) as cnt FROM accounts WHERE template_id = ?').get(templateId) as { cnt: number }
+  countScriptParamsByTemplate(templateId: string): number {
+    const row = this.db.prepare('SELECT COUNT(*) as cnt FROM script_params WHERE template_id = ?').get(templateId) as { cnt: number }
     return row.cnt
   }
 
@@ -1664,11 +1689,11 @@ export class StoreService {
     const proxyProtocolDistribution = this._proxyRepo.countByProtocol()
     const proxyStatusDistribution = this._proxyRepo.countByStatus()
 
-    const accountTotal = (this.stmt('account.count').get() as Record<string, number>).cnt
-    const accountPoolRows = this.stmt('account.countByPool').all() as Record<string, unknown>[]
-    const accountPoolDistribution: Record<string, number> = {}
-    for (const row of accountPoolRows) {
-      accountPoolDistribution[row.pool as string] = row.cnt as number
+    const scriptParamTotal = (this.stmt('scriptParam.count').get() as Record<string, number>).cnt
+    const scriptParamPoolRows = this.stmt('scriptParam.countByPool').all() as Record<string, unknown>[]
+    const scriptParamPoolDistribution: Record<string, number> = {}
+    for (const row of scriptParamPoolRows) {
+      scriptParamPoolDistribution[row.pool as string] = row.cnt as number
     }
 
     const taskTotal = this._taskRepo.count()
@@ -1741,8 +1766,8 @@ export class StoreService {
       proxyTotal,
       proxyProtocolDistribution,
       proxyStatusDistribution,
-      accountTotal,
-      accountPoolDistribution,
+      scriptParamTotal,
+      scriptParamPoolDistribution,
       taskTotal,
       taskStatusDistribution,
       taskSuccessRate,
@@ -1780,7 +1805,7 @@ export class StoreService {
     }
 
     const walletCount = this._walletRepo.count()
-    const accountCount = (this.stmt('account.count').get() as Record<string, number>).cnt
+    const scriptParamCount = (this.stmt('scriptParam.count').get() as Record<string, number>).cnt
     const proxyCount = this._proxyRepo.count()
     const taskCount = this._taskRepo.count()
 
@@ -1795,7 +1820,7 @@ export class StoreService {
       dbConnected,
       dbError,
       walletCount,
-      accountCount,
+      scriptParamCount,
       proxyCount,
       taskCount,
       runningTaskCount,
@@ -1804,15 +1829,15 @@ export class StoreService {
   }
 
   /**
-   * 批量创建账号（事务内执行，提升导入性能）
+   * 批量创建脚本参数（事务内执行，提升导入性能）
    *
-   * @param items - 账号数据数组
-   * @returns 成功创建的账号数量
+   * @param items - 脚本参数数据数组
+   * @returns 成功创建的脚本参数数量
    */
-  batchCreateAccounts(items: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>[]): number {
-    const insert = this.stmt('account.insert')
+  batchCreateScriptParams(items: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>[]): number {
+    const insert = this.stmt('scriptParam.insert')
     const transaction = this.db.transaction(
-      (data: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+      (data: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>[]) => {
         let count = 0
         for (const item of data) {
           const id = uuidv4()

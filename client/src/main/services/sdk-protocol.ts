@@ -13,7 +13,7 @@
  *   {"type":"response","id":1,"result":{...}}
  *
  * 主进程 → 脚本 (stdin):
- *   {"id":1,"method":"get_accounts","params":{...}}
+ *   {"id":1,"method":"get_script_params","params":{...}}
  *   {"id":2,"method":"get_wallets"}
  *   {"type":"shutdown"}
  *

@@ -1,6 +1,6 @@
 ﻿/**
  * @file DebugPage — 脚本调试页
- * @description 提供脚本的实时调试环境：选择项目文件夹、查看 Schema、匹配账户、
+ * @description 提供脚本的实时调试环境：选择项目文件夹、查看 Schema、匹配脚本参数、
  *              设置沙箱模式、运行/暂停/恢复/停止任务、查看实时日志与输出。
  * @module renderer/pages
  */
@@ -22,8 +22,8 @@ import {
   Clock,
   TrendingUp
 } from 'lucide-react'
-import { taskApi, fileApi, accountApi, dialogApi } from '../api'
-import type { TaskLog, TaskLogLevel, Task, Account, TaskOutput } from '../../../../src/shared/types'
+import { taskApi, fileApi, scriptParamApi, dialogApi } from '../api'
+import type { TaskLog, TaskLogLevel, Task, ScriptParam, TaskOutput } from '../../../../src/shared/types'
 import LogViewer from '../components/common/LogViewer'
 import { DynamicForm } from '../components/common'
 import { jsonSchemaToFieldMeta, type FieldMeta } from '../../../shared/schemas/task-params'
@@ -92,15 +92,15 @@ const formatBytes = (n: number): string => {
  * DebugPage — 脚本调试页面组件
  *
  * 提供完整的脚本调试流程：选择项目文件夹 → 解析 manifest →
- * 匹配账户 → 配置参数 → 运行/暂停/恢复/停止 → 查看日志和结果。
+ * 匹配脚本参数 → 配置参数 → 运行/暂停/恢复/停止 → 查看日志和结果。
  */
 const DebugPage: React.FC = () => {
   const { t } = useTranslation()
   // Core state
   const [folderPath, setFolderPath] = useState('')
   const [folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
-  const [matchedAccounts, setMatchedAccounts] = useState<Account[]>([])
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
+  const [matchedScriptParams, setMatchedScriptParams] = useState<ScriptParam[]>([])
+  const [selectedScriptParamId, setSelectedScriptParamId] = useState<string | null>(null)
   const [useSandbox, setUseSandbox] = useState(true)
   const [configValues, setConfigValues] = useState<Record<string, unknown>>({})
 
@@ -113,8 +113,8 @@ const DebugPage: React.FC = () => {
 
   // Reset on new folder pick
   const reset = useCallback((): void => {
-    setMatchedAccounts([])
-    setSelectedAccountId(null)
+    setMatchedScriptParams([])
+    setSelectedScriptParamId(null)
     setTaskId(null)
     setTaskStatus('idle')
     setLogs([])
@@ -180,13 +180,13 @@ const DebugPage: React.FC = () => {
 
       if (info.requiredTemplates.length > 0) {
         try {
-          const res = await accountApi.list(1, 9999)
+          const res = await scriptParamApi.list(1, 9999)
           const all = res.items || []
           const matched = all.filter((a) => info.requiredTemplates.includes(a.templateId))
-          setMatchedAccounts(matched)
-          if (matched.length > 0) setSelectedAccountId(matched[0].id)
+          setMatchedScriptParams(matched)
+          if (matched.length > 0) setSelectedScriptParamId(matched[0].id)
         } catch (err) {
-          console.error('[Debug] Failed to load matched accounts:', err)
+          console.error('[Debug] Failed to load matched script params:', err)
         }
       }
     } catch (err) {
@@ -251,7 +251,7 @@ const DebugPage: React.FC = () => {
   // -------- Run / Stop / Pause / Resume / Clear --------
   const handleRun = useCallback(async () => {
     if (!folderPath) return
-    const acc = matchedAccounts.find((a) => a.id === selectedAccountId)
+    const acc = matchedScriptParams.find((a) => a.id === selectedScriptParamId)
     const config: Record<string, unknown> = { ...configValues }
     if (acc) {
       config._account_id = acc.id
@@ -275,7 +275,7 @@ const DebugPage: React.FC = () => {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('common.operationFailed'))
     }
-  }, [folderPath, folderInfo, matchedAccounts, selectedAccountId, configValues, useSandbox, t])
+  }, [folderPath, folderInfo, matchedScriptParams, selectedScriptParamId, configValues, useSandbox, t])
 
   const handleStop = useCallback(async () => {
     if (!taskId) return
@@ -325,14 +325,14 @@ const DebugPage: React.FC = () => {
 
   const isRunning = taskStatus === 'running'
   const isPaused = taskStatus === 'paused'
-  const canRun = !!folderPath && (matchedAccounts.length === 0 || !!selectedAccountId) && !isRunning
+  const canRun = !!folderPath && (matchedScriptParams.length === 0 || !!selectedScriptParamId) && !isRunning
 
   const schemaFields: FieldMeta[] = folderInfo?.schema
     ? jsonSchemaToFieldMeta(folderInfo.schema)
     : []
 
   const matchedTemplateIds = folderInfo?.requiredTemplates ?? []
-  const selectedAccount = matchedAccounts.find((a) => a.id === selectedAccountId) ?? null
+  const selectedAccount = matchedScriptParams.find((a) => a.id === selectedScriptParamId) ?? null
 
   return (
     <div className="space-y-3" data-testid="debug-page">
@@ -425,23 +425,23 @@ const DebugPage: React.FC = () => {
 
       {/* Main 2-column area */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* LEFT: matched accounts + schema form + run controls */}
+        {/* LEFT: matched script params + schema form + run controls */}
         <div className="space-y-3">
-          {/* Matched accounts */}
+          {/* Matched script params */}
           {folderInfo && matchedTemplateIds.length > 0 && (
             <div className="bg-bg-card rounded-xl border border-border-light p-4 space-y-2">
               <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                 <UserIcon size={14} className="text-text-muted" />
-                {t('debug.matchedAccounts')}
+                {t('debug.matchedScriptParams')}
                 <span className="text-[10px] text-text-muted">
-                  ({matchedAccounts.length} {t('debug.of')} {matchedTemplateIds.length})
+                  ({matchedScriptParams.length} {t('debug.of')} {matchedTemplateIds.length})
                 </span>
               </h3>
-              {matchedAccounts.length === 0 ? (
-                <p className="text-xs text-text-muted">{t('debug.noMatchedAccounts')}</p>
+              {matchedScriptParams.length === 0 ? (
+                <p className="text-xs text-text-muted">{t('debug.noMatchedScriptParams')}</p>
               ) : (
                 <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {matchedAccounts.map((a) => {
+                  {matchedScriptParams.map((a) => {
                     const summary =
                       typeof a.data === 'object' && a.data
                         ? Object.values(a.data as Record<string, unknown>)
@@ -453,7 +453,7 @@ const DebugPage: React.FC = () => {
                       <label
                         key={a.id}
                         className={`flex items-center gap-2 p-1.5 rounded border cursor-pointer transition-colors ${
-                          selectedAccountId === a.id
+                          selectedScriptParamId === a.id
                             ? 'border-primary/50 bg-primary/5'
                             : 'border-border-light hover:bg-bg-tertiary/40'
                         }`}
@@ -462,8 +462,8 @@ const DebugPage: React.FC = () => {
                           type="radio"
                           name="debug-account"
                           value={a.id}
-                          checked={selectedAccountId === a.id}
-                          onChange={() => setSelectedAccountId(a.id)}
+                          checked={selectedScriptParamId === a.id}
+                          onChange={() => setSelectedScriptParamId(a.id)}
                           disabled={isRunning}
                           className="rounded-full"
                         />

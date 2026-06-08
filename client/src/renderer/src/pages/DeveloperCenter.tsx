@@ -229,9 +229,9 @@ if (wallets.length > 0) {
 }
 
 // ── 读取账户数据（由 TaskForge 注入）──
-const accounts = JSON.parse(process.env.TASK_ACCOUNTS || '[]')
-if (accounts.length > 0) {
-  console.log('[script] loaded', accounts.length, 'account(s)')
+const scriptParams = JSON.parse(process.env.TASK_SCRIPT_PARAMS || '[]')
+if (scriptParams.length > 0) {
+  console.log('[script] loaded', scriptParams.length, 'script param(s)')
 }
 
 // TODO: add your script logic here
@@ -253,7 +253,7 @@ ${schemaSection}
 |----------|-------------|
 | \`TASK_CONFIG\` | 任务配置 JSON |
 | \`TASK_WALLETS\` | 钱包列表 JSON（address, privateKey, mnemonic, walletType）|
-| \`TASK_ACCOUNTS\` | 匹配的账户数据 JSON |
+| \`TASK_SCRIPT_PARAMS\` | 匹配的脚本参数数据 JSON |
 | \`TASK_PERM_NETWORK\` | 网络权限 "1" 或 "0" |
 | \`TASK_PERM_FILESYSTEM\` | 文件系统权限 "1" 或 "0" |
 | \`TASK_SANDBOX\` | 沙箱模式 "1" 或 "0" |
@@ -1257,7 +1257,7 @@ Install via TaskForge marketplace, then create a task using this script.
                   ['TASK_PERM_FILESYSTEM', '"1" 或 "0"，生效的文件系统权限'],
                   ['TASK_SANDBOX', '"1" 或 "0"，是否沙箱模式'],
                   ['TASK_WALLETS', '(非沙箱) JSON 数组格式的钱包数据'],
-                  ['TASK_ACCOUNTS', '(非沙箱) JSON 数组格式的账户数据'],
+                  ['TASK_SCRIPT_PARAMS', '(非沙箱) JSON 数组格式的脚本参数数据'],
                 ].map(([name, desc]) => (
                   <tr key={name}>
                     <td className="py-2 pr-4"><code className="text-xs bg-bg-tertiary px-1.5 py-0.5 rounded font-mono">{name}</code></td>

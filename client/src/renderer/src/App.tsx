@@ -15,7 +15,7 @@ import KeepAliveOutlet from "./components/KeepAliveOutlet"
 
 /** 懒加载页面组件：仪表盘 */
 const Dashboard = lazy(() => import("./pages/Dashboard"))
-/** 懒加载页面组件：数据管理（账户/代理/验证码/导入） */
+/** 懒加载页面组件：数据管理（脚本参数/代理/验证码/导入） */
 const Data = lazy(() => import("./pages/Data"))
 /** 懒加载页面组件：任务管理 */
 const Tasks = lazy(() => import("./pages/Tasks"))
@@ -83,7 +83,7 @@ function AppContent(): React.ReactElement {
             <Route path="/marketplace/scripts/:id" element={<ProtectedRoute roles={["admin", "developer", "user"]}><ScriptDetail /></ProtectedRoute>} />
             <Route path="/tasks" element={<ProtectedRoute roles={["developer", "user"]}><Tasks /></ProtectedRoute>} />
             <Route path="/data" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
-            <Route path="/data/accounts" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+            <Route path="/data/params" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
             <Route path="/data/proxies" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
             <Route path="/data/captcha" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
             <Route path="/airdrops" element={<ProtectedRoute roles={["developer", "user"]}><Airdrops /></ProtectedRoute>} />

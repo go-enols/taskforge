@@ -17,14 +17,14 @@ export {
 } from './useWalletQueries'
 
 export {
-  accountKeys,
-  useAccountList,
-  useAccount,
-  useAccountPools,
-  useCreateAccount,
-  useUpdateAccount,
-  useDeleteAccount
-} from './useAccountQueries'
+  scriptParamKeys,
+  useScriptParamList,
+  useScriptParam,
+  useScriptParamPools,
+  useCreateScriptParam,
+  useUpdateScriptParam,
+  useDeleteScriptParam
+} from './useScriptParamQueries'
 
 export {
   proxyKeys,

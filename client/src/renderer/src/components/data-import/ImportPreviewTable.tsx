@@ -15,7 +15,7 @@ interface ImportPreviewTableProps {
 
 /** Human-readable type labels */
 const TYPE_LABELS: Record<DetectableType, string> = {
-  account: 'data.import.typeAccount',
+  scriptParam: 'data.import.typeAccount',
   proxy: 'data.import.typeProxy',
   captcha: 'data.import.typeCaptcha',
   unknown: 'data.import.typeUnknown'
@@ -143,7 +143,7 @@ export default function ImportPreviewTable({
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded ${
                         row.detectedType === 'unknown'
                           ? 'bg-gray-100 text-gray-600'
-                          : row.detectedType === 'account'
+                          : row.detectedType === 'scriptParam'
                             ? 'bg-blue-50 text-blue-600'
                             : row.detectedType === 'proxy'
                               ? 'bg-green-50 text-green-600'

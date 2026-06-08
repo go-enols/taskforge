@@ -1147,7 +1147,7 @@ const DataSection: React.FC = () => {
   const { isAdmin } = useAuth()
   const [stats, setStats] = useState<{
     walletCount: number
-    accountCount: number
+    scriptParamCount: number
     proxyCount: number
     taskCount: number
   } | null>(null)
@@ -1163,7 +1163,7 @@ const DataSection: React.FC = () => {
         setDataDir(info.dataDir)
         setStats({
           walletCount: info.walletCount,
-          accountCount: info.accountCount,
+          scriptParamCount: info.scriptParamCount,
           proxyCount: info.proxyCount,
           taskCount: info.taskCount
         })
@@ -1225,7 +1225,7 @@ const DataSection: React.FC = () => {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <StatBox label={t('dashboard.stats.wallets')} value={stats.walletCount} />
-          <StatBox label={t('dashboard.stats.accounts')} value={stats.accountCount} />
+          <StatBox label={t('dashboard.stats.scriptParams')} value={stats.scriptParamCount} />
           <StatBox label={t('dashboard.stats.proxies')} value={stats.proxyCount} />
           <StatBox label={t('dashboard.stats.tasks')} value={stats.taskCount} />
         </div>

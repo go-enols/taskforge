@@ -213,24 +213,24 @@ export function registerIpcHandlers(services: Services): void {
   register('wallet:batchDelete', (ids) => walletRepo.batchDeleteWallets(ids as string[]))
 
   // ==================== 账户管理 ====================
-  register('account:list', (_page?, _pageSize?, _search?) =>
-    store.listAccounts(
+  register('scriptParam:list', (_page?, _pageSize?, _search?) =>
+    store.listScriptParams(
       _page as number | undefined,
       _pageSize as number | undefined,
       _search as string | undefined
     )
   )
-  register('account:get', (id) => store.getAccount(id as string))
-  register('account:create', (data) =>
-    store.createAccount(data as Parameters<typeof store.createAccount>[0])
+  register('scriptParam:get', (id) => store.getScriptParam(id as string))
+  register('scriptParam:create', (data) =>
+    store.createScriptParam(data as Parameters<typeof store.createScriptParam>[0])
   )
-  register('account:update', (id, data) =>
-    store.updateAccount(id as string, data as Parameters<typeof store.updateAccount>[1])
+  register('scriptParam:update', (id, data) =>
+    store.updateScriptParam(id as string, data as Parameters<typeof store.updateScriptParam>[1])
   )
-  register('account:delete', (id) => store.deleteAccount(id as string))
-  register('account:listPools', () => store.listAccountPools())
-  register('account:batchCreate', (items) =>
-    store.batchCreateAccounts(items as Parameters<typeof store.batchCreateAccounts>[0])
+  register('scriptParam:delete', (id) => store.deleteScriptParam(id as string))
+  register('scriptParam:listPools', () => store.listScriptParamPools())
+  register('scriptParam:batchCreate', (items) =>
+    store.batchCreateScriptParams(items as Parameters<typeof store.batchCreateScriptParams>[0])
   )
 
   // ==================== 代理管理 ====================
@@ -310,7 +310,7 @@ export function registerIpcHandlers(services: Services): void {
     store.updateTemplate(id as string, data as Parameters<typeof store.updateTemplate>[1])
   )
   register('template:delete', (id) => store.deleteTemplate(id as string))
-  register('template:checkAccounts', (id) => store.countAccountsByTemplate(id as string))
+  register('template:checkScriptParams', (id) => store.countScriptParamsByTemplate(id as string))
 
   // ==================== 定时任务调度 ====================
   register('scheduler:list', (_page?, _pageSize?, _search?) =>

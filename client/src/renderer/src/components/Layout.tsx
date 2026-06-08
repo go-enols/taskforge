@@ -55,7 +55,7 @@ interface NavItem {
  *  - 第 1 位：Dashboard
  *  - 第 2 位：Marketplace（脚本/模板市场，提升为核心入口）
  *  - 第 3 位：Tasks
- *  - 第 4 位：Data（折叠菜单：Accounts/Proxies/Captcha）
+ *  - 第 4 位：Data（折叠菜单：ScriptParams/Proxies/Captcha）
  *  - 第 5 位：Scheduler
  *  - 第 6 位：Airdrops（项目追踪，降级）
  *  - Settings
@@ -76,7 +76,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
     key: 'nav.data',
     roles: ['developer', 'user'],
     children: [
-      { path: '/data/accounts', icon: User, key: 'nav.dataAccounts', roles: ['developer', 'user'] },
+      { path: '/data/params', icon: User, key: 'nav.dataScriptParams', roles: ['developer', 'user'] },
       { path: '/data/proxies', icon: Globe, key: 'nav.dataProxies', roles: ['developer', 'user'] },
       { path: '/data/captcha', icon: Key, key: 'nav.dataCaptcha', roles: ['developer', 'user'] }
     ]
@@ -114,7 +114,7 @@ const roleColors: Record<UserRole, string> = {
 
 /**
  * 判断当前路径是否"激活"于给定项
- *  - 父级项：path 是当前路径前缀即视为激活（如 /data 父级在 /data/accounts 时激活）
+ *  - 父级项：path 是当前路径前缀即视为激活（如 /data 父级在 /data/params 时激活）
  *  - 子项：完全匹配
  *  - / 根项：仅当 location.pathname === '/' 才视为激活
  */
@@ -144,7 +144,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   /**
    * 父级菜单展开状态：以父级 path 为 key
-   *  - 默认根据当前路径自动展开（如当前在 /data/accounts 时 Data 父级展开）
+   *  - 默认根据当前路径自动展开（如当前在 /data/params 时 Data 父级展开）
    *  - 用户点击父级时手动切换
    */
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {

@@ -8,7 +8,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, AlertCircle, Briefcase } from 'lucide-react'
-import { airdropApi, accountApi, scriptApi } from '../api'
+import { airdropApi, scriptParamApi, scriptApi } from '../api'
 import type { AirdropProject, AirdropAnalytics, InstalledScript, TaskTemplate } from '../types'
 import {
   emptyForm,
@@ -84,7 +84,7 @@ const Airdrops: React.FC = () => {
     const loadDropdowns = async (): Promise<void> => {
       const [scriptsResult, poolsResult] = await Promise.allSettled([
         scriptApi.listInstalled(),
-        accountApi.listPools()
+        scriptParamApi.listPools()
       ])
       if (scriptsResult.status === 'fulfilled') {
         // scriptApi.listInstalled() returns InstalledScript[]; the form dropdown

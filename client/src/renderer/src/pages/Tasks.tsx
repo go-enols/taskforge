@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file Tasks — 任务管理页
  * @description 管理任务的完整生命周期：创建、启动、暂停、恢复、停止、编辑和删除。
  *              支持脚本浏览器、日志查看、账户匹配和沙箱模式。
@@ -28,9 +28,9 @@ import {
   taskTemplateApi,
   templateApi,
   marketplaceApi,
-  accountApi
+  scriptParamApi
 } from '../api'
-import type { Task, TaskLog, InstalledScript, RemoteScript, Account } from '../types'
+import type { Task, TaskLog, InstalledScript, RemoteScript, ScriptParam } from '../types'
 import type { FieldMeta } from '../../../shared/schemas/task-params'
 import {
   jsonSchemaToFieldMeta,
@@ -89,9 +89,9 @@ const Tasks: React.FC = () => {
   const [logFilter, setLogFilter] = useState<string>('all')
   const logEndRef = useRef<HTMLDivElement | null>(null)
   const [requiredTemplates, setRequiredTemplates] = useState<string[]>([])
-  const [availableAccounts, setAvailableAccounts] = useState<Account[]>([])
-  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set())
-  const [accountPoolFilter, setAccountPoolFilter] = useState<string>('')
+  const [availableScriptParams, setAvailableScriptParams] = useState<ScriptParam[]>([])
+  const [selectedScriptParamIds, setSelectedScriptParamIds] = useState<Set<string>>(new Set())
+  const [scriptParamPoolFilter, setScriptParamPoolFilter] = useState<string>('')
   const [batchMode, setBatchMode] = useState(false)
   const [availablePools, setAvailablePools] = useState<string[]>([])
   const [newIsSandbox, setNewIsSandbox] = useState(false)
@@ -312,43 +312,43 @@ const Tasks: React.FC = () => {
         setFormFields([])
         setFormValues({})
       }
-      loadAccountsForScript(script)
+      loadScriptParamsForScript(script)
     } else {
       setSelectedScript(null)
       setFormFields([])
       setFormValues({})
       setNewScriptFolder('')
       setRequiredTemplates([])
-      setAvailableAccounts([])
+      setAvailableScriptParams([])
       setAvailablePools([])
-      setSelectedAccountIds(new Set())
+      setSelectedScriptParamIds(new Set())
       setBatchMode(false)
     }
   }
 
-  const loadAccountsForScript = async (script: InstalledScript): Promise<void> => {
+  const loadScriptParamsForScript = async (script: InstalledScript): Promise<void> => {
     try {
       const tmpl = await taskTemplateApi.get(script.id)
       const manifest = tmpl?.manifest as Record<string, unknown> | undefined
       const requiredIds = manifest?.requiredAccountTemplateIds as string[] | undefined
       if (requiredIds && requiredIds.length > 0) {
         setRequiredTemplates(requiredIds)
-        const res = await accountApi.list(1, 9999)
-        const accounts = (res.items || []).filter((a) => requiredIds.includes(a.templateId))
-        setAvailableAccounts(accounts)
-        const pools = [...new Set(accounts.map((a) => a.pool).filter(Boolean))]
+        const res = await scriptParamApi.list(1, 9999)
+        const params = (res.items || []).filter((a) => requiredIds.includes(a.templateId))
+        setAvailableScriptParams(params)
+        const pools = [...new Set(params.map((a) => a.pool).filter(Boolean))]
         setAvailablePools(pools)
       } else {
         setRequiredTemplates([])
-        setAvailableAccounts([])
+        setAvailableScriptParams([])
         setAvailablePools([])
-        setSelectedAccountIds(new Set())
+        setSelectedScriptParamIds(new Set())
         setBatchMode(false)
       }
     } catch (e: unknown) {
       showError(t('common.operationFailed') + ': ' + String(e))
       setRequiredTemplates([])
-      setAvailableAccounts([])
+      setAvailableScriptParams([])
       setAvailablePools([])
     }
   }
@@ -390,16 +390,16 @@ const Tasks: React.FC = () => {
     const rawConfig = formFields.length > 0 ? formValues : {}
     const config = unflattenDotNotation(rawConfig)
 
-    if (batchMode && selectedAccountIds.size > 0 && requiredTemplates.length > 0) {
-      const accounts = availableAccounts.filter((a) => selectedAccountIds.has(a.id))
-      await createBatchTasks(accounts, config)
+    if (batchMode && selectedScriptParamIds.size > 0 && requiredTemplates.length > 0) {
+      const params = availableScriptParams.filter((a) => selectedScriptParamIds.has(a.id))
+      await createBatchTasks(params, config)
     } else {
       await createSingleTask(config)
     }
   }
 
   const createSingleTask = async (config: Record<string, unknown>): Promise<void> => {
-    const finalConfig = injectAccountData(config)
+    const finalConfig = injectScriptParamData(config)
     setCreating(true)
     try {
       await taskApi.create({ scriptFolder: newScriptFolder, config: finalConfig, isSandbox: newIsSandbox })
@@ -414,20 +414,20 @@ const Tasks: React.FC = () => {
   }
 
   const createBatchTasks = async (
-    accounts: Account[],
+    params: ScriptParam[],
     config: Record<string, unknown>
   ): Promise<void> => {
     setCreating(true)
     let created = 0
     try {
-      for (const account of accounts) {
-        const accountConfig = {
+      for (const param of params) {
+        const scriptParamConfig = {
           ...config,
-          _account_id: account.id,
-          _account_data: account.data,
-          _account_pool: account.pool
+          _account_id: param.id,
+          _account_data: param.data,
+          _account_pool: param.pool
         }
-        await taskApi.create({ scriptFolder: newScriptFolder, config: accountConfig, isSandbox: newIsSandbox })
+        await taskApi.create({ scriptFolder: newScriptFolder, config: scriptParamConfig, isSandbox: newIsSandbox })
         created++
       }
       setShowCreate(false)
@@ -439,7 +439,7 @@ const Tasks: React.FC = () => {
         setShowCreate(false)
         resetCreateForm()
         refresh()
-        showSuccess(t('tasks.batchCreatedPartial', { created, total: accounts.length }))
+        showSuccess(t('tasks.batchCreatedPartial', { created, total: params.length }))
       } else {
         showError(e instanceof Error ? e.message : String(e))
       }
@@ -448,9 +448,9 @@ const Tasks: React.FC = () => {
     }
   }
 
-  const injectAccountData = (config: Record<string, unknown>): Record<string, unknown> => {
+  const injectScriptParamData = (config: Record<string, unknown>): Record<string, unknown> => {
     if (requiredTemplates.length === 0) return config
-    const selected = availableAccounts.filter((a) => selectedAccountIds.has(a.id))
+    const selected = availableScriptParams.filter((a) => selectedScriptParamIds.has(a.id))
     if (selected.length === 0) return config
     return {
       ...config,
@@ -471,16 +471,16 @@ const Tasks: React.FC = () => {
     setFormFields([])
     setFormValues({})
     setRequiredTemplates([])
-    setAvailableAccounts([])
+    setAvailableScriptParams([])
     setAvailablePools([])
-    setSelectedAccountIds(new Set())
+    setSelectedScriptParamIds(new Set())
     setBatchMode(false)
-    setAccountPoolFilter('')
+    setScriptParamPoolFilter('')
     setNewIsSandbox(false)
   }
 
-  const toggleAccountSelect = (id: string): void => {
-    setSelectedAccountIds((prev) => {
+  const toggleScriptParamSelect = (id: string): void => {
+    setSelectedScriptParamIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -488,18 +488,18 @@ const Tasks: React.FC = () => {
     })
   }
 
-  const selectAllAccounts = (): void => {
-    const filtered = getFilteredAccounts()
-    if (selectedAccountIds.size === filtered.length && filtered.length > 0) {
-      setSelectedAccountIds(new Set())
+  const selectAllScriptParams = (): void => {
+    const filtered = getFilteredScriptParams()
+    if (selectedScriptParamIds.size === filtered.length && filtered.length > 0) {
+      setSelectedScriptParamIds(new Set())
     } else {
-      setSelectedAccountIds(new Set(filtered.map((a) => a.id)))
+      setSelectedScriptParamIds(new Set(filtered.map((a) => a.id)))
     }
   }
 
-  const getFilteredAccounts = (): Account[] => {
-    if (!accountPoolFilter) return availableAccounts
-    return availableAccounts.filter((a) => a.pool === accountPoolFilter)
+  const getFilteredScriptParams = (): ScriptParam[] => {
+    if (!scriptParamPoolFilter) return availableScriptParams
+    return availableScriptParams.filter((a) => a.pool === scriptParamPoolFilter)
   }
 
   const handleOpenEdit = (task: Task): void => {
@@ -981,11 +981,11 @@ const Tasks: React.FC = () => {
               )}
             </div>
           )}
-          {availableAccounts.length > 0 && (
+          {availableScriptParams.length > 0 && (
             <div className="border border-border-light rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-text-secondary">
-                  {t('tasks.selectAccounts')}
+                  {t('tasks.selectScriptParams')}
                 </span>
                 <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
                   <input
@@ -999,12 +999,12 @@ const Tasks: React.FC = () => {
               </div>
               {availablePools.length > 1 && (
                 <select
-                  value={accountPoolFilter}
-                  onChange={(e) => setAccountPoolFilter(e.target.value)}
+                  value={scriptParamPoolFilter}
+                  onChange={(e) => setScriptParamPoolFilter(e.target.value)}
                   className="w-full px-2 py-1.5 text-xs rounded border border-border-light bg-bg-card focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="">
-                    {t('accounts.pool')}: {t('tasks.allPools')}
+                    {t('scriptParams.pool')}: {t('tasks.allPools')}
                   </option>
                   {availablePools.map((p) => (
                     <option key={p} value={p}>
@@ -1018,25 +1018,25 @@ const Tasks: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={
-                      selectedAccountIds.size === getFilteredAccounts().length &&
-                      getFilteredAccounts().length > 0
+                      selectedScriptParamIds.size === getFilteredScriptParams().length &&
+                      getFilteredScriptParams().length > 0
                     }
-                    onChange={selectAllAccounts}
+                    onChange={selectAllScriptParams}
                     className="rounded"
                   />
                   <span className="text-xs text-text-muted">
-                    {t('common.selectAll')} ({getFilteredAccounts().length})
+                    {t('common.selectAll')} ({getFilteredScriptParams().length})
                   </span>
                 </div>
-                {getFilteredAccounts().map((a) => (
+                {getFilteredScriptParams().map((a) => (
                   <label
                     key={a.id}
                     className="flex items-center gap-2 px-1 py-1 rounded hover:bg-bg-card-hover cursor-pointer text-xs"
                   >
                     <input
                       type="checkbox"
-                      checked={selectedAccountIds.has(a.id)}
-                      onChange={() => toggleAccountSelect(a.id)}
+                      checked={selectedScriptParamIds.has(a.id)}
+                      onChange={() => toggleScriptParamSelect(a.id)}
                       className="rounded"
                     />
                     <span className="text-text-primary truncate">
@@ -1050,11 +1050,11 @@ const Tasks: React.FC = () => {
                   </label>
                 ))}
               </div>
-              {selectedAccountIds.size > 0 && (
+              {selectedScriptParamIds.size > 0 && (
                 <div className="text-xs text-text-muted">
                   {batchMode
-                    ? t('tasks.willCreateNTasks', { count: selectedAccountIds.size })
-                    : t('tasks.selectedAccounts', { count: selectedAccountIds.size })}
+                    ? t('tasks.willCreateNTasks', { count: selectedScriptParamIds.size })
+                    : t('tasks.selectedScriptParams', { count: selectedScriptParamIds.size })}
                 </div>
               )}
             </div>

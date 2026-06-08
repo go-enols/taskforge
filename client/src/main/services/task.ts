@@ -261,7 +261,7 @@ export class TaskService {
       // 如果 config 没有显式注入账户，尝试从 manifest 的 requiredAccountTemplateIds 匹配
       if (!task.isSandbox && effectivePermissions.network) {
         try {
-          const allAccounts = this.store.listAccounts(1, 99999)
+          const allScriptParams = this.store.listScriptParams(1, 99999)
           const relevantTemplateIds = new Set<string>()
           // 检查 config 中是否有 template 引用
           if (task.config._accounts && Array.isArray(task.config._accounts)) {
@@ -270,18 +270,18 @@ export class TaskService {
             }
           }
           if (relevantTemplateIds.size > 0) {
-            const matched = allAccounts.items.filter((a) => relevantTemplateIds.has(a.templateId))
+            const matched = allScriptParams.items.filter((a) => relevantTemplateIds.has(a.templateId))
             if (matched.length > 0) {
-              env['TASK_ACCOUNTS'] = JSON.stringify(matched.map((a) => ({
+              env['TASK_SCRIPT_PARAMS'] = JSON.stringify(matched.map((a) => ({
                 id: a.id, templateId: a.templateId, pool: a.pool, labels: a.labels, data: a.data
               })))
             }
           }
         } catch (err) {
-          createLogger('task').warn('Failed to inject account data', { error: String(err) })
+          createLogger('task').warn('Failed to inject script param data', { error: String(err) })
         }
       } else {
-        env['TASK_ACCOUNTS'] = '[]'
+        env['TASK_SCRIPT_PARAMS'] = '[]'
       }
 
       let command = entryPoint

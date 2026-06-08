@@ -237,7 +237,7 @@ const Templates: React.FC = () => {
 
   const handleUninstallTemplate = async (tmpl: RemoteTemplate): Promise<void> => {
     try {
-      const count = await templateApi.checkAccounts(tmpl.id)
+      const count = await templateApi.checkScriptParams(tmpl.id)
       if (count > 0) {
         toast.error(`该模板仍有 ${count} 个关联账号，请先删除对应账号后再卸载模板`)
         return

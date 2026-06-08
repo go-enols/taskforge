@@ -19,7 +19,7 @@ import {
   type DetectableType,
   type ParsedRow
 } from '../../utils/data-import-parser'
-import { accountApi, proxyApi, captchaKeyApi, templateApi, dialogApi } from '../../api'
+import { scriptParamApi, proxyApi, captchaKeyApi, templateApi, dialogApi } from '../../api'
 import type { Template } from '../../types'
 
 /* ═══════════════════════════════════════════
@@ -41,7 +41,7 @@ const TABS: TabDef[] = [
     key: 'account',
     icon: Users,
     labelKey: 'data.import.accountTab',
-    expectedType: 'account',
+    expectedType: 'scriptParam',
     acceptFormats: ['.json', '.txt']
   },
   {
@@ -360,7 +360,7 @@ async function importRow(
   detectedType: DetectableType
 ): Promise<void> {
   switch (detectedType) {
-    case 'account': {
+    case 'scriptParam': {
       const data = (() => {
         try {
           return typeof row.raw.data === 'string' ? JSON.parse(row.raw.data) : {}
@@ -368,7 +368,7 @@ async function importRow(
           return {}
         }
       })()
-      await accountApi.batchCreate([
+      await scriptParamApi.batchCreate([
         {
           templateId: row.raw.templateid || row.raw.templateId || '',
           data: data as Record<string, unknown>,

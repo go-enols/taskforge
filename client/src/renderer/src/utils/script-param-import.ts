@@ -1,6 +1,6 @@
-import type { Account, Template } from '../types'
+import type { ScriptParam, Template } from '../types'
 
-export type ParsedAccount = Omit<Account, 'id' | 'createdAt' | 'updatedAt'>
+export type ParsedScriptParam = Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>
 
 export interface ParseError {
   row: number
@@ -8,7 +8,7 @@ export interface ParseError {
 }
 
 export interface ParseResult {
-  valid: ParsedAccount[]
+  valid: ParsedScriptParam[]
   errors: ParseError[]
 }
 
@@ -17,13 +17,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Parse a JSON string into account entries.
+ * Parse a JSON string into script-param entries.
  * Returns both valid entries (with defaults applied) and a list of errors.
  * Invalid rows are still included in `valid` if they have minimal data,
  * but their issues are reported in `errors`.
  */
-export function parseAccountImport(raw: string, templates: Template[]): ParseResult {
-  const valid: ParsedAccount[] = []
+export function parseScriptParamImport(raw: string, templates: Template[]): ParseResult {
+  const valid: ParsedScriptParam[] = []
   const errors: ParseError[] = []
   const templateMap = new Map(templates.map((t) => [t.id, t]))
 
@@ -66,7 +66,7 @@ export function parseAccountImport(raw: string, templates: Template[]): ParseRes
 
     const pool = typeof item.pool === 'string' ? item.pool.trim() : 'default'
     if (!pool) {
-      // If pool is empty after trim, keep but note it — the consumer will use 'default'
+
       rowErrors.push('pool 为空，将使用默认值 "default"')
     }
 

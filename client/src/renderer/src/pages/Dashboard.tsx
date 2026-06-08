@@ -743,8 +743,8 @@ export default function Dashboard(): React.JSX.Element {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <QuickActionButton
                   icon={User}
-                  label={t('dashboard.createAccount')}
-                  onClick={() => safeNavigate('/data/accounts', OPERATIONAL_ROUTES)}
+                  label={t('dashboard.createScriptParam')}
+                  onClick={() => safeNavigate('/data/params', OPERATIONAL_ROUTES)}
                 />
                 <QuickActionButton
                   icon={Zap}

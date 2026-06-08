@@ -7,7 +7,7 @@
 
 export type {
   Wallet,
-  Account,
+  ScriptParam,
   Proxy,
   ProxyFormat,
   CaptchaKey,

@@ -1,6 +1,6 @@
 /**
  * @file Data — 数据管理父页面
- * @description 统一入口，整合账户、代理、验证码和导入中心四个模块。
+ * @description 统一入口，整合脚本参数、代理、验证码和导入中心四个模块。
  *              每个 Tab 使用 CSS `display: none` 保持子组件状态，
  *              避免切换 Tab 时重新挂载。
  * @module renderer/pages
@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { Users, Globe, Key, Upload } from 'lucide-react'
 
-import Accounts from './Accounts'
+import ScriptParams from './ScriptParams'
 import Proxies from './Proxies'
 import CaptchaPage from './Captcha'
 import ImportCenter from '../components/data-import/ImportCenter'
@@ -20,7 +20,7 @@ import ImportCenter from '../components/data-import/ImportCenter'
    Tab type
    ═══════════════════════════════════════════ */
 
-type DataTab = 'accounts' | 'proxies' | 'captcha' | 'import'
+type DataTab = 'scriptParams' | 'proxies' | 'captcha' | 'import'
 
 interface TabItem {
   key: DataTab
@@ -29,7 +29,7 @@ interface TabItem {
 }
 
 const TAB_ITEMS: TabItem[] = [
-  { key: 'accounts', icon: Users, labelKey: 'nav.dataAccounts' },
+  { key: 'scriptParams', icon: Users, labelKey: 'nav.dataScriptParams' },
   { key: 'proxies', icon: Globe, labelKey: 'nav.dataProxies' },
   { key: 'captcha', icon: Key, labelKey: 'nav.dataCaptcha' },
   { key: 'import', icon: Upload, labelKey: 'nav.dataImport' }
@@ -37,15 +37,15 @@ const TAB_ITEMS: TabItem[] = [
 
 /** URL pathname → DataTab 映射 */
 const PATH_TAB_MAP: Record<string, DataTab> = {
-  '/data/accounts': 'accounts',
+  '/data/params': 'scriptParams',
   '/data/proxies': 'proxies',
   '/data/captcha': 'captcha',
-  '/data': 'accounts'
+  '/data': 'scriptParams'
 }
 
 /** DataTab → URL pathname 映射（用于导航同步） */
 const TAB_PATH_MAP: Record<DataTab, string> = {
-  accounts: '/data/accounts',
+  scriptParams: '/data/params',
   proxies: '/data/proxies',
   captcha: '/data/captcha',
   import: '/data'
@@ -55,7 +55,7 @@ const TAB_PATH_MAP: Record<DataTab, string> = {
  * Data — 数据管理父页面
  *
  * 顶部 Tab 栏切换 4 个子模块，使用 CSS hidden 保持各子组件状态。
- * URL 路径同步：/data/accounts → accounts tab，/data/proxies → proxies tab，etc.
+ * URL 路径同步：/data/params → scriptParams tab，/data/proxies → proxies tab，etc.
  */
 export default function Data(): React.ReactElement {
   const { t } = useTranslation()
@@ -63,7 +63,7 @@ export default function Data(): React.ReactElement {
 
   /* ── Tab 状态 ── */
   const [activeTab, setActiveTab] = useState<DataTab>(() => {
-    return PATH_TAB_MAP[location.pathname] ?? 'accounts'
+    return PATH_TAB_MAP[location.pathname] ?? 'scriptParams'
   })
 
   /* ── URL → activeTab 同步 ── */
@@ -79,7 +79,7 @@ export default function Data(): React.ReactElement {
   /* ── Tab 切换 ── */
   const handleTabChange = useCallback((tab: DataTab) => {
     setActiveTab(tab)
-    // 同步 URL（不触发页面刷新，使用 history.pushState/replaceState）
+
     const path = TAB_PATH_MAP[tab]
     window.history.replaceState(null, '', `#${path}`)
   }, [])
@@ -114,10 +114,10 @@ export default function Data(): React.ReactElement {
       </div>
 
       {/* ══════════════════════════════════════════
-          Tab 1: 账户
+          Tab 1: 脚本参数
           ══════════════════════════════════════════ */}
-      <div className={activeTab === 'accounts' ? '' : 'hidden'}>
-        <Accounts />
+      <div className={activeTab === 'scriptParams' ? '' : 'hidden'}>
+        <ScriptParams />
       </div>
 
       {/* ══════════════════════════════════════════

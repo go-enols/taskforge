@@ -1,6 +1,6 @@
-/**
- * @file Accounts — 账户管理页
- * @description 管理账户池中的账户，支持创建（基于模板动态表单）、编辑、
+﻿/**
+ * @file ScriptParams — 脚本参数管理页
+ * @description 管理参数池中的脚本参数（任务脚本的输入数据），支持创建（基于模板动态表单）、编辑、
  *              批量 JSON 导入、文件导入、导出和删除操作。
  * @module renderer/pages
  */
@@ -8,11 +8,11 @@
 import { useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '../utils/toast'
-import { accountApi, dialogApi, templateApi } from '../api'
-import type { Account } from '../types'
+import { scriptParamApi, dialogApi, templateApi } from '../api'
+import type { ScriptParam } from '../types'
 import { Plus, Trash2, Edit3, Search, Upload, Download, FileDown } from 'lucide-react'
-import { parseAccountImport } from '../utils/account-import'
-import type { ParsedAccount, ParseError } from '../utils/account-import'
+import { parseScriptParamImport } from '../utils/script-param-import'
+import type { ParsedScriptParam, ParseError } from '../utils/script-param-import'
 import { usePaginatedList, useTemplateList } from '../hooks'
 import { Pagination, SearchInput, Modal, ConfirmDialog } from '../components/common'
 import DynamicForm from '../components/DynamicForm'
@@ -22,11 +22,11 @@ import { jsonSchemaToFieldMeta } from '../../../shared/schemas/task-params'
 const PAGE_SIZE = 10
 
 /**
- * Accounts — 账户管理页面组件
+ * ScriptParams — 脚本参数管理页面组件
  *
- * 提供分页列表、搜索、按模板动态表单创建账户、批量 JSON 导入、文件导入和导出功能。
+ * 提供分页列表、搜索、按模板动态表单创建脚本参数、批量 JSON 导入、文件导入和导出功能。
  */
-const Accounts: React.FC = () => {
+const ScriptParams: React.FC = () => {
   const { t } = useTranslation()
   const { templates } = useTemplateList()
   const {
@@ -40,7 +40,7 @@ const Accounts: React.FC = () => {
     setSearch,
     search,
     refresh: fetchData
-  } = usePaginatedList<Account>((p, ps, s) => accountApi.list(p, ps, s), PAGE_SIZE)
+  } = usePaginatedList<ScriptParam>((p, ps, s) => scriptParamApi.list(p, ps, s), PAGE_SIZE)
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({
     templateId: '',
@@ -51,7 +51,7 @@ const Accounts: React.FC = () => {
     dynamicFormValues: {} as Record<string, unknown>
   })
   const [creating, setCreating] = useState(false)
-  const [editingItem, setEditingItem] = useState<Account | null>(null)
+  const [editingItem, setEditingItem] = useState<ScriptParam | null>(null)
   const [editForm, setEditForm] = useState({ pool: '', notes: '', labels: '', data: '{}' })
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
@@ -60,7 +60,7 @@ const Accounts: React.FC = () => {
   const [batchJson, setBatchJson] = useState('')
   const [batchError, setBatchError] = useState<string | null>(null)
   const [showImportPreview, setShowImportPreview] = useState(false)
-  const [importValid, setImportValid] = useState<ParsedAccount[]>([])
+  const [importValid, setImportValid] = useState<ParsedScriptParam[]>([])
   const [importErrors, setImportErrors] = useState<ParseError[]>([])
   const [importing, setImporting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -70,7 +70,7 @@ const Accounts: React.FC = () => {
 
   const handleExport = useCallback(async () => {
     try {
-      const resp = await accountApi.list(1, 9999)
+      const resp = await scriptParamApi.list(1, 9999)
       const exportData = resp.items.map((item) => ({
         templateId: item.templateId,
         data: item.data,
@@ -80,12 +80,12 @@ const Accounts: React.FC = () => {
       }))
       const json = JSON.stringify(exportData, null, 2)
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-      const result = await dialogApi.saveFile(`accounts-${date}.json`, json)
+      const result = await dialogApi.saveFile(`script-params-${date}.json`, json)
       if (!result.canceled && result.filePath) {
-        toast.success(t('accounts.exportSuccess'))
+        toast.success(t('scriptParams.exportSuccess'))
       }
     } catch {
-      toast.error(t('accounts.exportFailed'))
+      toast.error(t('scriptParams.exportFailed'))
     }
   }, [t])
 
@@ -101,7 +101,7 @@ const Accounts: React.FC = () => {
     try {
       parsed = JSON.parse(batchJson)
       if (!Array.isArray(parsed)) {
-        setBatchError(t('accounts.batchImportInvalidArray'))
+        setBatchError(t('scriptParams.batchImportInvalidArray'))
         return
       }
     } catch {
@@ -116,10 +116,10 @@ const Accounts: React.FC = () => {
       notes: item.notes || ''
     }))
     try {
-      const count = await accountApi.batchCreate(items)
+      const count = await scriptParamApi.batchCreate(items)
       setShowBatchImport(false)
       setBatchJson('')
-      toast.success(t('accounts.batchImportSuccess', { count }))
+      toast.success(t('scriptParams.batchImportSuccess', { count }))
       fetchData()
     } catch {
       setBatchError(t('common.operationFailed'))
@@ -132,7 +132,7 @@ const Accounts: React.FC = () => {
       if (result.canceled || !result.content) return
 
       const templatesResp = await templateApi.list(1, 9999)
-      const { valid, errors } = parseAccountImport(result.content, templatesResp.items)
+      const { valid, errors } = parseScriptParamImport(result.content, templatesResp.items)
       setImportValid(valid)
       setImportErrors(errors)
       setShowImportPreview(true)
@@ -145,11 +145,11 @@ const Accounts: React.FC = () => {
     if (importValid.length === 0) return
     setImporting(true)
     try {
-      const count = await accountApi.batchCreate(importValid)
+      const count = await scriptParamApi.batchCreate(importValid)
       setShowImportPreview(false)
       setImportValid([])
       setImportErrors([])
-      toast.success(t('accounts.importSucceeded', { count }))
+      toast.success(t('scriptParams.importSucceeded', { count }))
       fetchData()
     } catch {
       toast.error(t('common.operationFailed'))
@@ -158,12 +158,12 @@ const Accounts: React.FC = () => {
     }
   }, [importValid, t, fetchData])
 
-  const doCreateAccount = useCallback(
+  const doCreateScriptParam = useCallback(
     async (parsedData: Record<string, unknown>) => {
       setCreating(true)
       setCreateError(null)
       try {
-        await accountApi.create({
+        await scriptParamApi.create({
           templateId: form.templateId.trim(),
           data: parsedData,
           pool: form.pool.trim(),
@@ -211,7 +211,7 @@ const Accounts: React.FC = () => {
     }
     // 检查账号池是否存在
     try {
-      const pools = await accountApi.listPools()
+      const pools = await scriptParamApi.listPools()
       const poolName = form.pool.trim()
       if (!pools.includes(poolName)) {
         pendingCreateRef.current = parsedData
@@ -221,17 +221,17 @@ const Accounts: React.FC = () => {
     } catch {
       console.warn('Pool check failed, proceeding anyway')
     }
-    doCreateAccount(parsedData)
-  }, [form, t, templates, doCreateAccount])
+    doCreateScriptParam(parsedData)
+  }, [form, t, templates, doCreateScriptParam])
 
   const handlePoolConfirm = useCallback(async () => {
     setShowPoolConfirm(false)
     if (pendingCreateRef.current) {
       const data = pendingCreateRef.current
       pendingCreateRef.current = null
-      await doCreateAccount(data)
+      await doCreateScriptParam(data)
     }
-  }, [doCreateAccount])
+  }, [doCreateScriptParam])
 
   const handleDelete = useCallback(
     (id: string): void => {
@@ -245,7 +245,7 @@ const Accounts: React.FC = () => {
     if (!deleteTarget) return
     setShowDeleteConfirm(false)
     try {
-      await accountApi.delete(deleteTarget)
+      await scriptParamApi.delete(deleteTarget)
       fetchData()
     } catch {
       toast.error(t('common.operationFailed'))
@@ -254,7 +254,7 @@ const Accounts: React.FC = () => {
     }
   }, [deleteTarget, t, fetchData])
 
-  const openEdit = (item: Account): void => {
+  const openEdit = (item: ScriptParam): void => {
     setEditingItem(item)
     setEditForm({
       pool: item.pool,
@@ -277,7 +277,7 @@ const Accounts: React.FC = () => {
     setSaving(true)
     setEditError(null)
     try {
-      await accountApi.update(editingItem.id, {
+      await scriptParamApi.update(editingItem.id, {
         pool: editForm.pool.trim(),
         notes: editForm.notes.trim(),
         labels: editForm.labels
@@ -300,40 +300,40 @@ const Accounts: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t('accounts.title')}</h1>
+        <h1 className="text-2xl font-bold">{t('scriptParams.title')}</h1>
         <div className="flex items-center gap-3">
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder={t('accounts.searchPlaceholder')}
+            placeholder={t('scriptParams.searchPlaceholder')}
           />
           <button
             onClick={() => setShowBatchImport(true)}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-text-secondary bg-bg-tertiary rounded-lg hover:bg-bg-card-hover transition-colors"
           >
             <Upload size={16} />
-            {t('accounts.batchImport')}
+            {t('scriptParams.batchImport')}
           </button>
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-text-secondary bg-bg-tertiary rounded-lg hover:bg-bg-card-hover transition-colors"
           >
             <Download size={16} />
-            {t('accounts.export')}
+            {t('scriptParams.export')}
           </button>
           <button
             onClick={handleFileImport}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-text-secondary bg-bg-tertiary rounded-lg hover:bg-bg-card-hover transition-colors"
           >
             <FileDown size={16} />
-            {t('accounts.importFile')}
+            {t('scriptParams.importFile')}
           </button>
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors"
           >
             <Plus size={16} />
-            {t('accounts.createAccount')}
+            {t('scriptParams.create')}
           </button>
         </div>
       </div>
@@ -351,7 +351,7 @@ const Accounts: React.FC = () => {
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-text-muted">
           <Search size={48} />
-          <p className="mt-4 text-lg">{t('accounts.noAccounts')}</p>
+          <p className="mt-4 text-lg">{t('scriptParams.empty')}</p>
         </div>
       ) : (
         <>
@@ -360,22 +360,22 @@ const Accounts: React.FC = () => {
               <thead>
                 <tr className="border-b border-border-light bg-bg-tertiary">
                   <th className="text-left px-4 py-3 font-medium text-text-secondary">
-                    {t('accounts.templateId')}
+                    {t('scriptParams.templateId')}
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-text-secondary">
-                    {t('accounts.pool')}
+                    {t('scriptParams.pool')}
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-text-secondary">
-                    {t('accounts.labels')}
+                    {t('scriptParams.labels')}
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-text-secondary">
-                    {t('accounts.notes')}
+                    {t('scriptParams.notes')}
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-text-secondary">
-                    {t('accounts.createdAt')}
+                    {t('scriptParams.createdAt')}
                   </th>
                   <th className="text-right px-4 py-3 font-medium text-text-secondary">
-                    {t('accounts.actions')}
+                    {t('scriptParams.actions')}
                   </th>
                 </tr>
               </thead>
@@ -387,7 +387,7 @@ const Accounts: React.FC = () => {
                   >
                     <td className="px-4 py-3 text-xs">
                       {templates.find((t) => t.id === item.templateId)?.name ||
-                        t('accounts.unknownTemplate')}
+                        t('scriptParams.unknownTemplate')}
                     </td>
                     <td className="px-4 py-3">{item.pool}</td>
                     <td className="px-4 py-3">
@@ -450,19 +450,19 @@ const Accounts: React.FC = () => {
       <Modal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title={t('accounts.createAccount')}
+        title={t('scriptParams.create')}
       >
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.templateId')}
+              {t('scriptParams.templateId')}
             </label>
             <select
               value={form.templateId}
               onChange={(e) => setForm((f) => ({ ...f, templateId: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">{t('accounts.selectTemplate')}</option>
+              <option value="">{t('scriptParams.selectTemplate')}</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} ({t.type})
@@ -472,7 +472,7 @@ const Accounts: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.pool')}
+              {t('scriptParams.pool')}
             </label>
             <input
               type="text"
@@ -483,19 +483,19 @@ const Accounts: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.labels')}
+              {t('scriptParams.labels')}
             </label>
             <input
               type="text"
               value={form.labels}
               onChange={(e) => setForm((f) => ({ ...f, labels: e.target.value }))}
-              placeholder={t('accounts.labelsPlaceholder')}
+              placeholder={t('scriptParams.labelsPlaceholder')}
               className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.notes')}
+              {t('scriptParams.notes')}
             </label>
             <input
               type="text"
@@ -512,7 +512,7 @@ const Accounts: React.FC = () => {
               return (
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">
-                    {t('accounts.data')}
+                    {t('scriptParams.data')}
                   </label>
                   <DynamicForm
                     fields={fields}
@@ -526,7 +526,7 @@ const Accounts: React.FC = () => {
             return (
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">
-                  {t('accounts.data')} (JSON)
+                  {t('scriptParams.data')} (JSON)
                 </label>
                 <textarea
                   value={form.data}
@@ -562,13 +562,13 @@ const Accounts: React.FC = () => {
       <Modal
         open={!!editingItem}
         onClose={() => setEditingItem(null)}
-        title={t('accounts.editAccount')}
+        title={t('scriptParams.edit')}
         scrollable
       >
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.pool')}
+              {t('scriptParams.pool')}
             </label>
             <input
               type="text"
@@ -579,19 +579,19 @@ const Accounts: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.labels')}
+              {t('scriptParams.labels')}
             </label>
             <input
               type="text"
               value={editForm.labels}
               onChange={(e) => setEditForm((f) => ({ ...f, labels: e.target.value }))}
-              placeholder={t('accounts.labelsPlaceholder')}
+              placeholder={t('scriptParams.labelsPlaceholder')}
               className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.notes')}
+              {t('scriptParams.notes')}
             </label>
             <input
               type="text"
@@ -602,7 +602,7 @@ const Accounts: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.data')} (JSON)
+              {t('scriptParams.data')} (JSON)
             </label>
             <textarea
               value={editForm.data}
@@ -636,13 +636,13 @@ const Accounts: React.FC = () => {
           setShowBatchImport(false)
           setBatchError(null)
         }}
-        title={t('accounts.batchImportTitle')}
+        title={t('scriptParams.batchImportTitle')}
         scrollable
       >
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('accounts.batchImportLabel')}
+              {t('scriptParams.batchImportLabel')}
             </label>
             <textarea
               value={batchJson}
@@ -672,7 +672,7 @@ const Accounts: React.FC = () => {
             disabled={!batchJson.trim()}
             className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {t('accounts.batchImportDoImport')}
+            {t('scriptParams.batchImportDoImport')}
           </button>
         </div>
       </Modal>
@@ -684,14 +684,14 @@ const Accounts: React.FC = () => {
           setImportValid([])
           setImportErrors([])
         }}
-        title={t('accounts.importPreview')}
+        title={t('scriptParams.importPreview')}
         scrollable
       >
         <div className="space-y-4">
           {importErrors.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-amber-700 mb-2">
-                {t('accounts.importValidationError')}
+                {t('scriptParams.importValidationError')}
               </h4>
               <div className="max-h-32 overflow-y-auto bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
                 {importErrors.map((err, i) => (
@@ -706,7 +706,7 @@ const Accounts: React.FC = () => {
           {importValid.length > 0 && (
             <div>
               <div className="text-sm text-text-muted mb-3">
-                {t('accounts.parsedCount', {
+                {t('scriptParams.parsedCount', {
                   valid: importValid.length,
                   error: importErrors.length
                 })}
@@ -717,16 +717,16 @@ const Accounts: React.FC = () => {
                   <thead>
                     <tr className="bg-bg-tertiary border-b border-border-light">
                       <th className="text-left px-3 py-2 font-medium text-text-secondary">
-                        {t('accounts.templateId')}
+                        {t('scriptParams.templateId')}
                       </th>
                       <th className="text-left px-3 py-2 font-medium text-text-secondary">
-                        {t('accounts.pool')}
+                        {t('scriptParams.pool')}
                       </th>
                       <th className="text-left px-3 py-2 font-medium text-text-secondary">
-                        {t('accounts.labels')}
+                        {t('scriptParams.labels')}
                       </th>
                       <th className="text-left px-3 py-2 font-medium text-text-secondary">
-                        {t('accounts.notes')}
+                        {t('scriptParams.notes')}
                       </th>
                     </tr>
                   </thead>
@@ -783,8 +783,8 @@ const Accounts: React.FC = () => {
           setDeleteTarget(null)
         }}
         onConfirm={handleConfirmDelete}
-        title={t('accounts.confirmDelete')}
-        message={t('accounts.confirmDelete')}
+        title={t('scriptParams.confirmDelete')}
+        message={t('scriptParams.confirmDelete')}
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}
       />
@@ -796,8 +796,8 @@ const Accounts: React.FC = () => {
           pendingCreateRef.current = null
         }}
         onConfirm={handlePoolConfirm}
-        title={t('accounts.poolNotExistConfirm', { name: form.pool })}
-        message={t('accounts.poolNotExistConfirm', { name: form.pool })}
+        title={t('scriptParams.poolNotExistConfirm', { name: form.pool })}
+        message={t('scriptParams.poolNotExistConfirm', { name: form.pool })}
         danger={false}
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}
@@ -806,4 +806,4 @@ const Accounts: React.FC = () => {
   )
 }
 
-export default Accounts
+export default ScriptParams

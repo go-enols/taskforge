@@ -1,6 +1,6 @@
 /**
  * @file 共享 TypeScript 类型定义
- * @description 定义客户端与服务端共享的所有数据接口，包括钱包、账户、代理、任务、空投项目等。
+ * @description 定义客户端与服务端共享的所有数据接口，包括钱包、脚本参数、代理、任务、空投项目等。
  * @module shared/types
  */
 
@@ -24,7 +24,7 @@ export interface Wallet {
 
 /**
  * @file 共享 TypeScript 类型定义
- * @description 定义客户端与服务端共享的所有数据接口，包括钱包、账户、代理、任务、空投项目等。
+ * @description 定义客户端与服务端共享的所有数据接口，包括钱包、脚本参数、代理、任务、空投项目等。
  * @module shared/types
  */
 
@@ -46,15 +46,15 @@ export interface Wallet {
   createdAt: string
 }
 
-/** 账号池中的账户数据（关联模板，由模板 schema 定义结构） */
-export interface Account {
-  /** 账户 UUID */
+/** 脚本参数池中的条目（关联模板，由模板 schema 定义结构，作为任务脚本的输入参数） */
+export interface ScriptParam {
+  /** 脚本参数 UUID */
   id: string
   /** 关联的模板 ID */
   templateId: string
-  /** 账户数据（由模板 schema 定义字段结构） */
+  /** 参数数据（由模板 schema 定义字段结构） */
   data: Record<string, unknown>
-  /** 账号池名称（分组标识） */
+  /** 参数池名称（分组标识） */
   pool: string
   /** 标签数组 */
   labels: string[]
@@ -349,7 +349,7 @@ export interface AirdropProject {
   website: string
   /** 关联的任务脚本模板 ID（可选） */
   scriptTemplateId?: string
-  /** 关联的账号池名称 */
+  /** 关联的脚本参数池名称（DB 字段保留 account_pool 兼容历史数据） */
   accountPool: string
   /** 相关链接列表 */
   links: AirdropLink[]
@@ -550,10 +550,10 @@ export interface StatsAggregate {
   proxyProtocolDistribution: Record<string, number>
   /** 各状态代理数量分布 */
   proxyStatusDistribution: Record<string, number>
-  /** 账户总数 */
-  accountTotal: number
-  /** 各账号池数量分布 */
-  accountPoolDistribution: Record<string, number>
+  /** 脚本参数总数 */
+  scriptParamTotal: number
+  /** 各参数池数量分布 */
+  scriptParamPoolDistribution: Record<string, number>
   /** 任务总数 */
   taskTotal: number
   /** 各状态任务数量分布 */
@@ -596,8 +596,8 @@ export interface AppInfo {
   dbError: string | null
   /** 钱包数量 */
   walletCount: number
-  /** 账户数量 */
-  accountCount: number
+  /** 脚本参数数量 */
+  scriptParamCount: number
   /** 代理数量 */
   proxyCount: number
   /** 任务数量 */
@@ -652,7 +652,7 @@ export interface AppInfo {
   dbConnected: boolean
   dbError: string | null
   walletCount: number
-  accountCount: number
+  scriptParamCount: number
   proxyCount: number
   taskCount: number
   runningTaskCount: number
