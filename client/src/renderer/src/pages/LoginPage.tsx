@@ -456,61 +456,56 @@ export default function LoginPage(): React.ReactElement {
     : ['login', 'register']
 
   return (
-    <div className="h-screen flex flex-col bg-[#0a0a0f] overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden bg-[#050510] relative">
       <TitleBar />
 
-      <div className="flex-1 flex overflow-hidden">
+      {/* 页面级统一背景：让左右无缝衔接 */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,#1a1740_0%,#0a0a14_40%,#050510_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,#1a1438_0%,transparent_60%)]" />
+      </div>
+      {/* 细网格 — 整页统一 */}
+      <div
+        className="absolute inset-0 opacity-[0.04] pointer-events-none"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+          maskImage: 'radial-gradient(ellipse at center, black 20%, transparent 80%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at center, black 20%, transparent 80%)'
+        }}
+      />
+      {/* 噪点叠加 — 整页统一 */}
+      <div
+        className="absolute inset-0 opacity-[0.02] mix-blend-overlay pointer-events-none"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.5'/></svg>\")"
+        }}
+      />
+
+      <div className="flex-1 flex overflow-hidden relative z-10">
         {/* ════════════════════════════════════════════
             左侧：营销展示区（60% 宽，Apple 风格 — 单屏无滚动）
             ════════════════════════════════════════════ */}
         <div className="hidden lg:flex lg:w-[60%] relative overflow-hidden">
-          {/* ── 背景层：深色径向渐变 ── */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,#0f1535_0%,#0a0a0f_50%,#050510_100%)] pointer-events-none" />
+          {/* 背景已移至页面级（左/右共享同一渐变） */}
 
-          {/* ── 动画 mesh gradient：4 个慢速漂浮的彩色光球 ── */}
+{/* ── 动画 mesh gradient：3 个慢速漂浮的彩色光球（已减弱） ── */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div
-              className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-primary/30 blur-3xl"
+              className="absolute -top-32 -left-32 w-[420px] h-[420px] rounded-full bg-primary/15 blur-3xl"
               style={{ animation: 'float-1 12s ease-in-out infinite' }}
             />
             <div
-              className="absolute top-1/4 -right-40 w-[450px] h-[450px] rounded-full bg-purple-500/25 blur-3xl"
+              className="absolute top-1/4 -right-40 w-[380px] h-[380px] rounded-full bg-purple-500/12 blur-3xl"
               style={{ animation: 'float-2 14s ease-in-out infinite' }}
             />
             <div
-              className="absolute top-2/3 left-1/4 w-[400px] h-[400px] rounded-full bg-pink-500/20 blur-3xl"
-              style={{ animation: 'float-3 16s ease-in-out infinite' }}
-            />
-            <div
-              className="absolute -bottom-20 right-1/4 w-[380px] h-[380px] rounded-full bg-cyan-500/20 blur-3xl"
+              className="absolute -bottom-20 left-1/3 w-[340px] h-[340px] rounded-full bg-cyan-500/10 blur-3xl"
               style={{ animation: 'float-4 18s ease-in-out infinite' }}
             />
-            <div
-              className="absolute top-1/2 -left-20 w-[320px] h-[320px] rounded-full bg-emerald-500/15 blur-3xl"
-              style={{ animation: 'float-5 20s ease-in-out infinite' }}
-            />
           </div>
-
-          {/* ── 网格 + 噪点叠加层 ── */}
-          <div
-            className="absolute inset-0 opacity-[0.07] pointer-events-none"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-              backgroundSize: '48px 48px',
-              maskImage:
-                'radial-gradient(ellipse at center, black 30%, transparent 80%)',
-              WebkitMaskImage:
-                'radial-gradient(ellipse at center, black 30%, transparent 80%)'
-            }}
-          />
-          <div
-            className="absolute inset-0 opacity-[0.025] mix-blend-overlay pointer-events-none"
-            style={{
-              backgroundImage:
-                "url(\"data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>\")"
-            }}
-          />
 
           {/* ── 局部 keyframes（注入到 stylesheet，避免全局污染） ── */}
           <style>{`
@@ -621,12 +616,8 @@ export default function LoginPage(): React.ReactElement {
         {/* ════════════════════════════════════════════
             右侧：悬浮登录卡片（40% 宽，磨砂玻璃）
             ════════════════════════════════════════════ */}
-        <div className="w-full lg:w-[40%] relative flex items-center justify-center p-6 lg:p-10 bg-[#0a0a0f] lg:bg-transparent">
-          {/* 移动端背景渐变（因为左侧 lg 才显示） */}
-          <div className="absolute inset-0 lg:hidden bg-gradient-to-br from-[#0a0a0f] via-[#0f0f1a] to-[#0a0a0f] pointer-events-none" />
-          <div className="absolute inset-0 lg:hidden">
-            <div className="absolute -top-40 -left-40 w-[400px] h-[400px] rounded-full bg-primary/20 blur-3xl" />
-          </div>
+        <div className="w-full lg:w-[40%] relative flex items-center justify-center p-6 lg:p-10">
+          {/* 移动端与桌面端共享同一页面级背景 */}
 
           <div className="relative w-full max-w-md">
             {/* 移动端才显示的品牌名 */}
@@ -634,9 +625,11 @@ export default function LoginPage(): React.ReactElement {
               <h1 className="text-2xl font-bold text-white">TaskForge</h1>
             </div>
 
-            {/* 登录卡片：渐变描边 + 深色磨砂玻璃 */}
+            {/* 登录卡片：渐变描边 + 浅色磨砂玻璃（光面高光玻璃效果） */}
             <div className="relative p-[1px] rounded-3xl bg-gradient-to-br from-white/20 via-white/5 to-white/10 shadow-2xl shadow-black/40">
-              <div className="bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/10 p-8 lg:p-10">
+              <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl border border-white/10 p-8 lg:p-10 relative overflow-hidden">
+                {/* 顶部高光线 — 玻璃卡片的标志性细节 */}
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                 {/* 品牌标识 */}
                 <div className="flex items-center gap-3 mb-7">
                   <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-primary/30 ring-1 ring-white/20">
