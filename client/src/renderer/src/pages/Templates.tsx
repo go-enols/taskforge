@@ -1,7 +1,7 @@
 /**
  * @file Templates — 模板市场页
- * @description 展示远端和本地的账户模板及任务脚本，支持浏览、安装、删除和管理。
- *              包含模板编辑器入口和脚本模板列表。
+ * @description 展示远端和本地的参数模板及任务脚本，支持浏览、安装、删除和管理。
+ * 包含参数模板和脚本模板列表。
  * @module renderer/pages
  */
 
@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next'
 import { templateApi, marketplaceApi, getMarketplaceUrl, scriptApi, dialogApi } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../utils/toast'
-import TemplateEditor from './TemplateEditor'
 import type { Template, RemoteTemplate, RemoteScript, InstalledScript } from '../types'
 import {
   Search,
@@ -29,7 +28,7 @@ import {
 /**
  * Templates — 模板市场页面组件
  *
- * 三个标签页：账户模板（远程/已安装）、任务脚本（远程/已安装）、模板编辑器。
+ * 两个标签页：参数模板（远程/已安装）、任务脚本（远程/已安装）。
  * 支持搜索、安装/卸载、以及管理可见性操作。
  */
 const Templates: React.FC = () => {
@@ -37,12 +36,12 @@ const Templates: React.FC = () => {
   const { t } = useTranslation()
   const { user: marketUser, isAdmin, isDeveloper } = useAuth()
   const canManage = isAdmin || isDeveloper
-  const [activeTab, setActiveTab] = useState<'templates' | 'scripts' | 'editor'>('templates')
+  const [activeTab, setActiveTab] = useState<'templates' | 'scripts'>('templates')
   const [marketplaceUrl, setMarketplaceUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [accountTemplates, setAccountTemplates] = useState<RemoteTemplate[]>([])
+  const [scriptParamTemplates, setScriptParamTemplates] = useState<RemoteTemplate[]>([])
   const [installedTemplates, setInstalledTemplates] = useState<Template[]>([])
   const [taskScripts, setTaskScripts] = useState<RemoteScript[]>([])
   const [installedScripts, setInstalledScripts] = useState<InstalledScript[]>([])
@@ -89,7 +88,7 @@ const Templates: React.FC = () => {
           marketplaceApi.listTemplates(baseUrl),
           marketplaceApi.listScripts(baseUrl)
         ])
-        setAccountTemplates(tplRes.items || [])
+        setScriptParamTemplates(tplRes.items || [])
         setTaskScripts(scriptRes.items || [])
       } catch (e: unknown) {
         if (!silent) setError(e instanceof Error ? e.message : t('common.error'))
@@ -145,7 +144,7 @@ const Templates: React.FC = () => {
     try {
       const installed = await scriptApi.download(id)
       await loadInstalled()
-      // 若 ScriptFetcher 检测到脚本所需的账户模板本地未下载, 提示用户去 Marketplace 下载
+      // 若 ScriptFetcher 检测到脚本所需的参数模板本地未下载, 提示用户去 Marketplace 下载
       if (installed?.missingAccountTemplates && installed.missingAccountTemplates.length > 0) {
         toast.warning(
           t('templates.scriptNeedsTemplates', {
@@ -168,7 +167,7 @@ const Templates: React.FC = () => {
     const newVisible = !currentVisible
     // Optimistic update
     if (type === 'template') {
-      setAccountTemplates((prev) =>
+      setScriptParamTemplates((prev) =>
         prev.map((t) => (t.id === id ? { ...t, visible: newVisible } : t))
       )
     } else {
@@ -187,7 +186,7 @@ const Templates: React.FC = () => {
     } catch (e: unknown) {
       // Revert on error
       if (type === 'template') {
-        setAccountTemplates((prev) =>
+        setScriptParamTemplates((prev) =>
           prev.map((t) => (t.id === id ? { ...t, visible: currentVisible } : t))
         )
       } else {
@@ -269,15 +268,15 @@ const Templates: React.FC = () => {
   }
 
   const filteredTemplates = useMemo(() => {
-    if (!debouncedSearch.trim()) return accountTemplates
+    if (!debouncedSearch.trim()) return scriptParamTemplates
     const q = debouncedSearch.toLowerCase()
-    return accountTemplates.filter(
+    return scriptParamTemplates.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
         t.type.toLowerCase().includes(q) ||
         (t.description && t.description.toLowerCase().includes(q))
     )
-  }, [accountTemplates, debouncedSearch])
+  }, [scriptParamTemplates, debouncedSearch])
 
   const filteredScripts = useMemo(() => {
     if (!debouncedSearch.trim()) return taskScripts
@@ -349,7 +348,7 @@ const Templates: React.FC = () => {
           }`}
         >
           <Users size={16} />
-          {t('templates.accountTemplates')} ({accountTemplates.length})
+          {t('templates.scriptParamTemplates')} ({scriptParamTemplates.length})
         </button>
         <button
           onClick={() => setActiveTab('scripts')}
@@ -362,22 +361,7 @@ const Templates: React.FC = () => {
           <Zap size={16} />
           {t('templates.taskScripts')} ({taskScripts.length})
         </button>
-        {canManage && (
-          <button
-            onClick={() => setActiveTab('editor')}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors -mb-[1px] border-b-2 ${
-              activeTab === 'editor'
-                ? 'text-primary border-primary bg-primary/5'
-                : 'text-text-muted border-transparent hover:text-text-secondary'
-            }`}
-          >
-            <FileText size={16} />
-            Schema 编辑器
-          </button>
-        )}
       </div>
-
-      {activeTab === 'editor' && canManage && <TemplateEditor />}
 
       <div className="flex items-center gap-3">
         <div className="relative flex-1">

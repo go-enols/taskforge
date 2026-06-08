@@ -128,7 +128,9 @@
     "debug": "调试",
     "logout": "退出登录",
     "expandSidebar": "展开侧边栏",
-    "collapseSidebar": "收起侧边栏"
+    "collapseSidebar": "收起侧边栏",
+    "createScriptParamTemplate": "创建参数模板",
+    "devProjectTemplates": "项目模板"
   },
   "dashboard": {
     "title": "仪表盘",
@@ -310,7 +312,7 @@
     "browseScripts": "浏览",
     "browseRemoteTitle": "浏览远程脚本",
     "noRemoteScripts": "暂无可用脚本",
-    "missingTemplates": "缺少必需的账户模板 ({{ids}})，请先在「模板市场」下载对应模板",
+    "missingTemplates": "缺少必需的参数模板 ({{ids}})，请先在「模板市场」下载对应模板",
     "logFilter": {
       "all": "全部",
       "info": "信息",
@@ -334,7 +336,7 @@
   },
   "templates": {
     "title": "模板市场",
-    "accountTemplates": "账户模板",
+    "scriptParamTemplates": "参数模板",
     "taskScripts": "任务脚本",
     "createTemplate": "创建模板",
     "searchPlaceholder": "搜索模板...",
@@ -344,8 +346,8 @@
     "isLocal": "本地",
     "updatedAt": "更新时间",
     "actions": "操作",
-    "scriptNeedsTemplates": "脚本已安装，但还需要 {{count}} 个账户模板才能运行，请到 Marketplace 下载",
-    "noTemplates": "暂无账户模板",
+    "scriptNeedsTemplates": "脚本已安装，但还需要 {{count}} 个参数模板才能运行，请到 Marketplace 下载",
+    "noTemplates": "暂无参数模板",
     "noScripts": "暂无任务脚本",
     "confirmDelete": "确认删除此模板？",
     "editTemplate": "编辑模板",
@@ -860,8 +862,9 @@
     "noOptions": "无可用选项"
   },
   "templateEditor": {
+    "tabTitle": "创建参数模板",
     "title": "模板编辑器",
-    "subtitle": "创建和管理账号模板的 Schema 定义",
+    "subtitle": "创建和管理参数模板的 Schema 定义",
     "metaInfo": "模板元信息",
     "id": "ID",
     "description": "描述",
@@ -895,7 +898,7 @@
     "readFailed": "读取文件失败",
     "importedCount": "已导入 {{count}} 个字段",
     "idPlaceholder": "模板唯一标识，如 evm-wallet",
-    "descPlaceholder": "如：EVM 钱包账户模板"
+    "descPlaceholder": "如：EVM 钱包参数模板"
   },
   "quickDev": {
     "title": "快速开发",

@@ -390,7 +390,7 @@ export default function ScriptDetailPage(): React.ReactElement {
  * Tab 子组件
  * ================================================================ */
 
-/** Tab 1: 概述 — 描述、所需账户模板、所需权限、entryPoint、runtime */
+/** Tab 1: 概述 — 描述、所需参数模板、所需权限、entryPoint、runtime */
 function OverviewTab({
   script,
   installed
@@ -433,7 +433,7 @@ function OverviewTab({
         </div>
       </Section>
 
-      {/* 所需账户模板 */}
+      {/* 所需参数模板 */}
       {installed && (
         <Section title="关联信息" icon={<Hash size={14} />}>
           <InfoRow label="安装路径" value={installed.installPath} mono />

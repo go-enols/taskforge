@@ -1,6 +1,6 @@
 /**
  * @file 模板/脚本数据查询 Hook
- * @description 封装账户模板和任务脚本的查询与变更操作，
+ * @description 封装参数模板和任务脚本的查询与变更操作，
  *              包括本地模板 CRUD、远程脚本获取、安装与移除。
  * @module renderer/hooks/queries
  */
@@ -14,7 +14,7 @@ import type {
   ListResponse
 } from '../../types'
 
-/** 账户模板查询键工厂 */
+/** 参数模板查询键工厂 */
 export const templateKeys = {
   /** 所有模板根键 */
   all: ['templates'] as const,
@@ -41,7 +41,7 @@ export const taskTemplateKeys = {
 }
 
 /**
- * 获取账户模板分页列表
+ * 获取参数模板分页列表
  * @param page - 页码（默认 1）
  * @param pageSize - 每页条数（默认 20）
  * @param search - 搜索关键字
@@ -53,7 +53,7 @@ export function useTemplateList(page = 1, pageSize = 20, search = '') {
   })
 }
 
-/** 创建账户模板 mutation */
+/** 创建参数模板 mutation */
 export function useCreateTemplate() {
   const qc = useQueryClient()
   return useMutation({
@@ -62,7 +62,7 @@ export function useCreateTemplate() {
   })
 }
 
-/** 更新账户模板 mutation */
+/** 更新参数模板 mutation */
 export function useUpdateTemplate() {
   const qc = useQueryClient()
   return useMutation({
@@ -72,7 +72,7 @@ export function useUpdateTemplate() {
   })
 }
 
-/** 删除账户模板 mutation */
+/** 删除参数模板 mutation */
 export function useDeleteTemplate() {
   const qc = useQueryClient()
   return useMutation({

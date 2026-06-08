@@ -1,6 +1,6 @@
 /**
  * @file 模板列表获取 Hook
- * @description 从主进程获取账户模板列表的简单 Hook，用于需要一次性加载所有模板的场景。
+ * @description 从主进程获取参数模板列表的简单 Hook，用于需要一次性加载所有模板的场景。
  * @module renderer/hooks
  */
 import { useState, useEffect } from 'react'

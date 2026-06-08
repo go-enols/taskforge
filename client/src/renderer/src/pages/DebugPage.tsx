@@ -55,7 +55,7 @@ interface FolderInfo {
   entry: string
   /** 是否包含 manifest.json */
   hasManifest: boolean
-  /** 需要的账户模板 ID 列表 */
+  /** 需要的参数模板 ID 列表 */
   requiredTemplates: string[]
   /** 脚本声明的权限列表 */
   permissions: string[]

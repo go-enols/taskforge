@@ -1,6 +1,6 @@
 /**
  * @file Stats — 统计页面
- * @description 展示钱包、代理、任务、账户模板等维度的统计数据，包括数量汇总与分布图表。
+ * @description 展示钱包、代理、任务、参数模板等维度的统计数据，包括数量汇总与分布图表。
  * @module renderer/pages
  */
 

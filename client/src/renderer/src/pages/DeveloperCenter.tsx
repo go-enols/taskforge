@@ -6,6 +6,7 @@ import {
   Upload,
   BookOpen,
   FilePlus,
+  FileBox,
   Code2,
   ArrowRight,
   FileText,
@@ -27,6 +28,8 @@ import { call } from '../transport'
 import { toast } from '../utils/toast'
 import { useAuth } from '../contexts/AuthContext'
 import type { RemoteScript, RemoteTemplate } from '../types'
+import TemplateEditor from './TemplateEditor'
+import ProjectTemplates from './ProjectTemplates'
 
 function validateManifest(manifest: Record<string, unknown>): string[] {
   const required = ['id', 'name', 'version', 'description', 'entryPoint', 'runtime', 'schema']
@@ -42,7 +45,7 @@ function validateManifest(manifest: Record<string, unknown>): string[] {
 }
 
 type UploadStatus = 'idle' | 'zipping' | 'uploading' | 'success' | 'error'
-type DevTab = 'scaffold' | 'pending' | 'myscripts' | 'sdk'
+type DevTab = 'scaffold' | 'pending' | 'myscripts' | 'sdk' | 'scriptParam' | 'project'
 
 export default function DeveloperCenter() {
   const { t } = useTranslation()
@@ -129,7 +132,7 @@ export default function DeveloperCenter() {
  * permissions:      运行时权限声明 ["network", "filesystem"]，默认全部拒绝
  * tags:             分类标签（用于市场搜索）
  * changelog:        更新日志
- * requiredAccountTemplateIds: 需要的账户模板 ID 列表（用于注入账户数据）
+ * requiredAccountTemplateIds: 需要的参数模板 ID 列表（用于注入账户数据）
  * schema:           任务配置表单的 JSON Schema（用于 DynamicForm 自动渲染）
  */
 {
@@ -545,6 +548,8 @@ Install via TaskForge marketplace, then create a task using this script.
     { id: 'scaffold', icon: <Code size={16} />, label: '项目脚手架' },
     { id: 'pending', icon: <List size={16} />, label: '我的待审核' },
     { id: 'myscripts', icon: <Upload size={16} />, label: '我的脚本' },
+    { id: 'scriptParam', icon: <FilePlus size={16} />, label: '创建参数模板' },
+    { id: 'project', icon: <FileBox size={16} />, label: '项目模板' },
     { id: 'sdk', icon: <BookOpen size={16} />, label: 'SDK 文档' },
   ]
 
@@ -704,10 +709,10 @@ Install via TaskForge marketplace, then create a task using this script.
                 )}
               </div>
 
-              {/* 账号模板 */}
+              {/* 参数模板 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs text-text-muted">账号模板（可选，选择脚本需要的账户类型）</label>
+                  <label className="block text-xs text-text-muted">参数模板（可选，选择脚本需要的参数类型）</label>
                   <button onClick={loadTemplates}
                     className="text-xs text-primary hover:underline">加载模板列表</button>
                 </div>
@@ -1218,7 +1223,7 @@ Install via TaskForge marketplace, then create a task using this script.
                   ['description', 'string', '✅', '脚本用途说明'],
                   ['entryPoint', 'string', '✅', '入口文件名（相对于脚本目录，如 index.js）'],
                   ['runtime', 'string', '✅', '运行时环境（目前仅支持 "node"）'],
-                  ['requiredAccountTemplateIds', 'string[]', '❌', '需要的账户模板 ID 列表'],
+                  ['requiredAccountTemplateIds', 'string[]', '❌', '需要的参数模板 ID 列表'],
                   ['schema', 'object', '✅', '任务配置表单的 JSON Schema（自动渲染 DynamicForm）'],
                   ['permissions', 'string[]', '❌', '权限声明：["network", "filesystem"]，默认全部拒绝'],
                   ['tags', 'string[]', '❌', '分类标签（用于市场搜索）'],
@@ -1317,6 +1322,20 @@ console.log('[script]', wallets.length, 'wallet(s) loaded')
             </pre>
           </section>
         </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          Tab 5: 创建参数模板 (TemplateEditor)
+          ══════════════════════════════════════ */}
+      <div className={activeTab === 'scriptParam' ? '' : 'hidden'}>
+        <TemplateEditor />
+      </div>
+
+      {/* ══════════════════════════════════════
+          Tab 6: 项目模板管理
+          ══════════════════════════════════════ */}
+      <div className={activeTab === 'project' ? '' : 'hidden'}>
+        <ProjectTemplates />
       </div>
     </div>
   )

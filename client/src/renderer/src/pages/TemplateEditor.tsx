@@ -1,6 +1,6 @@
 /**
- * @file TemplateEditor — 账户模板编辑器
- * @description 提供可视化界面创建和编辑账户模板 Schema，支持字段增删改、
+ * @file TemplateEditor — 参数模板编辑器
+ * @description 提供可视化界面创建和编辑参数模板 Schema，支持字段增删改、
  *              JSON 导入/导出、以及上传到 Marketplace Server。
  * @module renderer/pages
  */
