@@ -860,7 +860,11 @@
     "feature5Desc": "Admin / Developer / User 三级权限，按角色分配页面和操作能力。",
     "feature6Title": "项目追踪",
     "feature6Desc": "任务脚本也可以驱动项目字段，配合 Markdown 描述追踪项目状态。",
-    "bottomTagline": "本地运行 · 数据自主 · 永久免费"
+    "bottomTagline": "本地运行 · 数据自主 · 永久免费",
+    "alreadyMember": "已有账号",
+    "needHelp": "需要帮助？",
+    "noAccountPrompt": "还没有账号？",
+    "createOne": "立即创建"
   },
   "auth": {
     "noAccess": "无权访问此页面",
