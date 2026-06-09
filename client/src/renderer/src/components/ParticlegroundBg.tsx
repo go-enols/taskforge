@@ -62,24 +62,24 @@ void main(){
   float d5 = length(uv - p5);
   float d6 = length(uv - p6);
 
-  /* wide-radius falloff — covers the whole screen */
-  float s1  = smoothstep(0.75, 0.0, d1);
-  float s2  = smoothstep(0.70, 0.0, d2);
-  float s3  = smoothstep(0.65, 0.0, d3);
-  float s5  = smoothstep(0.55, 0.0, d5);
-  float s6  = smoothstep(0.55, 0.0, d6);
-  /* cursor: broad dominant glow */
-  float s4  = smoothstep(0.70, 0.0, d4);
-  float s4o = smoothstep(1.10, 0.0, d4);
+  /* moderate radius — ambient accent on edges, cursor dominates locally */
+  float s1  = smoothstep(0.55, 0.0, d1);
+  float s2  = smoothstep(0.50, 0.0, d2);
+  float s3  = smoothstep(0.45, 0.0, d3);
+  float s5  = smoothstep(0.40, 0.0, d5);
+  float s6  = smoothstep(0.40, 0.0, d6);
+  /* cursor: tight core + medium halo */
+  float s4  = smoothstep(0.25, 0.0, d4);
+  float s4o = smoothstep(0.50, 0.0, d4);
 
   vec3 col = uColor2;
-  col = mix(col, uColor1,                       s1  * 0.50);
-  col = mix(col, uColor1,                       s2  * 0.45);
-  col = mix(col, uColor1,                       s3  * 0.40);
-  col = mix(col, uColor1,                       s5  * 0.30);
-  col = mix(col, uColor1,                       s6  * 0.30);
-  col = mix(col, uCursorColor,                  s4o * 0.30);  /* full-screen halo */
-  col = mix(col, uCursorColor,                  s4  * 0.70);  /* dominant core */
+  col = mix(col, uColor1,                       s1  * 0.40);
+  col = mix(col, uColor1,                       s2  * 0.35);
+  col = mix(col, uColor1,                       s3  * 0.30);
+  col = mix(col, uColor1,                       s5  * 0.22);
+  col = mix(col, uColor1,                       s6  * 0.22);
+  col = mix(col, uCursorColor,                  s4o * 0.20);  /* halo */
+  col = mix(col, uCursorColor,                  s4  * 0.55);  /* core */
 
   /* film grain */
   col += noise(uv * uResolution.xy * 0.5 + t) * 0.025;
