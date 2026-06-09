@@ -12,9 +12,6 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 
 /* ---- tunables ---------------------------------------------------------- */
-const MOUSE_LERP_FAST = 0.55    // 大移动时快速追近（每帧 55%）
-const MOUSE_LERP_MID = 0.35     // 中距时渐近
-const MOUSE_LERP_SLOW = 0.22    // 微距时平滑
 const TIME_STEP = 0.016
 const REDUCED_MOTION_FACTOR = 0.1
 const THEME_LERP = 0.12
@@ -65,24 +62,24 @@ void main(){
   float d5 = length(uv - p5);
   float d6 = length(uv - p6);
 
-  /* wide-radius falloff: covers most of the screen */
-  float s1  = smoothstep(0.65, 0.0, d1);
-  float s2  = smoothstep(0.60, 0.0, d2);
-  float s3  = smoothstep(0.55, 0.0, d3);
-  float s5  = smoothstep(0.50, 0.0, d5);
-  float s6  = smoothstep(0.50, 0.0, d6);
-  /* cursor: broad glow across entire background */
-  float s4  = smoothstep(0.55, 0.0, d4);
-  float s4o = smoothstep(0.80, 0.0, d4);
+  /* wide-radius falloff — covers the whole screen */
+  float s1  = smoothstep(0.75, 0.0, d1);
+  float s2  = smoothstep(0.70, 0.0, d2);
+  float s3  = smoothstep(0.65, 0.0, d3);
+  float s5  = smoothstep(0.55, 0.0, d5);
+  float s6  = smoothstep(0.55, 0.0, d6);
+  /* cursor: broad dominant glow */
+  float s4  = smoothstep(0.70, 0.0, d4);
+  float s4o = smoothstep(1.10, 0.0, d4);
 
   vec3 col = uColor2;
-  col = mix(col, uColor1,                       s1  * 0.45);
-  col = mix(col, uColor1,                       s2  * 0.35);
-  col = mix(col, uColor1,                       s3  * 0.30);
-  col = mix(col, uColor1,                       s5  * 0.25);
-  col = mix(col, uColor1,                       s6  * 0.25);
-  col = mix(col, uCursorColor,                  s4o * 0.22);  /* broad halo */
-  col = mix(col, uCursorColor,                  s4  * 0.50);  /* inner core */
+  col = mix(col, uColor1,                       s1  * 0.50);
+  col = mix(col, uColor1,                       s2  * 0.45);
+  col = mix(col, uColor1,                       s3  * 0.40);
+  col = mix(col, uColor1,                       s5  * 0.30);
+  col = mix(col, uColor1,                       s6  * 0.30);
+  col = mix(col, uCursorColor,                  s4o * 0.30);  /* full-screen halo */
+  col = mix(col, uCursorColor,                  s4  * 0.70);  /* dominant core */
 
   /* film grain */
   col += noise(uv * uResolution.xy * 0.5 + t) * 0.025;
@@ -105,7 +102,7 @@ const PALETTE = {
   },
   dark: {
     color1: new THREE.Color(0xa78bfa),
-    color2: new THREE.Color(0x1a1b2e),
+    color2: new THREE.Color(0x1e2035),
     cursor: new THREE.Color(0xffffff),
   },
 } as const
@@ -130,8 +127,9 @@ const ParticlegroundBg: React.FC<ParticlegroundBgProps> = ({ theme = 'dark' }) =
     if (!container) return
 
     /* ---- init renderer + scene ----------------------------------------- */
+    const PR = Math.min(window.devicePixelRatio, 2)
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(PR)
     renderer.setSize(window.innerWidth, window.innerHeight)
     renderer.setClearColor(0x000000, 0)
     container.appendChild(renderer.domElement)
@@ -140,10 +138,13 @@ const ParticlegroundBg: React.FC<ParticlegroundBgProps> = ({ theme = 'dark' }) =
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 
     const current = PALETTE[themeRef.current]
+    /** use actual canvas buffer size (CSS px × pixelRatio) so UV matches mouse coords */
+    const bufW = renderer.domElement.width
+    const bufH = renderer.domElement.height
     const uniforms: Record<string, THREE.IUniform> = {
       uTime:        { value: 0 },
       uMouse:       { value: new THREE.Vector2(0.5, 0.5) },
-      uResolution:  { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+      uResolution:  { value: new THREE.Vector2(bufW, bufH) },
       uColor1:      { value: current.color1.clone() },
       uColor2:      { value: current.color2.clone() },
       uCursorColor: { value: current.cursor.clone() },
@@ -175,8 +176,8 @@ const ParticlegroundBg: React.FC<ParticlegroundBgProps> = ({ theme = 'dark' }) =
     const onResize = (): void => {
       const w = window.innerWidth
       const h = window.innerHeight
-      uniforms.uResolution.value.set(w, h)
       renderer.setSize(w, h)
+      uniforms.uResolution.value.set(renderer.domElement.width, renderer.domElement.height)
     }
 
     window.addEventListener('mousemove', onMove)
@@ -196,19 +197,8 @@ const ParticlegroundBg: React.FC<ParticlegroundBgProps> = ({ theme = 'dark' }) =
         ? TIME_STEP * REDUCED_MOTION_FACTOR
         : TIME_STEP
 
-      /* cursor — adaptive lerp: fast for big moves, smooth for fine-tuning, snap for micro */
-      const dx = mouseTarget.x - uniforms.uMouse.value.x
-      const dy = mouseTarget.y - uniforms.uMouse.value.y
-      const delta = Math.hypot(dx, dy)
-      if (delta < 0.0005) {
-        uniforms.uMouse.value.copy(mouseTarget)
-      } else if (delta > 0.05) {
-        uniforms.uMouse.value.lerp(mouseTarget, MOUSE_LERP_FAST)
-      } else if (delta > 0.008) {
-        uniforms.uMouse.value.lerp(mouseTarget, MOUSE_LERP_MID)
-      } else {
-        uniforms.uMouse.value.lerp(mouseTarget, MOUSE_LERP_SLOW)
-      }
+      /* cursor — direct snap every frame: zero lag, 1:1 tracking */
+      uniforms.uMouse.value.copy(mouseTarget)
 
       renderer.render(scene, camera)
       raf = requestAnimationFrame(tick)
@@ -232,7 +222,7 @@ const ParticlegroundBg: React.FC<ParticlegroundBgProps> = ({ theme = 'dark' }) =
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 w-full h-full pointer-events-none"
+      className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden"
       aria-hidden="true"
       data-theme={theme}
     />

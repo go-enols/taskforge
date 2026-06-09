@@ -246,7 +246,9 @@ const LoginPage: React.FC = () => {
         <div className="forge-bg">
           <ParticlegroundBg theme={theme} />
         </div>
-        <TitleBar dark={theme === 'dark'} />
+        <div className="relative z-50">
+          <TitleBar dark={theme === 'dark'} />
+        </div>
         <main className="forge-center">
           <div className="forge-detect">
             <div className="forge-detect__pulse" />
@@ -264,7 +266,9 @@ const LoginPage: React.FC = () => {
         <ParticlegroundBg theme={theme} />
       </div>
 
-      <TitleBar dark={theme === 'dark'} />
+      <div className="relative z-50">
+        <TitleBar dark={theme === 'dark'} />
+      </div>
 
       <main className="forge-center">
         <div className="brand-mark-wrapper">
@@ -529,6 +533,7 @@ const FORGE_CSS = `
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 /* ---------- 居中容器 ---------- */
