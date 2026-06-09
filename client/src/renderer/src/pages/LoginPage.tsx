@@ -210,14 +210,6 @@ const BrandPanel: React.FC = () => {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_28%_38%,var(--color-primary)/0.10,transparent_55%)]"
       />
 
-      {/* Top: brand mark + wordmark */}
-      <div className="relative flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary via-purple-500 to-pink-500 shadow-sm shadow-primary/25 flex items-center justify-center">
-          <span className="text-white font-bold text-sm tracking-tight">T</span>
-        </div>
-        <span className="text-base font-semibold text-text-primary tracking-tight">TaskForge</span>
-      </div>
-
       {/* Middle: hero copy */}
       <div className="relative max-w-lg">
         <h1 className="text-5xl xl:text-6xl font-bold leading-[1.1] tracking-tight text-text-primary">
