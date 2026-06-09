@@ -62,6 +62,15 @@ export default function DeveloperCenter() {
   const [hasManifest, setHasManifest] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
   const [uploadError, setUploadError] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
+
+  // IPC progress events from main process upload
+  useEffect(() => {
+    const unsub = window.electronAPI?.on?.('upload:progress', (pct: unknown) => {
+      setUploadProgress(Number(pct) || 0)
+    })
+    return () => { unsub?.() }
+  }, [])
 
   const [zipPath, setZipPath] = useState('')
   const [zipManifest, setZipManifest] = useState<string | null>(null)
@@ -334,6 +343,7 @@ Install via TaskForge marketplace, then create a task using this script.
     }
 
     setUploadStatus('zipping')
+    setUploadProgress(0)
     try {
       const zipName = `${folderName}-${Date.now()}.zip`
       const tmpZipPath = `${await call<string>('app:getTempDir')}/${zipName}`
@@ -842,6 +852,21 @@ Install via TaskForge marketplace, then create a task using this script.
               ? t('quickDev.uploading') || '上传中...'
               : t('quickDev.packAndUpload') || '打包并上传'}
           </button>
+
+          {uploadStatus === 'uploading' && (
+            <div className="mt-3 w-full">
+              <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                <span>{t('quickDev.uploading') || '上传中...'}</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-bg-sunken rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {uploadStatus === 'success' && (
             <div className="mt-3 text-xs text-success flex items-center gap-1.5">

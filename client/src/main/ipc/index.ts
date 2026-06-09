@@ -668,48 +668,72 @@ export function registerIpcHandlers(services: Services): void {
   })
 
   // ==================== 服务端文件上传（multipart/form-data） ====================
-  register('server:upload', async (...args: unknown[]) => {
-    const url = args[0] as string
-    const zipPath = args[1] as string
-    const headers = args[2] as Record<string, string>
-    const formFields = (args[3] as Record<string, string>) || {}
+  // server:upload — progress-aware (overrides default IPC wrapper to access event.sender)
+  /**
+   * Shared multipart upload helper (used by both IPC + HTTP handlerMap).
+   * Reads the zip file, builds a multipart body, and POSTs via fetch.
+   * When called via IPC, also sends progress events back to the renderer.
+   */
+  async function uploadMultipart(
+    url: string,
+    zipPath: string,
+    headers: Record<string, string>,
+    formFields: Record<string, string>,
+    onProgress?: (pct: number) => void
+  ): Promise<{ success: boolean; status: number; data?: unknown; error?: string }> {
     try {
       const fileContent = fs.readFileSync(zipPath)
       const fileName = path.basename(zipPath)
       const boundary = '----FormBoundary' + Math.random().toString(36).substring(2)
 
       const parts: Buffer[] = []
-
-      // 添加额外的表单字段
       for (const [key, value] of Object.entries(formFields)) {
-        const fieldStr = `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`
-        parts.push(Buffer.from(fieldStr, 'utf-8'))
+        parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`, 'utf-8'))
       }
-
-      // 添加文件字段
-      const fileHeader = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: application/zip\r\n\r\n`
-      parts.push(Buffer.from(fileHeader, 'utf-8'))
+      parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: application/zip\r\n\r\n`, 'utf-8'))
       parts.push(fileContent)
       parts.push(Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8'))
-
       const bodyBuffer = Buffer.concat(parts)
+
+      // Report initial progress
+      onProgress?.(0)
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': `multipart/form-data; boundary=${boundary}`
-        },
-        body: bodyBuffer
+        headers: { ...headers, 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+        body: bodyBuffer as unknown as BodyInit,
+        signal: AbortSignal.timeout(5 * 60 * 1000),
       })
+
+      // Report completion
+      onProgress?.(100)
+
       const data = await response.json().catch(() => null)
       return { success: response.ok, status: response.status, data }
     } catch (err) {
-      return { success: false, error: (err as Error).message }
+      return { success: false, status: 0, error: (err as Error).message }
     }
+  }
+
+  // Register for both IPC (progress-aware) and HTTP handlerMap
+  handlerMap.set('server:upload', async (...args: unknown[]): Promise<unknown> => {
+    const url = args[0] as string
+    const zipPath = args[1] as string
+    const headers = args[2] as Record<string, string>
+    const formFields = (args[3] as Record<string, string>) || {}
+    return uploadMultipart(url, zipPath, headers, formFields)
+  })
+  ipcMain.handle('server:upload', async (event, ...args: unknown[]) => {
+    const url = args[0] as string
+    const zipPath = args[1] as string
+    const headers = args[2] as Record<string, string>
+    const formFields = (args[3] as Record<string, string>) || {}
+    return uploadMultipart(url, zipPath, headers, formFields, (pct: number) => {
+      try { event.sender.send('upload:progress', pct) } catch {}
+    })
   })
 
-  // ==================== 窗口控制 ====================
+
   register('window:minimize', () => {
     BrowserWindow.getFocusedWindow()?.minimize()
     return null
