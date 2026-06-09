@@ -11,10 +11,8 @@
 # OS
 .DS_Store
 
-# Server runtime data (keep schema, ignore DB state)
-server/data/*.db
-server/data/*.db-shm
-server/data/*.db-wal
+# Server runtime data (keep schema, ignore DB state + uploads)
+server/data/
 
 # Editor / scratch
 tmp.json
