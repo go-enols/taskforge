@@ -33,6 +33,8 @@ const Settings = lazy(() => import("./pages/Settings"))
 const DeveloperCenter = lazy(() => import("./pages/DeveloperCenter"))
 /** 懒加载页面组件：管理中心（审核 + 用户管理） */
 const AdminCenter = lazy(() => import("./pages/AdminCenter"))
+const ScriptReview = lazy(() => import("./pages/ScriptReview"))
+const TemplateReview = lazy(() => import("./pages/TemplateReview"))
 /** 懒加载页面组件：脚本详情页 */
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"))
 /** 懒加载页面组件：日志（应用日志查看） */
@@ -90,6 +92,8 @@ function AppContent(): React.ReactElement {
             <Route path="/stats" element={<ProtectedRoute roles={["admin"]}><Stats /></ProtectedRoute>} />
             <Route path="/dev" element={<ProtectedRoute roles={["admin", "developer"]}><DeveloperCenter /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute roles={["admin"]}><AdminCenter /></ProtectedRoute>} />
+          <Route path="/admin/script-review" element={<ProtectedRoute roles={["admin"]}><ScriptReview /></ProtectedRoute>} />
+          <Route path="/admin/templates" element={<ProtectedRoute roles={["admin"]}><TemplateReview /></ProtectedRoute>} />
             <Route path="/logs" element={<ProtectedRoute roles={["admin"]}><Logs /></ProtectedRoute>} />
             <Route path="/debug" element={<ProtectedRoute roles={["admin", "developer"]}><DebugPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFoundPage />} />

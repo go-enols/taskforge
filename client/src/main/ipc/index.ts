@@ -16,10 +16,10 @@ import { TaskRepository } from '../services/repositories/task'
 import { Task } from '../../shared/types'
 import fs from 'fs'
 import path from 'path'
-import os from 'os'
-import { spawnSync } from 'child_process'
 import JSON5 from 'json5'
 import { createLogger } from '../utils/logger'
+import AdmZip from 'adm-zip'
+import { readZipEntry } from '../utils/zipExtractor'
 
 const logger = createLogger('ipc')
 
@@ -585,31 +585,13 @@ export function registerIpcHandlers(services: Services): void {
       if (!/^[^;|&`$\n\r]+$/.test(resolvedZip) || !/^[^;|&`$\n\r]+$/.test(resolvedSource)) {
         return { success: false, error: 'Invalid characters in path' }
       }
-      const platform = process.platform
-      if (platform === 'win32') {
-        const result = spawnSync(
-          'powershell',
-          [
-            '-NoProfile',
-            '-Command',
-            `Compress-Archive -Path '${resolvedSource}\\*' -DestinationPath '${resolvedZip}' -Force`
-          ],
-          { stdio: 'pipe' }
-        )
-        if (result.error) throw result.error
-        if (result.status !== 0) {
-          throw new Error(result.stderr?.toString() || 'PowerShell compress failed')
-        }
-      } else {
-        const result = spawnSync('zip', ['-r', resolvedZip, '.'], {
-          cwd: resolvedSource,
-          stdio: 'pipe'
-        })
-        if (result.error) throw result.error
-        if (result.status !== 0) {
-          throw new Error(result.stderr?.toString() || 'zip command failed')
-        }
+      if (!fs.existsSync(resolvedSource)) {
+        return { success: false, error: `源目录不存在: ${resolvedSource}` }
       }
+      // 纯 JS 打包（adm-zip，无外部命令）
+      const zip = new AdmZip()
+      zip.addLocalFolder(resolvedSource)
+      zip.writeZip(resolvedZip)
       return { success: true }
     } catch (err) {
       return { success: false, error: (err as Error).message }
@@ -623,42 +605,10 @@ export function registerIpcHandlers(services: Services): void {
       if (!/^[^;|&`$\n\r]+$/.test(resolvedZip)) {
         return { success: false, manifest: null, error: 'Invalid characters in path' }
       }
-      const platform = process.platform
-      let output: string
-      if (platform === 'win32') {
-        const tempDir = path.join(os.tmpdir(), `manifest-${Date.now()}`)
-        fs.mkdirSync(tempDir, { recursive: true })
-        const result = spawnSync(
-          'powershell',
-          [
-            '-NoProfile',
-            '-Command',
-            `Expand-Archive -Path '${resolvedZip}' -DestinationPath '${tempDir}' -Force`
-          ],
-          { stdio: 'pipe' }
-        )
-        if (result.error) throw result.error
-        if (result.status !== 0) {
-          fs.rmSync(tempDir, { recursive: true, force: true })
-          throw new Error(result.stderr?.toString() || 'PowerShell extract failed')
-        }
-        const manifestPath = path.join(tempDir, 'manifest.json')
-        if (!fs.existsSync(manifestPath)) {
-          fs.rmSync(tempDir, { recursive: true, force: true })
-          return { success: false, manifest: null, error: 'manifest.json not found in archive' }
-        }
-        output = fs.readFileSync(manifestPath, 'utf-8')
-        fs.rmSync(tempDir, { recursive: true, force: true })
-      } else {
-        const result = spawnSync('unzip', ['-p', resolvedZip, 'manifest.json'], {
-          encoding: 'utf-8',
-          stdio: 'pipe'
-        })
-        if (result.error) throw result.error
-        if (result.status !== 0) {
-          throw new Error(result.stderr?.toString() || 'unzip command failed')
-        }
-        output = result.stdout
+      // 纯 JS 读取 zip 中的 manifest.json（adm-zip，无外部命令）
+      const output = readZipEntry(resolvedZip, 'manifest.json')
+      if (output === null) {
+        return { success: false, manifest: null, error: 'manifest.json not found in archive' }
       }
       const manifest = JSON5.parse(output) as Record<string, unknown>
       return { success: true, manifest }
@@ -772,11 +722,25 @@ export function registerIpcHandlers(services: Services): void {
   register('market:login', async (username, password) => {
     const serverUrl = store.getSetting('marketplace_server_url') || 'http://localhost:3400'
     const apiKey = store.getSetting('marketplace_api_key')
-    const resp = await fetch(`${serverUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ username, password })
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 3000)
+    let resp: Response
+    try {
+      resp = await fetch(`${serverUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ username, password }),
+        signal: controller.signal
+      })
+    } catch (err) {
+      clearTimeout(timeoutId)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('aborted') || msg.includes('AbortError')) {
+        throw new Error(`登录超时（3s）：无法连接 ${serverUrl}`)
+      }
+      throw new Error(`无法连接服务器 ${serverUrl}: ${msg}`)
+    }
+    clearTimeout(timeoutId)
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}))
       throw new Error(
@@ -789,10 +753,11 @@ export function registerIpcHandlers(services: Services): void {
         user?: { id: string; username: string; displayName: string; role: string }
       }
     }
-    if (data.data?.token) {
-      store.setSetting('marketplace_jwt', data.data.token)
-      store.setSetting('marketplace_user', JSON.stringify(data.data.user))
+    if (!data.data?.token || !data.data?.user) {
+      throw new Error('服务器返回数据格式错误：缺少 token 或 user')
     }
+    store.setSetting('marketplace_jwt', data.data.token)
+    store.setSetting('marketplace_user', JSON.stringify(data.data.user))
     return data.data
   })
 

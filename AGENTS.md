@@ -1,5 +1,9 @@
 # AGENTS.md — TaskForge 开发规范
 
+## 语言
+
+使用UTF-8作为基础文件编码，中文作为基础语言
+
 ## 项目类型：Electron + TypeScript 桌面应用
 
 基于 Electron 的全栈桌面应用，**核心定位是"脚本分发 + 沙箱执行平台"**。React + Tailwind CSS 渲染层，Node.js 主进程。所有业务逻辑在 TypeScript 中实现，附带独立的 Express 服务端子项目作为脚本与账户模板的分发后端。

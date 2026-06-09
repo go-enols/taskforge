@@ -127,7 +127,21 @@ function rowToScript(row: Record<string, unknown>) {
 // ---- routes ----
 
 router.get("/", (_req: Request, res: Response) => {
-  const rows = stmts.scriptListAll.all() as Record<string, unknown>[];
+  const rows = stmts.scriptGetAllAdmin.all() as Record<string, unknown>[];
+  const items = rows.map(rowToScript);
+  res.json({ data: { items, total: items.length } });
+});
+
+/** 获取待审核脚本列表（管理员专用） */
+router.get("/pending", requireRole("admin"), (_req: AuthenticatedRequest, res: Response) => {
+  const rows = stmts.scriptGetPending.all() as Record<string, unknown>[];
+  const items = rows.map(rowToScript);
+  res.json({ data: { items, total: items.length } });
+});
+
+/** 获取当前用户的待审核脚本列表（管理员 + 开发者） */
+router.get("/my-pending", requireRole("admin", "developer"), (req: AuthenticatedRequest, res: Response) => {
+  const rows = stmts.scriptGetPendingByAuthor.all(req.user?.id) as Record<string, unknown>[];
   const items = rows.map(rowToScript);
   res.json({ data: { items, total: items.length } });
 });
@@ -351,6 +365,39 @@ router.post(
       res.status(500).json({ error: { message: `数据库更新失败: ${msg}`, code: "DB_ERROR" } });
       return;
     }
+    const row = stmts.scriptGetById.get(req.params.id) as Record<string, unknown>;
+    res.json({ data: rowToScript(row) });
+  }
+);
+
+/** POST — 审核脚本（仅管理员，action 形式：approve/reject） */
+router.post(
+  "/:id/review",
+  requireRole("admin"),
+  (req: AuthenticatedRequest, res: Response) => {
+    const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
+    if (!existing) {
+      res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
+      return;
+    }
+    const { action, comment } = req.body;
+    if (!action || !["approve", "reject"].includes(action)) {
+      res.status(400).json({ error: { message: "操作无效，需要 approve 或 reject", code: "VALIDATION_ERROR" } });
+      return;
+    }
+    if (action === "reject") {
+      // 拒绝 = 默认删除：删除文件 + 删除 DB 记录（防止脏数据累积）
+      const filePath = join(getScriptsDir(), existing.file_path as string);
+      if (existsSync(filePath)) {
+        try { rmSync(filePath, { force: true }); } catch { /* 文件不存在或删除失败不影响主流程 */ }
+      }
+      stmts.scriptDelete.run(req.params.id);
+      res.json({ data: { id: req.params.id, deleted: true, comment: comment || "" } });
+      return;
+    }
+    // approve：保持当前行为（更新审核状态 + 设为可见）
+    const now = new Date().toISOString();
+    stmts.scriptReview.run("approved", comment || "", 1, now, req.params.id);
     const row = stmts.scriptGetById.get(req.params.id) as Record<string, unknown>;
     res.json({ data: rowToScript(row) });
   }

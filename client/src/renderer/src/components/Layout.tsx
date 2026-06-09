@@ -28,7 +28,9 @@ import {
   Code,
   ShieldCheck,
   BarChart3,
-  ChevronDown
+  ChevronDown,
+  Users,
+  FileBox
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import type { UserRole } from '../contexts/AuthContext'
@@ -87,7 +89,17 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { path: '/settings', icon: Settings, key: 'nav.settings', roles: ['admin', 'developer', 'user'] },
 
   { path: '/dev', icon: Code, key: 'nav.developerCenter', roles: ['admin', 'developer'] },
-  { path: '/admin', icon: ShieldCheck, key: 'nav.adminCenter', roles: ['admin'] },
+  {
+    path: '/admin',
+    icon: ShieldCheck,
+    key: 'nav.adminCenter',
+    roles: ['admin'],
+    children: [
+      { path: '/admin/script-review', icon: ShieldCheck, key: 'nav.scriptReview', roles: ['admin'] },
+      { path: '/admin/templates', icon: FileBox, key: 'nav.templateReview', roles: ['admin'] },
+      { path: '/admin', icon: Users, key: 'nav.userManagement', roles: ['admin'] }
+    ]
+  },
 
   { path: '/logs', icon: ScrollText, key: 'nav.logs', roles: ['admin'] },
 

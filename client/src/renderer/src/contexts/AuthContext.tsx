@@ -66,51 +66,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     const result = await marketplaceApi.login(username, password)
-    if (result?.token && result?.user) {
-      const userData: User = {
-        id: result.user.id,
-        username: result.user.username,
-        displayName: result.user.displayName,
-        role: (result.user.role as UserRole) || 'user'
-      }
-      setToken(result.token)
-      setUser(userData)
-      localStorage.setItem('marketplace_jwt', result.token)
-      localStorage.setItem('marketplace_user', JSON.stringify(userData))
+    if (!result?.token || !result?.user) {
+      throw new Error('登录失败：服务器未返回有效凭证')
     }
-  }, [])
+    const userData: User = {
+      id: result.user.id,
+      username: result.user.username,
+      displayName: result.user.displayName,
+      role: (result.user.role as UserRole) || 'user'
+    }
+    setToken(result.token)
+    setUser(userData)
+    localStorage.setItem('marketplace_jwt', result.token)
+    localStorage.setItem('marketplace_user', JSON.stringify(userData))
+    // 登录成功：重置 URL 到首页，避免上一个会话残留的受限路由触发 ProtectedRoute 反弹
+    if (window.location.hash && window.location.hash !== '#/' && window.location.hash !== '#/login') {
+      navigate('/', { replace: true })
+    }
+  }, [navigate])
 
   const register = useCallback(async (username: string, password: string, displayName: string) => {
     const result = await marketplaceApi.register(username, password, displayName)
-    if (result?.token && result?.user) {
-      const userData: User = {
-        id: result.user.id,
-        username: result.user.username,
-        displayName: result.user.displayName,
-        role: (result.user.role as UserRole) || 'user'
-      }
-      setToken(result.token)
-      setUser(userData)
-      localStorage.setItem('marketplace_jwt', result.token)
-      localStorage.setItem('marketplace_user', JSON.stringify(userData))
+    if (!result?.token || !result?.user) {
+      throw new Error('注册失败：服务器未返回有效凭证')
     }
-  }, [])
+    const userData: User = {
+      id: result.user.id,
+      username: result.user.username,
+      displayName: result.user.displayName,
+      role: (result.user.role as UserRole) || 'user'
+    }
+    setToken(result.token)
+    setUser(userData)
+    localStorage.setItem('marketplace_jwt', result.token)
+    localStorage.setItem('marketplace_user', JSON.stringify(userData))
+    if (window.location.hash && window.location.hash !== '#/' && window.location.hash !== '#/login') {
+      navigate('/', { replace: true })
+    }
+  }, [navigate])
 
   const setup = useCallback(async (username: string, password: string, displayName: string) => {
     const result = await marketplaceApi.setup(username, password, displayName)
-    if (result?.token && result?.user) {
-      const userData: User = {
-        id: result.user.id,
-        username: result.user.username,
-        displayName: result.user.displayName,
-        role: (result.user.role as UserRole) || 'admin'
-      }
-      setToken(result.token)
-      setUser(userData)
-      localStorage.setItem('marketplace_jwt', result.token)
-      localStorage.setItem('marketplace_user', JSON.stringify(userData))
+    if (!result?.token || !result?.user) {
+      throw new Error('初始化失败：服务器未返回有效凭证')
     }
-  }, [])
+    const userData: User = {
+      id: result.user.id,
+      username: result.user.username,
+      displayName: result.user.displayName,
+      role: (result.user.role as UserRole) || 'admin'
+    }
+    setToken(result.token)
+    setUser(userData)
+    localStorage.setItem('marketplace_jwt', result.token)
+    localStorage.setItem('marketplace_user', JSON.stringify(userData))
+    if (window.location.hash && window.location.hash !== '#/' && window.location.hash !== '#/login') {
+      navigate('/', { replace: true })
+    }
+  }, [navigate])
 
   const refresh = useCallback(async () => {
     const savedToken = localStorage.getItem('marketplace_jwt')

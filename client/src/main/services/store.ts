@@ -148,6 +148,9 @@ export class StoreService {
     this._walletRepo = new WalletRepository(this.db, encryption)
     this._proxyRepo = new ProxyRepository(this.db)
     this._taskRepo = new TaskRepository(this.db)
+
+    // seedProjectTemplates 使用 this.db 直接执行，不再依赖 this.stmts 缓存的预编译语句。
+    // 这避免了 prepareStatements 和 seedProjectTemplates 调用顺序不一致导致的 "Prepared statement not found" 错误。
     // seedProjectTemplates 必须在 prepareStatements() 之后调用, 否则
     // 它用到的 prepared statement (projectTemplate.exists / .insert)
     // 还没注册, 会抛 "Prepared statement not found"
@@ -456,10 +459,15 @@ export class StoreService {
         sortOrder: 20
       }
     ]
+    // 直接使用 this.db 执行（不依赖 prepared statement），避免初始化顺序问题
+    const existsStmt = this.db.prepare('SELECT 1 FROM project_templates WHERE id = ?')
+    const insertStmt = this.db.prepare(
+      'INSERT INTO project_templates (id, name, description, icon, fields, built_in, enabled, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
     for (const t of builtIns) {
-      const existing = this.stmt('projectTemplate.exists').get(t.id)
+      const existing = existsStmt.get(t.id)
       if (existing) continue
-      this.stmt('projectTemplate.insert').run(
+      insertStmt.run(
         t.id,
         t.name,
         t.description,

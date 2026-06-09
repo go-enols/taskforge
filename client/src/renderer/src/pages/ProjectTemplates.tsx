@@ -26,6 +26,7 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { projectTemplateApi } from '../api'
+import { useAuth } from '../contexts/AuthContext'
 import type { ProjectTemplate, ProjectTemplateField } from '../../../shared/types'
 import Modal from '../components/common/Modal'
 import { ConfirmDialog, EmptyState } from '../components/common'
@@ -42,6 +43,7 @@ const FIELD_TYPES = ['string', 'number', 'boolean', 'select'] as const
 
 const ProjectTemplatesPage: React.FC = () => {
   const { t } = useTranslation()
+  const { isAdmin } = useAuth()
   const [templates, setTemplates] = useState<ProjectTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<ProjectTemplate | null>(null)
@@ -319,14 +321,16 @@ const ProjectTemplatesPage: React.FC = () => {
                   >
                     <Eye size={14} />
                   </button>
-                  <button
-                    onClick={() => handleToggleEnabled(tpl)}
-                    className="p-1.5 text-text-muted hover:text-primary hover:bg-primary-light rounded transition-colors"
-                    title={tpl.enabled ? t('projectTemplates.disable') : t('projectTemplates.enable')}
-                    aria-label={tpl.enabled ? t('projectTemplates.disable') : t('projectTemplates.enable')}
-                  >
-                    {tpl.enabled ? <Power size={14} /> : <PowerOff size={14} />}
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleToggleEnabled(tpl)}
+                      className="p-1.5 text-text-muted hover:text-primary hover:bg-primary-light rounded transition-colors"
+                      title={tpl.enabled ? t('projectTemplates.disable') : t('projectTemplates.enable')}
+                      aria-label={tpl.enabled ? t('projectTemplates.disable') : t('projectTemplates.enable')}
+                    >
+                      {tpl.enabled ? <Power size={14} /> : <PowerOff size={14} />}
+                    </button>
+                  )}
                   <button
                     onClick={() => openEdit(tpl)}
                     className="p-1.5 text-text-muted hover:text-primary hover:bg-primary-light rounded transition-colors"
@@ -403,17 +407,19 @@ const ProjectTemplatesPage: React.FC = () => {
             />
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
-              className="rounded border-border-light"
-            />
-            <span className="text-sm text-text-primary">
-              {t('projectTemplates.enabledLabel')}
-            </span>
-          </label>
+          {isAdmin && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
+                className="rounded border-border-light"
+              />
+              <span className="text-sm text-text-primary">
+                {t('projectTemplates.enabledLabel')}
+              </span>
+            </label>
+          )}
 
           {/* 字段列表 */}
           <div className="space-y-2">
