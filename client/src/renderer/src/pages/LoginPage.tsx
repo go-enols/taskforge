@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { getMarketplaceUrl, setMarketplaceUrl } from '../api'
 import { toast } from '../utils/toast'
 import TitleBar from '../components/TitleBar'
-import WebGLParticleBackground from '../components/WebGLParticleBackground'
+import { WebGLParticleBackground } from '../components/WebGLParticleBackground'
 
 /** 页面模式：登录 / 注册 / 管理员初始化 */
 type Mode = 'login' | 'register' | 'setup'
