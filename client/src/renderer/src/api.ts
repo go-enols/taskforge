@@ -244,8 +244,26 @@ export const zipApi = {
 }
 
 export const serverApi = {
-  upload: (url: string, zipPath: string, headers: Record<string, string>, formFields?: Record<string, string>) =>
-    call<unknown>('server:upload', [url, zipPath, headers, formFields])
+  /**
+   * Upload a file via XHR (from main process — supports progress tracking).
+   *
+   * @param url     Marketplace server endpoint
+   * @param zipPath Local zip file to upload
+   * @param headers Request headers (e.g. Authorization)
+   * @param formFields Extra form fields to include in the multipart body
+   * @param onProgress Optional progress callback (0-100)
+   */
+  upload: (
+    url: string,
+    zipPath: string,
+    headers: Record<string, string>,
+    formFields?: Record<string, string>,
+  ): Promise<{ success: boolean; status: number; data?: unknown; error?: string }> => {
+    return call<{ success: boolean; status: number; data?: unknown; error?: string }>(
+      'server:upload',
+      [url, zipPath, headers, formFields]
+    )
+  }
 }
 
 const MARKETPLACE_URL_KEY = 'marketplace_server_url'

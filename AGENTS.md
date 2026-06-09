@@ -930,4 +930,4 @@ const { theme, pref, setPref } = useTheme()
 - [ ] Markdown 渲染组件
 
 ### 服务端
-- [ ] manifest.json 上传时自动校验格式
+- [x] ~~manifest.json 上传时自动校验格式~~ (v0.2.1: adm-zip 内存解压 + zod 验证)
