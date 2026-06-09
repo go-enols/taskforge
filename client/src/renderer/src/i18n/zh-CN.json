@@ -864,7 +864,11 @@
     "alreadyMember": "已有账号",
     "needHelp": "需要帮助？",
     "noAccountPrompt": "还没有账号？",
-    "createOne": "立即创建"
+    "createOne": "立即创建",
+    "adminLogin": "管理员登录",
+    "verifyCode": "验证码",
+    "verifyCodePlaceholder": "请输入验证码",
+    "welcomeBack": "欢迎登陆后台管理系统"
   },
   "auth": {
     "noAccess": "无权访问此页面",
