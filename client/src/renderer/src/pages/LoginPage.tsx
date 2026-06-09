@@ -15,6 +15,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../hooks/useTheme'
 import { getMarketplaceUrl, setMarketplaceUrl } from '../api'
 import { toast } from '../utils/toast'
 import TitleBar from '../components/TitleBar'
@@ -118,6 +119,8 @@ const GlowField: React.FC<{
 const LoginPage: React.FC = () => {
   const { t } = useTranslation()
   const { login, register, setup } = useAuth()
+  /** 主题感知（替代之前的 MutationObserver + isDark state） */
+  const { theme } = useTheme()
 
   // ---- 鉴权模式（受 health.needsSetup 决定）----
   const [mode, setMode] = useState<AuthMode>('login')
@@ -138,10 +141,6 @@ const LoginPage: React.FC = () => {
   const [detecting, setDetecting] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(true)
 
-  // ---- 主题（用于 TitleBar）----
-  const [isDark, setIsDark] = useState(true)
-
-  // ---- 派生：是否需要显示 displayName / confirmPassword ----
   const showDisplayName = mode === 'register' || mode === 'setup'
   const showConfirmPassword = mode === 'register' || mode === 'setup'
   const visibleModes: AuthMode[] = useMemo(
@@ -151,16 +150,6 @@ const LoginPage: React.FC = () => {
         : (['login', 'register'] as AuthMode[]),
     [needsSetup]
   )
-
-  // ---- 监听主题变化 ----
-  useEffect(() => {
-    if (typeof document === 'undefined') return
-    const obs = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains('dark'))
-    })
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => obs.disconnect()
-  }, [])
 
   // ---- 启动时探测服务端 ----
   const checkSetup = useCallback(async () => {
@@ -261,12 +250,12 @@ const LoginPage: React.FC = () => {
   // ---- 检测阶段：极简居中旋转 ----
   if (detecting) {
     return (
-      <div className="forge-page">
+      <div className="forge-page" data-theme={theme}>
         <style>{FORGE_CSS}</style>
         <div className="forge-bg">
-          <ParticlegroundBg />
+          <ParticlegroundBg theme={theme} />
         </div>
-        <TitleBar dark={isDark} />
+        <TitleBar dark={theme === 'dark'} />
         <main className="forge-center">
           <div className="forge-detect">
             <div className="forge-detect__pulse" />
@@ -278,13 +267,13 @@ const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="forge-page">
+    <div className="forge-page" data-theme={theme}>
       <style>{FORGE_CSS}</style>
       <div className="forge-bg">
-        <ParticlegroundBg />
+        <ParticlegroundBg theme={theme} />
       </div>
 
-      <TitleBar dark={isDark} />
+      <TitleBar dark={theme === 'dark'} />
 
       <main className="forge-center">
         <BrandMark subtitle="自动化脚本 · 沙箱执行" />
@@ -463,6 +452,70 @@ export default LoginPage
 // =============================================================================
 
 const FORGE_CSS = `
+/* ==========================================================================
+   Forge Theme Variables — 主题感知 CSS variables
+   dark = 默认；light = [data-theme="light"] 覆盖
+   ========================================================================== */
+.forge-page {
+  /* Dark 主题默认值（也作为 CSS variables 兜底） */
+  --forge-canvas: #08070d;           /* 极深紫黑（OLED 真黑 + 极弱紫调） */
+  --forge-canvas-2: #14111f;         /* 稍亮紫黑（用于 card 背景） */
+  --forge-ink: #f5f3ff;              /* 暖白（主文字） */
+  --forge-ink-strong: #ffffff;       /* 纯白（高强度文字） */
+  --forge-mute: #9b97a8;             /* 次级灰（subtitle / 脚注 / placeholder）— 提高对比度 */
+  --forge-hint: #6b6878;             /* 三级灰（仅极弱次要文字） */
+  --forge-line: #2a2735;             /* 描边 */
+  --forge-line-strong: #3a3645;      /* hover 描边 */
+  --forge-line-focus: rgba(167, 139, 250, 0.4);  /* focus 描边（紫光） */
+  --forge-bg-soft: rgba(255, 255, 255, 0.02);    /* 软背景（输入框默认） */
+  --forge-bg-focus: rgba(167, 139, 250, 0.03);   /* focus 软背景 */
+  --forge-card-bg: rgba(15, 13, 22, 0.6);         /* 卡片背景 */
+  --forge-card-border: linear-gradient(180deg, rgba(167, 139, 250, 0.15), rgba(251, 191, 36, 0.05) 50%, rgba(167, 139, 250, 0.0));
+  --forge-card-shadow:
+    0 24px 64px -24px rgba(167, 139, 250, 0.25),
+    0 4px 16px -8px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --forge-brand-1: #a78bfa;          /* 薰衣草紫 */
+  --forge-brand-1-soft: rgba(167, 139, 250, 0.5);
+  --forge-brand-2: #fbbf24;          /* 暖琥珀金 */
+  --forge-brand-2-soft: rgba(251, 191, 36, 0.3);
+  --forge-button-gradient: linear-gradient(90deg, rgba(167, 139, 250, 0.2), rgba(167, 139, 250, 0.5), rgba(251, 191, 36, 0.3));
+  --forge-button-loading-gradient: linear-gradient(90deg, #a78bfa 0%, #fbbf24 50%, #a78bfa 100%);
+  --forge-button-text: #f5f3ff;
+  --forge-autofill-bg: rgba(15, 13, 22, 0.8);
+  --forge-scrollbar: #1a1825;
+}
+
+/* Light 主题覆盖 — 暖白画布 + 紫金高光（带紫调避免刺眼） */
+.forge-page[data-theme="light"] {
+  --forge-canvas: #faf8ff;
+  --forge-canvas-2: #ffffff;
+  --forge-ink: #0f0d18;
+  --forge-ink-strong: #000000;
+  --forge-mute: #5a5765;
+  --forge-hint: #8a8794;
+  --forge-line: #e2dceb;
+  --forge-line-strong: #c4bdd0;
+  --forge-line-focus: rgba(124, 58, 237, 0.5);
+  --forge-bg-soft: rgba(15, 13, 22, 0.025);
+  --forge-bg-focus: rgba(124, 58, 237, 0.04);
+  --forge-card-bg: rgba(255, 255, 255, 0.7);
+  --forge-card-border: linear-gradient(180deg, rgba(124, 58, 237, 0.18), rgba(217, 119, 6, 0.08) 50%, rgba(124, 58, 237, 0.0));
+  --forge-card-shadow:
+    0 24px 64px -24px rgba(124, 58, 237, 0.18),
+    0 4px 16px -8px rgba(100, 80, 130, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --forge-brand-1: #7c3aed;
+  --forge-brand-1-soft: rgba(124, 58, 237, 0.5);
+  --forge-brand-2: #d97706;
+  --forge-brand-2-soft: rgba(217, 119, 6, 0.3);
+  --forge-button-gradient: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #d97706 100%);
+  --forge-button-loading-gradient: linear-gradient(90deg, #7c3aed 0%, #d97706 50%, #7c3aed 100%);
+  --forge-button-text: #ffffff;
+  --forge-autofill-bg: rgba(255, 255, 255, 0.85);
+  --forge-scrollbar: #c4bdd0;
+}
+
 * { box-sizing: border-box; }
 
 .forge-page {
@@ -470,11 +523,12 @@ const FORGE_CSS = `
   min-height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background: #08070d;
-  color: #f5f3ff;
+  background: var(--forge-canvas);
+  color: var(--forge-ink);
   font-family: var(--font-sans, "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .forge-bg {
@@ -506,7 +560,7 @@ const FORGE_CSS = `
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.4em;
-  background: linear-gradient(120deg, #a78bfa 0%, #fbbf24 50%, #a78bfa 100%);
+  background: linear-gradient(120deg, var(--forge-brand-1) 0%, var(--forge-brand-2) 50%, var(--forge-brand-1) 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -518,7 +572,7 @@ const FORGE_CSS = `
   margin-top: 8px;
   font-size: 11px;
   letter-spacing: 0.25em;
-  color: #6b6878;
+  color: var(--forge-mute);
   text-transform: uppercase;
   text-indent: 0.25em;
 }
@@ -539,14 +593,14 @@ const FORGE_CSS = `
   padding: 6px 0;
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: #6b6878;
+  color: var(--forge-mute);
   background: transparent;
   border: 0;
   cursor: pointer;
   transition: color 0.2s;
 }
-.forge-tab:hover { color: #a78bfa; }
-.forge-tab--active { color: #f5f3ff; }
+.forge-tab:hover { color: var(--forge-brand-1); }
+.forge-tab--active { color: var(--forge-ink-strong); }
 .forge-tab--active::after {
   content: '';
   position: absolute;
@@ -554,7 +608,7 @@ const FORGE_CSS = `
   right: 0;
   bottom: -2px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #a78bfa, transparent);
+  background: linear-gradient(90deg, transparent, var(--forge-brand-1), transparent);
   animation: forge-reveal 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -571,14 +625,14 @@ const FORGE_CSS = `
   inset: 0;
   border-radius: 24px;
   padding: 1px;
-  background: linear-gradient(180deg, rgba(167, 139, 250, 0.15), rgba(251, 191, 36, 0.05) 50%, rgba(167, 139, 250, 0.0));
+  background: var(--forge-card-border);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
 }
 .forge-card__inner {
-  background: rgba(15, 13, 22, 0.6);
+  background: var(--forge-card-bg);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   border-radius: 24px;
@@ -586,14 +640,11 @@ const FORGE_CSS = `
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow:
-    0 24px 64px -24px rgba(167, 139, 250, 0.25),
-    0 4px 16px -8px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: var(--forge-card-shadow);
 }
 .forge-card__divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, var(--forge-brand-1-soft), transparent);
   margin: 8px 0 4px;
 }
 
@@ -619,10 +670,10 @@ const FORGE_CSS = `
   width: 100%;
   height: 44px;
   padding: 0 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid #1a1825;
+  background: var(--forge-bg-soft);
+  border: 1px solid var(--forge-line);
   border-radius: 10px;
-  color: #f5f3ff;
+  color: var(--forge-ink);
   font-size: 13px;
   font-family: inherit;
   letter-spacing: 0.01em;
@@ -630,22 +681,22 @@ const FORGE_CSS = `
   transition: border-color 0.2s, background 0.2s;
 }
 .glow-field__input::placeholder {
-  color: #3f3d4a;
+  color: var(--forge-hint);
   transition: color 0.2s;
 }
-.glow-field__input:hover { border-color: #2a2735; }
+.glow-field__input:hover { border-color: var(--forge-line-strong); }
 .glow-field__input:focus {
-  border-color: rgba(167, 139, 250, 0.4);
-  background: rgba(167, 139, 250, 0.03);
+  border-color: var(--forge-line-focus);
+  background: var(--forge-bg-focus);
 }
-.glow-field__input:focus::placeholder { color: #6b6878; }
+.glow-field__input:focus::placeholder { color: var(--forge-mute); }
 .glow-field__sweep {
   position: absolute;
   left: 0;
   right: 0;
   bottom: -1px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #a78bfa, transparent);
+  background: linear-gradient(90deg, transparent, var(--forge-brand-1), transparent);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -663,39 +714,35 @@ const FORGE_CSS = `
   border: 0;
   cursor: pointer;
   font-family: inherit;
-  color: #f5f3ff;
+  color: var(--forge-button-text);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.energy-button:disabled { cursor: not-allowed; opacity: 0.5; }
+.energy-button:disabled { cursor: not-allowed; opacity: 0.6; }
 .energy-button:hover:not(:disabled) { transform: translateY(-1px); }
 .energy-button:active:not(:disabled) { transform: translateY(0); }
 
 .energy-button__bar {
+  /* 满高背景：覆盖整个按钮（包含"登录"文字）— 文字通过 .energy-button__label 覆盖在背景上 */
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 4px;
-  transform: translateY(-50%);
-  background: linear-gradient(90deg, rgba(167, 139, 250, 0.2), rgba(167, 139, 250, 0.5), rgba(251, 191, 36, 0.3));
-  border-radius: 2px;
-  transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s;
+  inset: 0;
+  background: var(--forge-button-gradient);
+  border-radius: 8px;
+  transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s;
   box-shadow: 0 0 0 0 rgba(167, 139, 250, 0);
 }
 .energy-button:hover:not(:disabled) .energy-button__bar {
-  height: 8px;
-  box-shadow: 0 0 16px 2px rgba(167, 139, 250, 0.4);
+  box-shadow: 0 6px 20px -4px rgba(167, 139, 250, 0.5);
+  filter: brightness(1.1);
 }
 .energy-button[data-loading="true"] .energy-button__bar {
-  height: 8px;
-  background: linear-gradient(90deg, #a78bfa 0%, #fbbf24 50%, #a78bfa 100%);
+  background: var(--forge-button-loading-gradient);
   background-size: 200% auto;
-  animation: aurora-drift 1.2s linear infinite;
-  box-shadow: 0 0 20px 4px rgba(167, 139, 250, 0.5);
+  animation: aurora-drift 1.5s linear infinite;
+  box-shadow: 0 8px 24px -4px rgba(167, 139, 250, 0.6);
 }
 
 .energy-button__label {
@@ -707,7 +754,8 @@ const FORGE_CSS = `
   gap: 8px;
   width: 100%;
   height: 100%;
-  padding-top: 4px;
+  color: var(--forge-button-text);
+  font-weight: 600;
 }
 
 /* ---------- 服务端地址（折叠） ---------- */
@@ -720,19 +768,19 @@ const FORGE_CSS = `
   padding: 6px 0;
   background: transparent;
   border: 0;
-  color: #6b6878;
+  color: var(--forge-mute);
   font-size: 11px;
   letter-spacing: 0.08em;
   cursor: pointer;
   transition: color 0.2s;
   font-family: inherit;
 }
-.forge-server-toggle:hover { color: #a78bfa; }
+.forge-server-toggle:hover { color: var(--forge-brand-1); }
 .forge-server-toggle__dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #a78bfa;
+  background: var(--forge-brand-1);
   opacity: 0.6;
   transition: opacity 0.2s;
 }
@@ -750,30 +798,31 @@ const FORGE_CSS = `
   flex: 1;
   height: 32px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid #1a1825;
+  background: var(--forge-bg-soft);
+  border: 1px solid var(--forge-line);
   border-radius: 6px;
-  color: #f5f3ff;
+  color: var(--forge-ink);
   font-size: 11px;
   font-family: inherit;
   outline: none;
   transition: border-color 0.2s;
 }
-.forge-server-input input:focus { border-color: rgba(167, 139, 250, 0.4); }
+.forge-server-input input:focus { border-color: var(--forge-line-focus); }
 .forge-server-input__btn {
   padding: 0 12px;
-  background: rgba(167, 139, 250, 0.1);
-  border: 1px solid rgba(167, 139, 250, 0.2);
+  background: var(--forge-brand-1-soft);
+  border: 1px solid var(--forge-brand-1-soft);
   border-radius: 6px;
-  color: #a78bfa;
+  color: var(--forge-brand-1);
   font-size: 11px;
   font-family: inherit;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
 }
 .forge-server-input__btn:hover:not(:disabled) {
-  background: rgba(167, 139, 250, 0.15);
-  border-color: rgba(167, 139, 250, 0.4);
+  background: var(--forge-brand-1);
+  color: var(--forge-button-text);
+  border-color: var(--forge-brand-1);
 }
 .forge-server-input__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -786,7 +835,7 @@ const FORGE_CSS = `
   justify-content: space-between;
   font-size: 10px;
   letter-spacing: 0.1em;
-  color: #3f3d4a;
+  color: var(--forge-mute);
   text-transform: uppercase;
   animation: forge-reveal 0.7s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -794,9 +843,9 @@ const FORGE_CSS = `
 .forge-foot__sep { opacity: 0.4; }
 .forge-foot__version {
   padding: 2px 6px;
-  border: 1px solid #1a1825;
+  border: 1px solid var(--forge-line);
   border-radius: 3px;
-  color: #6b6878;
+  color: var(--forge-mute);
 }
 .forge-foot__right { display: flex; align-items: center; gap: 4px; }
 .forge-foot__link {
@@ -805,7 +854,7 @@ const FORGE_CSS = `
   gap: 3px;
   background: transparent;
   border: 0;
-  color: #6b6878;
+  color: var(--forge-mute);
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -813,14 +862,14 @@ const FORGE_CSS = `
   cursor: pointer;
   transition: color 0.2s;
 }
-.forge-foot__link:hover { color: #a78bfa; }
+.forge-foot__link:hover { color: var(--forge-brand-1); }
 
 /* ---------- 探测阶段 ---------- */
 .forge-detect {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #6b6878;
+  color: var(--forge-mute);
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -829,7 +878,7 @@ const FORGE_CSS = `
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #a78bfa;
+  background: var(--forge-brand-1);
   animation: forge-dot-pulse 1.2s ease-in-out infinite;
 }
 .forge-detect__text {
@@ -853,13 +902,13 @@ const FORGE_CSS = `
 .forge-server-input input:-webkit-autofill,
 .forge-server-input input:-webkit-autofill:hover,
 .forge-server-input input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #f5f3ff;
-  -webkit-box-shadow: 0 0 0 1000px rgba(15, 13, 22, 0.8) inset;
+  -webkit-text-fill-color: var(--forge-ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--forge-autofill-bg) inset;
   transition: background-color 9999s ease-in-out 0s;
 }
 
 /* ---------- 滚动条 ---------- */
 .forge-page ::-webkit-scrollbar { width: 6px; }
 .forge-page ::-webkit-scrollbar-track { background: transparent; }
-.forge-page ::-webkit-scrollbar-thumb { background: #1a1825; border-radius: 3px; }
+.forge-page ::-webkit-scrollbar-thumb { background: var(--forge-scrollbar); border-radius: 3px; }
 `

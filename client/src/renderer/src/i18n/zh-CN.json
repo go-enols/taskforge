@@ -868,7 +868,7 @@
     "adminLogin": "管理员登录",
     "verifyCode": "验证码",
     "verifyCodePlaceholder": "请输入验证码",
-    "welcomeBack": "欢迎登陆后台管理系统",
+    "welcomeBack": "欢迎回来",
     "authenticating": "认证中..."
   },
   "auth": {
