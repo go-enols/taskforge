@@ -383,7 +383,7 @@ const LoginPage: React.FC = () => {
         {/* 脚注 */}
         <footer className="forge-foot">
           <div className="forge-foot__left">
-            <span className="forge-foot__version">v0.2.0</span>
+            <span className="forge-foot__version">v0.2.1</span>
             <span className="forge-foot__sep">·</span>
             <span>{t('login.welcomeBack')}</span>
           </div>

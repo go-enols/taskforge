@@ -56,7 +56,7 @@ taskforge/
 │   │       └── src/
 │   │           ├── api.ts           # 类型化 API 客户端
 │   │           ├── transport.ts     # 双传输层 (IPC → HTTP 自动降级)
-│   │           ├── components/      # 共享 UI 组件
+│   │           ├── components/      # 共享 UI 组件 (TitleBar, BrandMark, ThemeToggle, ParticlegroundBg 等)
 │   │           ├── pages/           # 路由页面
 │   │           ├── hooks/           # 自定义 hooks
 │   │           ├── contexts/        # React contexts (AuthContext 等)
@@ -125,6 +125,8 @@ taskforge/
 - **Electron** — 桌面壳（electron-vite 脚手架）
 - **React 19 + TypeScript** — 渲染层 UI
 - **Tailwind CSS v4** — 样式（@tailwindcss/vite 插件）
+- **three.js** — WebGL 3D 渲染（登录页粒子背景）
+- **Inter** — Google Fonts 品牌字体（优先于系统字体栈）
 - **better-sqlite3** — 主进程数据库（WAL 模式，预处理语句）
 - **ethers.js** — EVM 钱包管理
 - **@solana/web3.js** — Solana 钱包管理
@@ -801,7 +803,118 @@ TaskService 在 `task.ts:339-355` 位置把 stdout 改走 `SdkLineParser.feed()`
 
 ---
 
-## 10. 待实现功能清单（TODO）
+## 10. 主题系统
+
+项目支持 dark / light 双主题，基于 React Context 架构实现主题状态共享。
+
+### 10.1 架构
+
+**文件**: `client/src/renderer/src/hooks/useTheme.tsx`
+
+| 导出 | 类型 | 说明 |
+|------|------|------|
+| `ThemeProvider` | React.FC | 顶层 Provider，包裹整个应用；内部持有 `pref` + `systemTheme` 共享状态 |
+| `useTheme()` | hook | 返回 `{ theme, pref, setPref }`；从 Context 读取，多组件共享同一份状态 |
+| `initTheme()` | 函数 | 同步应用主题到 `<html>` class，在 `main.tsx` 启动前调用以防止 FOUC |
+| `applyTheme(pref)` | 函数 | 设置 `document.documentElement.classList` + `<meta name="color-scheme">` |
+| `ThemePref` | 类型 | `'auto' \| 'light' \| 'dark'` |
+| `ResolvedTheme` | 类型 | `'light' \| 'dark'` |
+
+**使用方式**:
+
+```ts
+// main.tsx — 启动前同步初始化 + Provider 包裹
+import { initTheme, ThemeProvider } from './hooks/useTheme'
+initTheme()
+root.render(<ThemeProvider><App /></ThemeProvider>)
+
+// 任意子组件 — 读取主题
+const { theme, pref, setPref } = useTheme()
+// theme: 'light' | 'dark'
+// setPref('light') — 全局切换主题，所有 useTheme() 调用方同步更新
+```
+
+### 10.2 主题切换链路
+
+1. 用户在 `ThemeToggle` 点击切换 → 调用 `setPref('light'|'dark')`
+2. Context Provider 的 `pref` state 更新 → 所有 `useTheme()` 调用方拿到新的 `theme`
+3. `applyTheme(pref)` → 更新 `<html class="dark|light">` + `<meta name="color-scheme">`
+4. `main.css` 的 `.dark { ... }` 选择器基于 `<html class="dark">` 触发 CSS 变量覆盖
+5. `LoginPage` 的 `data-theme` 属性 + WebGL `ParticlegroundBg` 同步切换
+
+### 10.3 主题控件
+
+**文件**: `client/src/renderer/src/components/ThemeToggle.tsx`
+- 两种形态：`collapsed=true` 单图标循环点击；`collapsed=false` 三段式 radio-group
+- 渲染位置：`TitleBar` 右侧（`collapsed` 模式）
+
+---
+
+## 11. Midnight Forge 设计语言（v0.2.1）
+
+登录页暨全局品牌视觉系统，统一 dark / light 双主题配色。
+
+### 11.1 色彩 token
+
+| Token | Dark 值 | Light 值 | 用途 |
+|-------|--------|---------|------|
+| `--forge-canvas` | `#08070d` | `#faf8ff` | 登录页画布背景 |
+| `--forge-ink` | `#f5f3ff` | `#0f0d18` | 主文字色 |
+| `--forge-mute` | `#9b97a8` | `#5a5765` | 次级文字 |
+| `--forge-brand-1` | `#a78bfa` | `#7c3aed` | 品牌紫（薰衣草紫 / 深紫） |
+| `--forge-brand-2` | `#fbbf24` | `#d97706` | 品牌金（暖琥珀金） |
+| `--forge-line` | `#2a2735` | `#e2dceb` | 描边色 |
+| `--forge-card-bg` | `rgba(15,13,22,0.6)` | `rgba(255,255,255,0.7)` | 卡片背景（玻璃拟物） |
+
+**主应用 token**（`main.css`）：
+
+| Token | Dark 值 | Light 值 | 说明 |
+|-------|--------|---------|------|
+| `--color-primary` | `#a78bfa` | `#7c3aed` | **品牌紫**（v0.2.1 从蓝色 `#2563eb` 重塑） |
+| `--color-bg-page` | `#0f0d18` | `#faf8ff` | 页面画布（与登录页 canvas 对齐） |
+| `--color-bg-card` | `#1a1726` | `#ffffff` | 卡片表面 |
+| `--color-brand-1` | `#c4b5fd` | `#a78bfa` | 品牌紫（更亮，保证 dark 模式可读性） |
+| `--color-brand-2` | `#fbbf24` | `#fbbf24` | 品牌金 |
+| `--font-sans` | `'Inter', -apple-system, ...` | 同 | Inter 优先字体栈 |
+
+**圆角 token**（v0.2.1 新增）:
+
+| Token | 值 | 用途 |
+|-------|-----|------|
+| `--radius-card` | 16px | 卡片 |
+| `--radius-input` | 10px | 输入框 |
+| `--radius-button` | 8px | 按钮 |
+
+### 11.2 BrandMark 组件
+
+**文件**: `client/src/renderer/src/components/BrandMark.tsx`
+- 品牌字标 `TASKFORGE` — 18px 极宽字距（letter-spacing: 0.4em）+ CSS 紫金渐变
+- `aurora-drift` 8s 动画（`background-position` 漂移）
+- 3 种尺寸：`sm`(12px) / `md`(18px 默认) / `lg`(24px)
+- 可选 `subtitle` prop（11px uppercase 紫调灰副标题）
+- 被 `TitleBar` 和 `LoginPage` 共用 — 保证登录页 + 主应用品牌一致性
+
+### 11.3 WebGL 背景
+
+**文件**: `client/src/renderer/src/components/ParticlegroundBg.tsx`
+- 单 quad + OrthographicCamera + ShaderMaterial
+- 4 个漂浮 metaball 光源（其中 1 个跟随鼠标 1:1 snap）
+- 主题感知：dark / light 两套 PALETTE，切换时 uniforms 平滑 lerp（~320ms）
+- 接受 `theme?: 'light' | 'dark'` prop
+
+### 11.4 登录页动效清单
+
+| 动效 | 实现 | 参数 |
+|------|------|------|
+| 卡片揭开入场 | `clip-path: inset(50%) → 0%` | 0.9s cubic-bezier(0.16,1,0.3,1) |
+| 字标紫金漂移 | `background-position` aurora-drift | 8s linear infinite |
+| 输入框焦点光扫 | `scaleX(0→1)` sweep 线 | 0.4s |
+| 能量条 hover | 满高背景 + box-shadow 紫光 + brightness(1.1) | 0.2s |
+| 能量条 loading | 紫金渐变 200% `background-size` | 1.5s linear infinite |
+
+---
+
+## 12. 待实现功能清单（TODO）
 
 ### 任务系统
 - [ ] 脚本 SDK：stdin/stdout JSON-RPC 通信协议，提供结构化的日志、进度、账户/代理获取 API
