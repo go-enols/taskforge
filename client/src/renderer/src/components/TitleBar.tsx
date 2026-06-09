@@ -7,10 +7,11 @@
  */
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Leaf, Minus, Square, Copy, X } from 'lucide-react'
+import { Minus, Square, Copy, X } from 'lucide-react'
 import { windowApi } from '../api'
 import { toastError } from '../utils/toast'
 import ThemeToggle from './ThemeToggle'
+import BrandMark from './BrandMark'
 
 /** 窗口可拖拽区域样式（macOS 标题栏可拖拽移动窗口） */
 const dragStyle = { WebkitAppRegion: 'drag' } as unknown as React.CSSProperties
@@ -117,20 +118,14 @@ const TitleBar: React.FC<{ dark?: boolean }> = ({ dark = false }) => {
       }`}
       style={dragStyle}
     >
-      {/* 左侧：应用图标和名称 */}
+      {/* 左侧：应用图标和名称（紫金品牌字标，dark 透明 + light 卡片底） */}
       <div className="flex items-center gap-2 px-3">
         {dark ? (
-          <div className="w-3.5 h-3.5 rounded-md bg-gradient-to-br from-primary via-purple-500 to-pink-500 shadow-sm shadow-primary/30" />
+          <div className="w-3.5 h-3.5 rounded-md bg-gradient-to-br from-brand-1 to-brand-2 shadow-sm shadow-primary/40" />
         ) : (
-          <Leaf size={14} className="text-primary" />
+          <div className="w-3.5 h-3.5 rounded-md bg-gradient-to-br from-brand-1 to-brand-2 shadow-sm shadow-primary/30" />
         )}
-        <span
-          className={`text-xs font-semibold tracking-wide ${
-            dark ? 'text-white/80' : 'text-text-primary'
-          }`}
-        >
-          TaskForge
-        </span>
+        <BrandMark size="sm" aria-label="TaskForge" />
       </div>
 
       {/* 右侧：主题切换 + 窗口控制按钮 */}

@@ -20,6 +20,7 @@ import { getMarketplaceUrl, setMarketplaceUrl } from '../api'
 import { toast } from '../utils/toast'
 import TitleBar from '../components/TitleBar'
 import { ParticlegroundBg } from '../components/ParticlegroundBg'
+import BrandMark from '../components/BrandMark'
 import { Loader2, ArrowUpRight, ChevronDown } from 'lucide-react'
 
 /** 鉴权模式：登录 / 注册 / 初始化管理员 */
@@ -31,18 +32,6 @@ const SUBMIT_KEY: Record<AuthMode, string> = {
   register: 'login.tabRegister',
   setup: 'login.tabSetup'
 }
-
-/**
- * BrandMark — 顶部字标
- * 18px 极宽字距（letter-spacing 0.4em）+ 紫金渐变 + 极弱阴影
- * 用 CSS gradient 文字而非 SVG（更轻量）
- */
-const BrandMark: React.FC<{ subtitle?: string }> = ({ subtitle }) => (
-  <div className="brand-mark">
-    <div className="brand-mark__title">TASKFORGE</div>
-    {subtitle && <div className="brand-mark__subtitle">{subtitle}</div>}
-  </div>
-)
 
 /**
  * EnergyButton — 能量条提交按钮
@@ -276,7 +265,9 @@ const LoginPage: React.FC = () => {
       <TitleBar dark={theme === 'dark'} />
 
       <main className="forge-center">
-        <BrandMark subtitle="自动化脚本 · 沙箱执行" />
+        <div className="brand-mark-wrapper">
+          <BrandMark subtitle="自动化脚本 · 沙箱执行" />
+        </div>
 
         {/* 模式 Tabs（极简线段指示器） */}
         <div className="forge-tabs" role="tablist">
@@ -552,33 +543,8 @@ const FORGE_CSS = `
 }
 
 /* ---------- 字标 ---------- */
-.brand-mark {
-  text-align: center;
+.brand-mark-wrapper {
   animation: forge-reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.brand-mark__title {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.4em;
-  background: linear-gradient(120deg, var(--forge-brand-1) 0%, var(--forge-brand-2) 50%, var(--forge-brand-1) 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: aurora-drift 8s linear infinite;
-  text-indent: 0.4em;
-}
-.brand-mark__subtitle {
-  margin-top: 8px;
-  font-size: 11px;
-  letter-spacing: 0.25em;
-  color: var(--forge-mute);
-  text-transform: uppercase;
-  text-indent: 0.25em;
-}
-@keyframes aurora-drift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
 }
 
 /* ---------- Tabs ---------- */
