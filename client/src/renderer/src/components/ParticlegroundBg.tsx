@@ -16,10 +16,8 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 
-/** 光标 lerp 平滑系数基础值（移动时） */
+/** 光标 lerp 平滑系数（移动时使用） */
 const MOUSE_LERP_BASE = 0.22
-/** 光标静止时 lerp 加速到 1.0，确保最终位置完全等于鼠标位置 */
-const MOUSE_LERP_SNAP = 0.55
 /** 帧间 uTime 累加步长（秒/帧） */
 const TIME_STEP = 0.016
 /** prefers-reduced-motion 模式下的时间倍率（保持视觉漂移但更慢） */
@@ -205,8 +203,13 @@ export const ParticlegroundBg: React.FC<{ theme?: 'light' | 'dark' }> = ({ theme
         mouseTarget.x - uniforms.uMouse.value.x,
         mouseTarget.y - uniforms.uMouse.value.y
       )
-      const lerpFactor = mouseDelta < MOUSE_STILL_THRESHOLD ? MOUSE_LERP_SNAP : MOUSE_LERP_BASE
-      uniforms.uMouse.value.lerp(mouseTarget, lerpFactor)
+      if (mouseDelta < MOUSE_STILL_THRESHOLD) {
+        // 静止：直接 snap 到精确 target（消除 lerp 残留误差，保证 1:1）
+        uniforms.uMouse.value.copy(mouseTarget)
+      } else {
+        // 移动中：基础 lerp 平滑过渡
+        uniforms.uMouse.value.lerp(mouseTarget, MOUSE_LERP_BASE)
+      }
 
       renderer.render(scene, camera)
       rafId = requestAnimationFrame(tick)
