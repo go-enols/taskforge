@@ -120,6 +120,7 @@ const PALETTE = {
  * 主题切换时通过 uColor1 / uColor2 / uCursorColor 平滑 lerp（~320ms）。
  * 鼠标位置通过 uMouse 直接传入 shader（shader 内部不再做 mix 调制，1:1 跟随）。
  */
+// eslint-disable-next-line react/prop-types
 export const ParticlegroundBg: React.FC<{ theme?: 'light' | 'dark' }> = ({ theme = 'dark' }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   /** 用 ref 存 theme prop 避免 useEffect 依赖触发 reinit */

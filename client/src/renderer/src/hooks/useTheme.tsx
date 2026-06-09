@@ -7,6 +7,8 @@
  *              仍保留 initTheme() 用于 main.tsx 启动前同步应用主题（防止 FOUC）。
  * @module renderer/hooks
  */
+/* eslint-disable react-refresh/only-export-components */
+
 import React, {
   createContext,
   useCallback,

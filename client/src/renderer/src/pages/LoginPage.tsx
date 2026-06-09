@@ -159,10 +159,12 @@ const LoginPage: React.FC = () => {
     }
   }, [])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     getMarketplaceUrl().then((url) => setServerUrl(url))
     checkSetup()
   }, [checkSetup])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ---- 服务端地址保存 ----
   const handleSaveUrl = async (): Promise<void> => {
