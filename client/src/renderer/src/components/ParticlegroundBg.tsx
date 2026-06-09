@@ -12,11 +12,13 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 
 /* ---- tunables ---------------------------------------------------------- */
-const MOUSE_LERP_BASE = 0.22
+const MOUSE_LERP_FAST = 0.55    // 大移动时快速追近（每帧 55%）
+const MOUSE_LERP_MID = 0.35     // 中距时渐近
+const MOUSE_LERP_SLOW = 0.22    // 微距时平滑
 const TIME_STEP = 0.016
 const REDUCED_MOTION_FACTOR = 0.1
 const THEME_LERP = 0.12
-const MOUSE_STILL_THRESHOLD = 0.0008
+
 
 /* ---- shaders ----------------------------------------------------------- */
 const VERT = /* glsl */ `
@@ -47,30 +49,40 @@ void main(){
   float t = uTime * 0.3;
 
   /* 3 ambient metaballs drifting slowly */
-  vec2 p1 = vec2(0.30 + 0.18*sin(t*0.7),        0.35 + 0.15*cos(t*0.5));
-  vec2 p2 = vec2(0.78 + 0.12*sin(t*0.4 + 1.7),  0.70 + 0.20*sin(t*0.6));
-  vec2 p3 = vec2(0.55 + 0.22*cos(t*0.3 + 3.1),  0.20 + 0.12*sin(t*0.9));
-  /* cursor light — 1:1 follow (lerp done in JS, passed via uMouse) */
+  vec2 p1 = vec2(0.30 + 0.20*sin(t*0.7),        0.35 + 0.18*cos(t*0.5));
+  vec2 p2 = vec2(0.78 + 0.15*sin(t*0.4 + 1.7),  0.70 + 0.15*sin(t*0.6));
+  vec2 p3 = vec2(0.55 + 0.20*cos(t*0.3 + 3.1),  0.20 + 0.18*sin(t*0.9));
+  /* 2 extra corner sources for full-screen coverage */
+  vec2 p5 = vec2(0.15 + 0.10*sin(t*0.6+2.0),    0.85 + 0.10*cos(t*0.4+1.0));
+  vec2 p6 = vec2(0.85 + 0.10*cos(t*0.5+3.5),    0.15 + 0.10*sin(t*0.7+0.8));
+  /* cursor light — 1:1 follow */
   vec2 p4 = m;
 
   float d1 = length(uv - p1);
   float d2 = length(uv - p2);
   float d3 = length(uv - p3);
   float d4 = length(uv - p4);
+  float d5 = length(uv - p5);
+  float d6 = length(uv - p6);
 
-  float s1 = smoothstep(0.60, 0.0, d1);
-  float s2 = smoothstep(0.55, 0.0, d2);
-  float s3 = smoothstep(0.65, 0.0, d3);
-  /* cursor highlight: tight inner core (0.18) + soft outer halo (0.40) */
-  float s4  = smoothstep(0.18, 0.0, d4);
-  float s4o = smoothstep(0.40, 0.0, d4);
+  /* wide-radius falloff: covers most of the screen */
+  float s1  = smoothstep(0.65, 0.0, d1);
+  float s2  = smoothstep(0.60, 0.0, d2);
+  float s3  = smoothstep(0.55, 0.0, d3);
+  float s5  = smoothstep(0.50, 0.0, d5);
+  float s6  = smoothstep(0.50, 0.0, d6);
+  /* cursor: broad glow across entire background */
+  float s4  = smoothstep(0.55, 0.0, d4);
+  float s4o = smoothstep(0.80, 0.0, d4);
 
   vec3 col = uColor2;
-  col = mix(col, uColor1,                       s1  * 0.85);
-  col = mix(col, uColor1,                       s2  * 0.65);
-  col = mix(col, mix(uColor1, uCursorColor, 0.5), s3  * 0.45);
-  col = mix(col, uCursorColor,                  s4o * 0.18);  /* outer halo */
-  col = mix(col, uCursorColor,                  s4  * 0.55);  /* inner core */
+  col = mix(col, uColor1,                       s1  * 0.45);
+  col = mix(col, uColor1,                       s2  * 0.35);
+  col = mix(col, uColor1,                       s3  * 0.30);
+  col = mix(col, uColor1,                       s5  * 0.25);
+  col = mix(col, uColor1,                       s6  * 0.25);
+  col = mix(col, uCursorColor,                  s4o * 0.22);  /* broad halo */
+  col = mix(col, uCursorColor,                  s4  * 0.50);  /* inner core */
 
   /* film grain */
   col += noise(uv * uResolution.xy * 0.5 + t) * 0.025;
@@ -184,14 +196,18 @@ const ParticlegroundBg: React.FC<ParticlegroundBgProps> = ({ theme = 'dark' }) =
         ? TIME_STEP * REDUCED_MOTION_FACTOR
         : TIME_STEP
 
-      /* cursor — adaptive lerp: snap when still, smooth when moving */
+      /* cursor — adaptive lerp: fast for big moves, smooth for fine-tuning, snap for micro */
       const dx = mouseTarget.x - uniforms.uMouse.value.x
       const dy = mouseTarget.y - uniforms.uMouse.value.y
       const delta = Math.hypot(dx, dy)
-      if (delta < MOUSE_STILL_THRESHOLD) {
+      if (delta < 0.0005) {
         uniforms.uMouse.value.copy(mouseTarget)
+      } else if (delta > 0.05) {
+        uniforms.uMouse.value.lerp(mouseTarget, MOUSE_LERP_FAST)
+      } else if (delta > 0.008) {
+        uniforms.uMouse.value.lerp(mouseTarget, MOUSE_LERP_MID)
       } else {
-        uniforms.uMouse.value.lerp(mouseTarget, MOUSE_LERP_BASE)
+        uniforms.uMouse.value.lerp(mouseTarget, MOUSE_LERP_SLOW)
       }
 
       renderer.render(scene, camera)
