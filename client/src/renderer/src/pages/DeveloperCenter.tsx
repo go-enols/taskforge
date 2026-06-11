@@ -63,6 +63,10 @@ export default function DeveloperCenter() {
   const [folderPath, setFolderPath] = useState('')
   const [manifestContent, setManifestContent] = useState<string | null>(null)
   const [hasManifest, setHasManifest] = useState(false)
+  /** Editable version override for the folder upload. Pre-filled from manifest.json,
+   *  but the user can edit before upload (useful for hotfixes / version bump without
+   *  rewriting the source manifest). */
+  const [uploadVersion, setUploadVersion] = useState('')
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
   const [uploadError, setUploadError] = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -325,6 +329,7 @@ Install via TaskForge marketplace, then create a task using this script.
     setFolderPath(result.folderPath)
     setUploadStatus('idle')
     setUploadError('')
+    setUploadVersion('')
     setZipPath('')
     setZipManifest(null)
     setValidationResults([])
@@ -338,6 +343,11 @@ Install via TaskForge marketplace, then create a task using this script.
         const readResult = await fileApi.readFile(manifestPath)
         if (readResult.success && readResult.content) {
           setManifestContent(readResult.content)
+          // Pre-fill uploadVersion from manifest so the user can override
+          try {
+            const m = parseManifest(readResult.content)
+            if (m.version) setUploadVersion(String(m.version))
+          } catch { /* keep empty */ }
         }
       } catch {
         setManifestContent(null)
@@ -397,7 +407,12 @@ Install via TaskForge marketplace, then create a task using this script.
         console.error('[DeveloperCenter] Failed to parse manifest for form fields:', err)
       }
       if (!formFields.name) formFields.name = folderName
-      if (!formFields.version) formFields.version = '1.0.0'
+      // User-editable version override wins over manifest-derived value
+      if (uploadVersion.trim()) {
+        formFields.version = uploadVersion.trim()
+      } else if (!formFields.version) {
+        formFields.version = '1.0.0'
+      }
 
       const uploadResult = await serverApi.upload(`${base}/api/scripts`, tmpZipPath, headers, formFields)
       const data = uploadResult as { success: boolean; status: number; data?: { error?: { message?: string } }; error?: string }
@@ -507,6 +522,11 @@ Install via TaskForge marketplace, then create a task using this script.
   const [myScriptsLoading, setMyScriptsLoading] = useState(false)
   const [editScript, setEditScript] = useState<RemoteScript | null>(null)
   const [editForm, setEditForm] = useState({ name: '', description: '', version: '', tags: '', changelog: '' })
+  /** Optional new code package (folder or ZIP) selected in the My Scripts edit modal */
+  const [editZipPath, setEditZipPath] = useState('')
+  /** manifest.json from editZipPath (if readable) — drives version auto-bump */
+  const [editZipManifest, setEditZipManifest] = useState<{ version?: string } | null>(null)
+  const [editAutoBumpVersion, setEditAutoBumpVersion] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const fetchMyScripts = useCallback(async () => {
@@ -523,6 +543,45 @@ Install via TaskForge marketplace, then create a task using this script.
     }
   }, [user])
 
+  /** Read manifest.json from a folder or ZIP and apply auto-bump if enabled. */
+  const loadEditManifest = useCallback(async (sourcePath: string) => {
+    try {
+      const result = await call<{ success: boolean; manifest: { version?: string } | null }>(
+        'zip:extractManifest',
+        [sourcePath]
+      )
+      if (result.success && result.manifest) {
+        setEditZipManifest(result.manifest)
+        if (editAutoBumpVersion && result.manifest.version) {
+          setEditForm((f) => ({ ...f, version: result.manifest!.version! }))
+        }
+      } else {
+        setEditZipManifest(null)
+      }
+    } catch {
+      setEditZipManifest(null)
+    }
+  }, [editAutoBumpVersion])
+
+  const handleEditSelectFolder = useCallback(async () => {
+    const result = await fileApi.selectFolder()
+    if (result.canceled || !result.folderPath) return
+    setEditZipPath(result.folderPath)
+    await loadEditManifest(result.folderPath)
+  }, [loadEditManifest])
+
+  const handleEditSelectZip = useCallback(async () => {
+    const result = await dialogApi.openFile([{ name: 'ZIP', extensions: ['zip'] }])
+    if (result.canceled || !result.filePath) return
+    setEditZipPath(result.filePath)
+    await loadEditManifest(result.filePath)
+  }, [loadEditManifest])
+
+  const handleEditClearZip = useCallback(() => {
+    setEditZipPath('')
+    setEditZipManifest(null)
+  }, [])
+
   const handleEditClick = (script: RemoteScript) => {
     setEditScript(script)
     setEditForm({
@@ -532,6 +591,8 @@ Install via TaskForge marketplace, then create a task using this script.
       tags: (script.tags || []).join(', '),
       changelog: script.changelog || ''
     })
+    setEditZipPath('')
+    setEditZipManifest(null)
   }
 
   const handleSaveEdit = async () => {
@@ -542,13 +603,33 @@ Install via TaskForge marketplace, then create a task using this script.
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean)
-      await marketplaceApi.patchScript(editScript.id, {
-        name: editForm.name.trim(),
-        description: editForm.description.trim(),
-        version: editForm.version.trim(),
-        tags,
-        changelog: editForm.changelog.trim()
-      })
+      if (editZipPath) {
+        // ZIP re-upload via PUT multipart — server re-validates manifest and replaces binary
+        const formFields: Record<string, string> = {
+          name: editForm.name.trim(),
+          description: editForm.description.trim(),
+          version: editForm.version.trim(),
+          tags: JSON.stringify(tags),
+          changelog: editForm.changelog.trim()
+        }
+        const result = await marketplaceApi.updateScript(
+          editScript.id,
+          formFields,
+          editZipPath
+        )
+        if (!result.success) {
+          throw new Error(result.error || `Update failed (status ${result.status})`)
+        }
+      } else {
+        // Metadata-only PATCH (no ZIP — keeps existing binary on server)
+        await marketplaceApi.patchScript(editScript.id, {
+          name: editForm.name.trim(),
+          description: editForm.description.trim(),
+          version: editForm.version.trim(),
+          tags,
+          changelog: editForm.changelog.trim()
+        })
+      }
       toast.success('脚本已更新')
       setEditScript(null)
       await fetchMyScripts()
@@ -904,6 +985,25 @@ Install via TaskForge marketplace, then create a task using this script.
               <pre className="bg-bg-page border border-border-light rounded-lg p-3 text-xs text-text-secondary overflow-auto max-h-64">
                 {manifestContent}
               </pre>
+            </div>
+          )}
+
+          {/* Editable version override (pre-filled from manifest) */}
+          {folderPath && (
+            <div className="mb-4">
+              <label className="block text-xs text-text-secondary mb-1 font-medium">
+                {t('quickDev.versionLabel') || '版本号'}
+              </label>
+              <input
+                type="text"
+                value={uploadVersion}
+                onChange={(e) => setUploadVersion(e.target.value)}
+                placeholder="1.0.0"
+                className="w-full bg-bg-input border border-border-light rounded-lg px-3 py-2 text-sm text-text-primary focus:border-primary outline-none"
+              />
+              <p className="text-[11px] text-text-muted mt-1">
+                {t('quickDev.versionHint') || '留空则使用 manifest.json 里的 version。'}
+              </p>
             </div>
           )}
 
@@ -1276,6 +1376,70 @@ Install via TaskForge marketplace, then create a task using this script.
                   <input type="text" value={editForm.changelog}
                     onChange={(e) => setEditForm((f) => ({ ...f, changelog: e.target.value }))}
                     className="w-full bg-bg-input border border-border-light rounded-lg px-3 py-2 text-sm text-text-primary focus:border-primary outline-none" />
+                </div>
+
+                {/* ZIP / folder re-upload (optional) */}
+                <div className="pt-2 border-t border-border-light">
+                  <label className="block text-xs text-text-muted mb-1">
+                    {t('dashboard.myScripts.reuploadLabel') || '重新上传代码包（可选）'}
+                  </label>
+                  <p className="text-[11px] text-text-muted mb-2">
+                    {t('dashboard.myScripts.reuploadHint') || '选择新的文件夹或 ZIP，将覆盖现有代码包并保留脚本 ID。留空则只更新元数据。'}
+                  </p>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={editZipPath}
+                      placeholder={t('dashboard.myScripts.noPackageSelected') || '未选择新代码包'}
+                      className="flex-1 bg-bg-input border border-border-light rounded-lg px-3 py-2 text-xs text-text-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleEditSelectFolder}
+                      className="px-2 py-1 text-xs border border-border-light rounded-lg text-text-secondary hover:bg-bg-input transition-colors inline-flex items-center gap-1"
+                    >
+                      <FolderOpen size={12} />
+                      {t('dashboard.myScripts.chooseFolder') || '文件夹'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEditSelectZip}
+                      className="px-2 py-1 text-xs border border-border-light rounded-lg text-text-secondary hover:bg-bg-input transition-colors inline-flex items-center gap-1"
+                    >
+                      <FileArchive size={12} />
+                      {t('dashboard.myScripts.chooseZip') || 'ZIP'}
+                    </button>
+                    {editZipPath && (
+                      <button
+                        type="button"
+                        onClick={handleEditClearZip}
+                        className="px-2 py-1 text-xs border border-border-light rounded-lg text-text-muted hover:bg-bg-input transition-colors"
+                        title={t('common.clear') || '清除'}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                  {editZipPath && (
+                    <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editAutoBumpVersion}
+                        onChange={(e) => setEditAutoBumpVersion(e.target.checked)}
+                        className="rounded"
+                      />
+                      <span>{t('dashboard.myScripts.autoBumpVersion') || '自动同步版本号（来自 manifest.json）'}</span>
+                    </label>
+                  )}
+                  {editZipManifest?.version && editZipManifest.version !== editScript?.version && (
+                    <p className="text-[11px] text-text-muted mt-1">
+                      {t('dashboard.myScripts.versionWillChange', {
+                        from: editScript?.version,
+                        to: editZipManifest.version
+                      }) || `版本将更新：v${editScript?.version} → v${editZipManifest.version}`}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-5">

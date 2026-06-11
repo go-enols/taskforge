@@ -23,6 +23,7 @@
     "close": "关闭",
     "selected": "已选择",
     "clearSelection": "清除选择",
+    "clear": "清除",
     "label": "标签",
     "type": "类型",
     "actions": "操作",
@@ -192,6 +193,15 @@
       "myPending": "我的待审核",
       "myScripts": "我的脚本",
       "browseMarket": "浏览市场"
+    },
+    "myScripts": {
+      "reuploadLabel": "重新上传代码包（可选）",
+      "reuploadHint": "选择新的文件夹或 ZIP，将覆盖现有代码包并保留脚本 ID。留空则只更新元数据。",
+      "noPackageSelected": "未选择新代码包",
+      "chooseFolder": "文件夹",
+      "chooseZip": "ZIP",
+      "autoBumpVersion": "自动同步版本号（来自 manifest.json）",
+      "versionWillChange": "版本将更新：v{{from}} → v{{to}}"
     },
     "pendingReviews": "待审核列表",
     "errorLogSummary": "错误日志摘要",
@@ -963,6 +973,8 @@
     "subtitle": "快速原型和测试工具",
     "folderUpload": "文件夹直传",
     "folderUploadHint": "选择包含 manifest.json 的文件夹，自动打包为 ZIP 并上传。",
+    "versionLabel": "版本号",
+    "versionHint": "留空则使用 manifest.json 里的 version。",
     "selectFolder": "选择文件夹",
     "manifestDetected": "manifest.json 已检测到:",
     "noManifestGenerate": "未找到 manifest.json，将自动生成基础版本。",
