@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { marketplaceApi, scriptApi, taskApi, fileApi } from '../api'
-import type { RemoteScript, InstalledScript, Task, ScriptReview, RatingStats } from '../types'
+import type { RemoteScript, InstalledScript, Task, ScriptReview, RatingStats, ScriptVersion } from '../types'
 import type { PermissionSet } from '../../../shared/types'
 import {
   ArrowLeft,
@@ -448,14 +448,64 @@ function OverviewTab({
   )
 }
 
-/** Tab 2: 版本 — 展示当前版本和 changelog（无版本历史 API 时简化为单版本） */
+/** Tab 2: 版本 — 展示当前版本和版本历史时间线 */
 function VersionTab({
   script
 }: {
   script: RemoteScript
 }): React.ReactElement {
+  const [versions, setVersions] = useState<ScriptVersion[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    marketplaceApi
+      .getScriptVersions(script.id)
+      .then((data) => setVersions(data))
+      .catch((e) => setError(e instanceof Error ? e.message : '加载失败'))
+      .finally(() => setLoading(false))
+  }, [script.id])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-2 text-text-muted">
+        <AlertTriangle size={24} />
+        <p className="text-sm">{error}</p>
+      </div>
+    )
+  }
+
+  // Build history: merge server-side versions with current version if not in list
+  const hasCurrentInHistory = versions.some((v) => v.version === script.version)
+  const allVersions = [...versions]
+  if (!hasCurrentInHistory) {
+    allVersions.push({
+      id: script.id,
+      version: script.version,
+      changelog: script.changelog || '',
+      checksum: script.checksum,
+      schema: script.schema,
+      createdBy: script.createdBy || null,
+      createdAt: script.updatedAt
+    })
+  }
+
+  // Sort by createdAt descending
+  allVersions.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
+
   return (
     <div className="space-y-5">
+      {/* Current version highlight */}
       <Section title="当前版本" icon={<Tag size={14} />}>
         <div className="flex items-center gap-3 mb-3">
           <span className="text-lg font-bold text-text-primary">
@@ -464,25 +514,70 @@ function VersionTab({
           <span className="text-xs text-text-muted">
             {new Date(script.updatedAt).toLocaleString('zh-CN')}
           </span>
+          {script.checksum && (
+            <span className="text-[10px] text-text-muted font-mono" title={script.checksum}>
+              {script.checksum.slice(0, 8)}...
+            </span>
+          )}
         </div>
-      </Section>
-
-      {script.changelog ? (
-        <Section title="更新日志" icon={<History size={14} />}>
-          <pre className="text-sm text-text-secondary whitespace-pre-wrap font-sans leading-relaxed">
+        {script.changelog && (
+          <pre className="text-sm text-text-secondary whitespace-pre-wrap font-sans leading-relaxed bg-bg-tertiary rounded-lg p-3">
             {script.changelog}
           </pre>
+        )}
+      </Section>
+
+      {/* Version history timeline */}
+      {allVersions.length > 1 ? (
+        <Section title="版本历史" icon={<History size={14} />}>
+          <div className="relative pl-6 border-l-2 border-border-light space-y-5">
+            {allVersions.map((v, i) => {
+              const isLatest = i === 0
+              return (
+                <div key={v.id} className={`relative ${isLatest ? '' : ''}`}>
+                  {/* Timeline dot */}
+                  <div
+                    className={`absolute -left-[25px] top-1 w-3 h-3 rounded-full border-2 ${
+                      isLatest
+                        ? 'bg-primary border-primary'
+                        : 'bg-bg-card border-border-light'
+                    }`}
+                  />
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-sm font-semibold ${isLatest ? 'text-primary' : 'text-text-primary'}`}>
+                      v{v.version}
+                    </span>
+                    {isLatest && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                        最新
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-text-muted">
+                    {new Date(v.createdAt).toLocaleString('zh-CN')}
+                  </span>
+                  {v.changelog && (
+                    <pre className="mt-2 text-xs text-text-secondary whitespace-pre-wrap font-sans leading-relaxed bg-bg-tertiary rounded-lg p-2.5">
+                      {v.changelog}
+                    </pre>
+                  )}
+                  {v.checksum && (
+                    <div className="mt-1 text-[10px] text-text-muted font-mono">
+                      checksum: {v.checksum.slice(0, 12)}...
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </Section>
       ) : (
         <div className="flex flex-col items-center justify-center py-10 gap-2 text-text-muted">
           <History size={24} />
-          <p className="text-sm">暂无版本更新日志</p>
+          <p className="text-sm">暂无历史版本</p>
+          <p className="text-xs">上传新版本后将在此显示版本更新记录</p>
         </div>
       )}
-
-      <div className="bg-bg-tertiary rounded-lg p-3 text-xs text-text-muted">
-        版本历史功能需要 Marketplace Server 支持版本管理 API，当前仅显示最新版本。
-      </div>
     </div>
   )
 }

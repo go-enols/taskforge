@@ -181,6 +181,11 @@ router.post(
         m.entryPoint, checksum, filename, tagsStr, m.changelog || "",
         0, visible, createdBy, reviewStatus, "", 0, 0, now, now
       );
+      // Record initial version in version history
+      stmts.versionInsert.run(
+        uuidv4(), id, m.version, m.changelog || "",
+        checksum, filename, schemaStr, createdBy, now
+      );
     } catch (dbErr) {
       try { rmSync(filePath, { force: true }); } catch {}
       const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
@@ -251,6 +256,20 @@ router.put(
         now,
         req.params.id
       );
+      // When a new file is uploaded, create a version history record
+      if (req.file) {
+        stmts.versionInsert.run(
+          uuidv4(),
+          req.params.id,
+          (version || existing.version) as string,
+          (changelog !== undefined ? changelog : existing.changelog) as string || "",
+          checksum,
+          fileName,
+          schemaStr,
+          req.user?.id || (existing.created_by as string) || null,
+          now
+        );
+      }
     } catch (dbErr) {
       const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
       res.status(500).json({ error: { message: `数据库更新失败: ${msg}`, code: "DB_ERROR" } });
@@ -260,6 +279,36 @@ router.put(
     res.json({ data: rowToScript(row) });
   }
 );
+
+/** 版本历史 API */
+
+/**
+ * 获取脚本的版本历史路由
+ * @function
+ * @name getScriptVersions
+ * @description 按脚本 ID 查询 `script_versions` 表中的所有版本记录，并按创建时间降序排列。
+ * @route GET /api/scripts/:id/versions
+ * @authentication 无
+ * @returns {Object} JSON 响应，data 字段包含版本数组 `{ version, changelog, checksum, createdBy, createdAt }`
+ */
+router.get("/:id/versions", (req: Request, res: Response) => {
+  const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
+  if (!existing) {
+    res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
+    return;
+  }
+  const rows = stmts.versionGetByScriptId.all(req.params.id) as Record<string, unknown>[];
+  const versions = rows.map((row) => ({
+    id: row.id as string,
+    version: row.version as string,
+    changelog: (row.changelog as string) || "",
+    checksum: row.checksum as string,
+    schema: JSON.parse((row.schema as string) || "{}"),
+    createdBy: row.created_by as string | null,
+    createdAt: row.created_at as string,
+  }));
+  res.json({ data: versions });
+});
 
 /** DELETE — 删除脚本 */
 router.delete(

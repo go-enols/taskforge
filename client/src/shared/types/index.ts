@@ -725,6 +725,24 @@ export interface RemoteScript {
   updatedAt: string
 }
 
+/** 脚本版本历史记录 */
+export interface ScriptVersion {
+  /** 版本 UUID */
+  id: string
+  /** 版本号 */
+  version: string
+  /** 该版本的更新日志 */
+  changelog: string
+  /** 该版本 ZIP 的 SHA256 校验和 */
+  checksum: string
+  /** 该版本的 JSON Schema */
+  schema: Record<string, unknown>
+  /** 创建者用户 ID */
+  createdBy: string | null
+  /** ISO 8601 创建时间 */
+  createdAt: string
+}
+
 /** 脚本评分/评论 */
 export interface ScriptReview {
   /** 评分 UUID */

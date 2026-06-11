@@ -124,6 +124,34 @@ try {
   }
 }
 
+/** 迁移：创建 script_versions 表（版本历史） */
+try {
+  const versionTable = db.pragma('table_info(script_versions)') as Array<{ name: string }>
+  if (!versionTable) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS script_versions (
+        id TEXT PRIMARY KEY,
+        script_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        changelog TEXT NOT NULL DEFAULT '',
+        checksum TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        schema TEXT NOT NULL DEFAULT '{}',
+        created_by TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_script_versions_script_id ON script_versions(script_id);
+    `)
+    console.log('[db] migrated: script_versions table created')
+  }
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (!msg.includes('already exists')) {
+    console.error('[db] Version table migration error:', msg)
+  }
+}
+
 /** 建表语句：scripts（脚本）、templates（模板）、users（用户）、script_reviews（评分/评论） */
 db.exec(`
   CREATE TABLE IF NOT EXISTS scripts (
@@ -239,6 +267,15 @@ const stmts = {
   scriptDelete: db.prepare('DELETE FROM scripts WHERE id = ?'),
   /** 增加脚本下载计数 */
   scriptIncrementDownloads: db.prepare('UPDATE scripts SET downloads = downloads + 1 WHERE id = ?'),
+
+  /** 按脚本 ID 获取所有历史版本（按创建时间降序） */
+  versionGetByScriptId: db.prepare('SELECT * FROM script_versions WHERE script_id = ? ORDER BY created_at DESC'),
+  /** 插入新版本记录 */
+  versionInsert: db.prepare(
+    'INSERT INTO script_versions (id, script_id, version, changelog, checksum, file_path, schema, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ),
+  /** 获取单个版本详情 */
+  versionGetById: db.prepare('SELECT * FROM script_versions WHERE id = ?'),
 
   /** 插入/更新评分（upsert：插入，冲突时更新评分和评论） */
   reviewUpsert: db.prepare(

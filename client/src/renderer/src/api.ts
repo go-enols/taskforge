@@ -19,7 +19,8 @@ import type {
   RemoteTemplate,
   TaskTemplate,
   TaskOutput,
-  ProjectTemplate
+  ProjectTemplate,
+  ScriptVersion
 } from './types'
 import { call } from './transport'
 
@@ -556,6 +557,14 @@ export const marketplaceApi = {
     })
     if (!resp.ok) throw new Error(`Failed to delete script: ${resp.status}`)
     return resp.json()
+  },
+
+  getScriptVersions: async (scriptId: string) => {
+    const base = await getMarketplaceUrl()
+    const resp = await fetch(`${base}/api/scripts/${scriptId}/versions`)
+    if (!resp.ok) throw new Error(`Failed to fetch versions: ${resp.status}`)
+    const json = await resp.json()
+    return (json.data ?? []) as ScriptVersion[]
   },
 
   deleteTemplate: async (id: string) => {
