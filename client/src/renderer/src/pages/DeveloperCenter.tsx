@@ -524,6 +524,8 @@ Install via TaskForge marketplace, then create a task using this script.
   const [editForm, setEditForm] = useState({ name: '', description: '', version: '', tags: '', changelog: '' })
   /** Optional new code package (folder or ZIP) selected in the My Scripts edit modal */
   const [editZipPath, setEditZipPath] = useState('')
+  /** Whether the selected editZipPath is a folder (true) or ZIP file (false) */
+  const [editZipIsFolder, setEditZipIsFolder] = useState(false)
   /** manifest.json from editZipPath (if readable) — drives version auto-bump */
   const [editZipManifest, setEditZipManifest] = useState<{ version?: string } | null>(null)
   const [editAutoBumpVersion, setEditAutoBumpVersion] = useState(true)
@@ -567,6 +569,7 @@ Install via TaskForge marketplace, then create a task using this script.
     const result = await fileApi.selectFolder()
     if (result.canceled || !result.folderPath) return
     setEditZipPath(result.folderPath)
+    setEditZipIsFolder(true)
     await loadEditManifest(result.folderPath)
   }, [loadEditManifest])
 
@@ -574,11 +577,13 @@ Install via TaskForge marketplace, then create a task using this script.
     const result = await dialogApi.openFile([{ name: 'ZIP', extensions: ['zip'] }])
     if (result.canceled || !result.filePath) return
     setEditZipPath(result.filePath)
+    setEditZipIsFolder(false)
     await loadEditManifest(result.filePath)
   }, [loadEditManifest])
 
   const handleEditClearZip = useCallback(() => {
     setEditZipPath('')
+    setEditZipIsFolder(false)
     setEditZipManifest(null)
   }, [])
 
@@ -592,6 +597,7 @@ Install via TaskForge marketplace, then create a task using this script.
       changelog: script.changelog || ''
     })
     setEditZipPath('')
+    setEditZipIsFolder(false)
     setEditZipManifest(null)
   }
 
@@ -604,7 +610,19 @@ Install via TaskForge marketplace, then create a task using this script.
         .map((t) => t.trim())
         .filter(Boolean)
       if (editZipPath) {
-        // ZIP re-upload via PUT multipart — server re-validates manifest and replaces binary
+
+        // If the user selected a folder, auto-ZIP it first (same as scaffold tab flow)
+        let actualZipPath = editZipPath
+        if (editZipIsFolder) {
+          const folderName = editZipPath.split(/[/\\]/).pop() || 'script'
+          const tmpZipPath = `${await call<string>('app:getTempDir')}/${folderName}-${Date.now()}.zip`
+          const zipResult = await zipApi.create(tmpZipPath, editZipPath)
+          if (!zipResult.success) {
+            throw new Error(zipResult.error || 'ZIP creation failed')
+          }
+          actualZipPath = tmpZipPath
+        }
+
         const formFields: Record<string, string> = {
           name: editForm.name.trim(),
           description: editForm.description.trim(),
@@ -615,7 +633,7 @@ Install via TaskForge marketplace, then create a task using this script.
         const result = await marketplaceApi.updateScript(
           editScript.id,
           formFields,
-          editZipPath
+          actualZipPath
         )
         if (!result.success) {
           throw new Error(result.error || `Update failed (status ${result.status})`)
