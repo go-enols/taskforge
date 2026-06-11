@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file TemplateReview — 模板审核页面
  * @description 管理员审核数据模板（Account templates）并管理项目模板（Project templates）可见性。
  *              Tab 1: 数据模板审核
@@ -7,11 +7,11 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, Clock, Eye, EyeOff } from 'lucide-react'
-import { marketplaceApi, projectTemplateApi } from '../api'
+import { Check, X, Clock } from 'lucide-react'
+import { marketplaceApi } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../utils/toast'
-import type { RemoteTemplate, ProjectTemplate } from '../../../shared/types'
+import type { RemoteTemplate, RemoteProjectTemplate } from '../../../shared/types'
 
 type Tab = 'data' | 'project'
 
@@ -27,8 +27,10 @@ export default function TemplateReview(): React.JSX.Element {
   const [reviewingId, setReviewingId] = useState<string | null>(null)
 
   // 项目模板（本地管理可见性）
-  const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>([])
+  const [projectTemplates, setProjectTemplates] = useState<RemoteProjectTemplate[]>([])
   const [projectLoading, setProjectLoading] = useState(true)
+  const [projectComments, setProjectComments] = useState<Record<string, string>>({})
+  const [projectReviewingId, setProjectReviewingId] = useState<string | null>(null)
 
   const fetchDataTemplates = useCallback(async () => {
     setLoading(true)
@@ -45,7 +47,8 @@ export default function TemplateReview(): React.JSX.Element {
   const fetchProjectTemplates = useCallback(async () => {
     setProjectLoading(true)
     try {
-      setProjectTemplates(await projectTemplateApi.list())
+      const res = await marketplaceApi.getPendingProjectTemplates()
+      setProjectTemplates(res.data?.items || [])
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '获取项目模板失败')
     } finally {
@@ -78,13 +81,22 @@ export default function TemplateReview(): React.JSX.Element {
     }
   }
 
-  const handleToggleProjectVisible = async (tpl: ProjectTemplate) => {
+  const handleProjectReview = async (id: string, action: 'approve' | 'reject') => {
+    setProjectReviewingId(id)
+    const comment = projectComments[id] ?? ''
     try {
-      await projectTemplateApi.update(tpl.id, { enabled: !tpl.enabled })
-      toast.success(tpl.enabled ? '已禁用' : '已启用')
+      await marketplaceApi.reviewProjectTemplate(id, action, comment)
+      toast.success(action === 'approve' ? '已批准' : '已拒绝')
+      setProjectComments((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
       fetchProjectTemplates()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '操作失败')
+      toast.error(e instanceof Error ? e.message : '审核失败')
+    } finally {
+      setProjectReviewingId(null)
     }
   }
 
@@ -133,11 +145,17 @@ export default function TemplateReview(): React.JSX.Element {
           t={t}
         />
       ) : (
-        <ProjectTemplateManager
+        <DataTemplateReview
           templates={projectTemplates}
           loading={projectLoading}
+          reviewComments={projectComments}
+          reviewingId={projectReviewingId}
+          setReviewComments={setProjectComments}
           onRefresh={fetchProjectTemplates}
-          onToggleVisible={handleToggleProjectVisible}
+          onReview={handleProjectReview}
+          t={t}
+          titlePrefix="项目模板"
+          getMeta={(item) => item.fields?.length + ' 个字段'}
         />
       )}
     </div>
@@ -148,8 +166,8 @@ export default function TemplateReview(): React.JSX.Element {
    Data template review sub-component
    ═══════════════════════════════════════════ */
 
-function DataTemplateReview(props: {
-  templates: RemoteTemplate[]
+function DataTemplateReview<T extends { id: string; name: string; description?: string; updatedAt?: string; createdAt?: string }>(props: {
+  templates: T[]
   loading: boolean
   reviewComments: Record<string, string>
   reviewingId: string | null
@@ -157,14 +175,17 @@ function DataTemplateReview(props: {
   onRefresh: () => void
   onReview: (id: string, action: 'approve' | 'reject') => Promise<void>
   t: (k: string, opts?: Record<string, unknown>) => string
+  titlePrefix?: string
+  /** optional extra info per item, shown alongside the name */
+  getMeta?: (item: T) => string
 }): React.JSX.Element {
-  const { templates, loading, reviewComments, reviewingId, setReviewComments, onRefresh, onReview, t } = props
+  const { templates, loading, reviewComments, reviewingId, setReviewComments, onRefresh, onReview, t, titlePrefix, getMeta } = props
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">数据模板审核</h1>
+          <h1 className="text-2xl font-bold">{titlePrefix ? titlePrefix + '审核' : '数据模板审核'}</h1>
           <p className="text-text-muted text-sm">
             {t('review.pendingCount', { count: templates.length })}
           </p>
@@ -198,21 +219,37 @@ function DataTemplateReview(props: {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-medium text-text-primary">{item.name}</h3>
-                    <span className="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted font-mono">
-                      v{item.version}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted font-mono">
-                      {item.type}
-                    </span>
+                    {(item as any).version && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted font-mono">
+                        v{(item as any).version}
+                      </span>
+                    )}
+                    {(item as any).type && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted font-mono">
+                        {(item as any).type}
+                      </span>
+                    )}
+                    {getMeta && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted font-mono">
+                        {getMeta(item)}
+                      </span>
+                    )}
                     <span className="text-xs px-2 py-0.5 rounded bg-warning/10 text-warning flex items-center gap-1">
                       <Clock size={12} />
                       {t('review.pending')}
                     </span>
                   </div>
                   <p className="text-xs text-text-muted font-mono mt-1">ID: {item.id}</p>
-                  <p className="text-xs text-text-muted mt-1">
-                    {t('developerPending.submitted')}: {new Date(item.updatedAt).toLocaleString()}
-                  </p>
+                  {'updatedAt' in item && (item as any).updatedAt && (
+                    <p className="text-xs text-text-muted mt-1">
+                      {t('developerPending.submitted')}: {new Date((item as any).updatedAt).toLocaleString()}
+                    </p>
+                  )}
+                  {'createdAt' in item && !('updatedAt' in item) && (item as any).createdAt && (
+                    <p className="text-xs text-text-muted mt-1">
+                      {t('developerPending.submitted')}: {new Date((item as any).createdAt).toLocaleString()}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -253,101 +290,6 @@ function DataTemplateReview(props: {
                   {t('review.reject')}
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ═══════════════════════════════════════════
-   Project template visibility manager
-   ═══════════════════════════════════════════ */
-
-function ProjectTemplateManager(props: {
-  templates: ProjectTemplate[]
-  loading: boolean
-  onRefresh: () => void
-  onToggleVisible: (tpl: ProjectTemplate) => Promise<void>
-}): React.JSX.Element {
-  const { templates, loading, onRefresh, onToggleVisible } = props
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">项目模板可见性</h1>
-          <p className="text-text-muted text-sm">
-            控制项目模板是否在创建项目时可见（管理员专用）
-          </p>
-        </div>
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="flex items-center gap-1 px-3 py-1.5 text-xs bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50"
-        >
-          刷新
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
-      ) : templates.length === 0 ? (
-        <div className="bg-bg-card rounded-xl border border-border-light p-12 text-center">
-          <p className="text-text-muted">暂无项目模板</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {templates.map((tpl) => (
-            <div
-              key={tpl.id}
-              className="bg-bg-card rounded-xl border border-border-light p-4 flex items-center justify-between"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-medium text-text-primary">{tpl.name}</h3>
-                  {tpl.builtIn && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-purple/10 text-purple">
-                      内置
-                    </span>
-                  )}
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${
-                      tpl.enabled
-                        ? 'bg-success/10 text-success'
-                        : 'bg-text-muted/10 text-text-muted'
-                    }`}
-                  >
-                    {tpl.enabled ? <Eye size={12} /> : <EyeOff size={12} />}
-                    {tpl.enabled ? '可见' : '已隐藏'}
-                  </span>
-                </div>
-                {tpl.description && (
-                  <p className="text-xs text-text-muted mt-1">{tpl.description}</p>
-                )}
-                <p className="text-xs text-text-muted mt-1">{tpl.fields.length} 字段</p>
-              </div>
-              <button
-                onClick={() => onToggleVisible(tpl)}
-                className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  tpl.enabled
-                    ? 'bg-danger text-white hover:bg-danger/90'
-                    : 'bg-success text-white hover:bg-success/90'
-                }`}
-              >
-                {tpl.enabled ? (
-                  <>
-                    <EyeOff size={14} /> 隐藏
-                  </>
-                ) : (
-                  <>
-                    <Eye size={14} /> 显示
-                  </>
-                )}
-              </button>
             </div>
           ))}
         </div>

@@ -639,6 +639,15 @@ export const marketplaceApi = {
     return resp.json()
   },
 
+  getPendingProjectTemplates: async () => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(base + '/api/project-templates/pending', { headers })
+    if (!resp.ok) throw new Error('Failed to fetch pending project templates: ' + resp.status)
+    const json = await resp.json()
+    return { data: { items: json.data?.items ?? [] } }
+  },
+
   getMyPendingTemplates: async () => {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
@@ -656,6 +665,18 @@ export const marketplaceApi = {
       body: JSON.stringify({ action, comment })
     })
     if (!resp.ok) throw new Error(`Failed to review template: ${resp.status}`)
+    return resp.json()
+  },
+
+  reviewProjectTemplate: async (id: string, action: 'approve' | 'reject', comment?: string) => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(base + '/api/project-templates/' + id + '/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ action, comment })
+    })
+    if (!resp.ok) throw new Error('Failed to review project template: ' + resp.status)
     return resp.json()
   },
 
