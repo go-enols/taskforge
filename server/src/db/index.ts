@@ -127,7 +127,7 @@ try {
 /** 迁移：创建 script_versions 表（版本历史） */
 try {
   const versionTable = db.pragma('table_info(script_versions)') as Array<{ name: string }>
-  if (!versionTable) {
+  if (!versionTable || versionTable.length === 0) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS script_versions (
         id TEXT PRIMARY KEY,
