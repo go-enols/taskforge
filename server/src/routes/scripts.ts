@@ -91,8 +91,10 @@ function rowToScript(row: Record<string, unknown>) {
 
 // ---- routes ----
 
-router.get("/", (_req: Request, res: Response) => {
-  const rows = stmts.scriptGetAllAdmin.all() as Record<string, unknown>[];
+router.get("/", (req: Request, res: Response) => {
+  // ?all=true returns all scripts (admin/developer review pages); default is visible-only
+  const showAll = req.query.all === 'true'
+  const rows = (showAll ? stmts.scriptGetAllAdmin.all() : stmts.scriptGetAll.all()) as Record<string, unknown>[];
   const items = rows.map(rowToScript);
   res.json({ data: { items, total: items.length } });
 });

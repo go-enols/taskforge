@@ -447,6 +447,22 @@ export const marketplaceApi = {
   listScripts: async (serverUrl?: string) => {
     const base = serverUrl || (await getMarketplaceUrl())
     const headers = await getMarketplaceHeaders()
+    const resp = await fetch(`${base}/api/scripts`, { headers })
+    if (!resp.ok) throw new Error(`Failed to fetch scripts: ${resp.status}`)
+    const json = await resp.json()
+    const data = json.data ?? json
+    return {
+      items: data.items ?? [],
+      total: data.total ?? 0,
+      page: data.page ?? 1,
+      pageSize: data.items?.length ?? data.total ?? 0,
+      totalPages: data.totalPages ?? 1
+    } as ListResponse<RemoteScript>
+  },
+
+  listAllScripts: async (serverUrl?: string) => {
+    const base = serverUrl || (await getMarketplaceUrl())
+    const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/scripts?all=true`, { headers })
     if (!resp.ok) throw new Error(`Failed to fetch scripts: ${resp.status}`)
     const json = await resp.json()
