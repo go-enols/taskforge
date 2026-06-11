@@ -53,11 +53,11 @@ jobs:
 
       - name: Install server dependencies
         working-directory: ./server
-        run: npm install --no-audit --no-fund
+        run: npm install
 
       - name: Build marketplace server
         working-directory: ./server
-        run: npx tsc --noEmit --skipLibCheck 2>&1
+        run: ./node_modules/.bin/tsc --noEmit --skipLibCheck
 
       - name: Clear electron-builder cache (Unix)
         if: runner.os != 'Windows'
