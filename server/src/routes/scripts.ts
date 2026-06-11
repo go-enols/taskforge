@@ -417,6 +417,52 @@ router.post(
   }
 );
 
+/** PATCH — 部分更新脚本字段（可见性、元数据等，不含 ZIP 替换） */
+router.patch(
+  "/:id",
+  requireRole("admin", "developer"),
+  (req: AuthenticatedRequest, res: Response) => {
+    const existing = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
+    if (!existing) {
+      res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
+      return;
+    }
+    if (req.user?.role !== "admin") {
+      if ((existing.created_by as string) !== req.user?.id) {
+        res.status(403).json({ error: { message: "无权修改此脚本", code: "FORBIDDEN" } });
+        return;
+      }
+    }
+    const { name, version, description, tags, changelog, visible } = req.body;
+    const now = new Date().toISOString();
+    stmts.scriptPatch.run(
+      visible !== undefined ? (visible ? 1 : 0) : existing.visible,
+      req.params.id
+    );
+    // If other fields are being updated, run a full update with existing values
+    if (name || version || description !== undefined || tags || changelog) {
+      stmts.scriptUpdate.run(
+        name || existing.name,
+        version || existing.version,
+        description !== undefined ? description : existing.description,
+        existing.schema,
+        existing.entry_point,
+        existing.checksum,
+        existing.file_path,
+        tags !== undefined ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : existing.tags,
+        changelog !== undefined ? changelog : existing.changelog,
+        visible !== undefined ? (visible ? 1 : 0) : existing.visible,
+        existing.review_status,
+        existing.review_comment || "",
+        now,
+        req.params.id
+      );
+    }
+    const row = stmts.scriptGetById.get(req.params.id) as Record<string, unknown>;
+    res.json({ data: rowToScript(row) });
+  }
+);
+
 /** PATCH — 审核脚本（仅管理员） */
 router.patch(
   "/:id/review",

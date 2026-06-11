@@ -1,8 +1,7 @@
 ﻿/**
  * @file 应用根组件
- * @description 应用入口组件，管理全局路由、认证状态、错误边界和页面缓存。
+ * @description 应用入口组件，管理全局路由、认证状态和错误边界。
  *              未登录时显示 LoginPage，登录后根据角色显示对应的导航页面。
- *              使用 KeepAliveOutlet 保持页面状态，避免切换路由时重新挂载。
  * @module renderer/core
  */
 import React, { Suspense, lazy } from "react"
@@ -11,7 +10,6 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import Layout from "./components/Layout"
 import ProtectedRoute from "./components/ProtectedRoute"
-import KeepAliveOutlet from "./components/KeepAliveOutlet"
 
 /** 懒加载页面组件：仪表盘 */
 const Dashboard = lazy(() => import("./pages/Dashboard"))
@@ -77,27 +75,25 @@ function AppContent(): React.ReactElement {
     <Layout>
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
-          <Route element={<KeepAliveOutlet />}>
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/marketplace" element={<ProtectedRoute roles={["admin", "developer", "user"]}><Templates /></ProtectedRoute>} />
-            <Route path="/marketplace/scripts/:id" element={<ProtectedRoute roles={["admin", "developer", "user"]}><ScriptDetail /></ProtectedRoute>} />
-            <Route path="/tasks" element={<ProtectedRoute roles={["developer", "user"]}><Tasks /></ProtectedRoute>} />
-            <Route path="/data" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
-            <Route path="/data/params" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
-            <Route path="/data/proxies" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
-            <Route path="/data/captcha" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
-            <Route path="/airdrops" element={<ProtectedRoute roles={["developer", "user"]}><Airdrops /></ProtectedRoute>} />
-            <Route path="/scheduler" element={<ProtectedRoute roles={["developer", "user"]}><Scheduler /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/stats" element={<ProtectedRoute roles={["admin"]}><Stats /></ProtectedRoute>} />
-            <Route path="/dev" element={<ProtectedRoute roles={["admin", "developer"]}><DeveloperCenter /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute roles={["admin"]}><AdminCenter /></ProtectedRoute>} />
+          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/marketplace" element={<ProtectedRoute roles={["admin", "developer", "user"]}><Templates /></ProtectedRoute>} />
+          <Route path="/marketplace/scripts/:id" element={<ProtectedRoute roles={["admin", "developer", "user"]}><ScriptDetail /></ProtectedRoute>} />
+          <Route path="/tasks" element={<ProtectedRoute roles={["developer", "user"]}><Tasks /></ProtectedRoute>} />
+          <Route path="/data" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+          <Route path="/data/params" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+          <Route path="/data/proxies" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+          <Route path="/data/captcha" element={<ProtectedRoute roles={["developer", "user"]}><Data /></ProtectedRoute>} />
+          <Route path="/airdrops" element={<ProtectedRoute roles={["developer", "user"]}><Airdrops /></ProtectedRoute>} />
+          <Route path="/scheduler" element={<ProtectedRoute roles={["developer", "user"]}><Scheduler /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/stats" element={<ProtectedRoute roles={["admin"]}><Stats /></ProtectedRoute>} />
+          <Route path="/dev" element={<ProtectedRoute roles={["admin", "developer"]}><DeveloperCenter /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute roles={["admin"]}><AdminCenter /></ProtectedRoute>} />
           <Route path="/admin/script-review" element={<ProtectedRoute roles={["admin"]}><ScriptReview /></ProtectedRoute>} />
           <Route path="/admin/templates" element={<ProtectedRoute roles={["admin"]}><TemplateReview /></ProtectedRoute>} />
-            <Route path="/logs" element={<ProtectedRoute roles={["admin"]}><Logs /></ProtectedRoute>} />
-            <Route path="/debug" element={<ProtectedRoute roles={["admin", "developer"]}><DebugPage /></ProtectedRoute>} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
+          <Route path="/logs" element={<ProtectedRoute roles={["admin"]}><Logs /></ProtectedRoute>} />
+          <Route path="/debug" element={<ProtectedRoute roles={["admin", "developer"]}><DebugPage /></ProtectedRoute>} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </Layout>
