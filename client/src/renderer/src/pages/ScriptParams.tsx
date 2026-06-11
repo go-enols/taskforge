@@ -54,7 +54,6 @@ const ScriptParams: React.FC = () => {
   const [editingItem, setEditingItem] = useState<ScriptParam | null>(null)
   const [editForm, setEditForm] = useState({ pool: '', notes: '', labels: '', data: '{}' })
   const [editDynamicFormValues, setEditDynamicFormValues] = useState<Record<string, unknown>>({})
-  const [editDataTab, setEditDataTab] = useState<'form' | 'json'>('json')
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -268,9 +267,6 @@ const ScriptParams: React.FC = () => {
     })
     setEditDynamicFormValues(item.data as Record<string, unknown>)
     setEditError(null)
-    // Default to form tab if the item's template has a schema
-    const tpl = templates.find((t) => t.id === item.templateId)
-    setEditDataTab(tpl?.schema && Object.keys(tpl.schema).length > 0 ? 'form' : 'json')
   }
 
   const handleEdit = useCallback(async () => {
@@ -278,7 +274,8 @@ const ScriptParams: React.FC = () => {
     let parsedData: Record<string, unknown> = {}
     const editTpl = templates.find((t) => t.id === editingItem.templateId)
     const editHasSchema = editTpl?.schema && Object.keys(editTpl.schema).length > 0
-    if (editHasSchema && editDataTab === 'form') {
+    const editHasFields = editHasSchema && jsonSchemaToFieldMeta(editTpl!.schema).length > 0
+    if (editHasFields) {
       parsedData = { ...editDynamicFormValues }
     } else {
       try {
@@ -309,7 +306,7 @@ const ScriptParams: React.FC = () => {
     } finally {
       setSaving(false)
     }
-  }, [editingItem, editForm, editDynamicFormValues, editDataTab, templates, t, fetchData])
+  }, [editingItem, editForm, editDynamicFormValues, templates, t, fetchData])
 
   return (
     <div className="space-y-4">
@@ -475,8 +472,6 @@ const ScriptParams: React.FC = () => {
               value={form.templateId}
               onChange={(e) => {
                 const tid = e.target.value
-                const tpl = templates.find((t) => t.id === tid)
-                const hasSchema = tpl?.schema && Object.keys(tpl.schema).length > 0
                 setForm((f) => ({ ...f, templateId: tid, dynamicFormValues: {}, data: '{}' }))
               }}
               className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
@@ -657,61 +652,64 @@ const ScriptParams: React.FC = () => {
               : null
             const editHasSchema = editTpl?.schema && Object.keys(editTpl.schema).length > 0
             const editFields = editHasSchema ? jsonSchemaToFieldMeta(editTpl!.schema) : []
-            const currentEditTab = editHasSchema ? editDataTab : 'json'
+            const editShowForm = editHasSchema && editFields.length > 0
             return (
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">
                   {t('scriptParams.data')}
                 </label>
-                {editHasSchema && (
-                  <div className="flex gap-1 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (editDataTab === 'form') {
-                          setEditForm((f) => ({
-                            ...f,
-                            data: JSON.stringify(editDynamicFormValues, null, 2)
-                          }))
-                        }
-                        setEditDataTab('json')
-                      }}
-                      className={`px-3 py-1 text-xs rounded-md transition-colors ${currentEditTab === 'json' ? 'bg-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-card-hover'}`}
-                    >
-                      {t('scriptParams.jsonTab')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (editDataTab === 'json') {
-                          try {
-                            const parsed = JSON.parse(editForm.data || '{}')
-                            setEditDynamicFormValues(parsed)
-                          } catch { /* keep existing */ }
-                        }
-                        setEditDataTab('form')
-                      }}
-                      className={`px-3 py-1 text-xs rounded-md transition-colors ${currentEditTab === 'form' ? 'bg-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-card-hover'}`}
-                    >
-                      {t('scriptParams.formTab')}
-                    </button>
-                  </div>
-                )}
-                {currentEditTab === 'form' && editFields.length > 0 ? (
-                  <DynamicForm
-                    fields={editFields}
-                    defaultValues={editDynamicFormValues}
-                    onSubmit={(values) => setEditDynamicFormValues(values)}
-                    submitLabel={t('common.save')}
-                  />
-                ) : (
-                  <textarea
-                    value={editForm.data}
-                    onChange={(e) => setEditForm((f) => ({ ...f, data: e.target.value }))}
-                    rows={6}
-                    className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono resize-none"
-                  />
-                )}
+                <div className="space-y-2">
+                  {editShowForm ? (
+                    <>
+                      <div className="border border-border-light rounded-lg p-4 bg-bg-card">
+                        <DynamicForm
+                          fields={editFields}
+                          defaultValues={editDynamicFormValues}
+                          onValuesChange={(values) => {
+                            setEditDynamicFormValues(values)
+                            setEditForm((f) => ({
+                              ...f,
+                              data: JSON.stringify(values, null, 2)
+                            }))
+                          }}
+                          submitLabel=""
+                        />
+                      </div>
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-text-muted hover:text-text-secondary select-none py-1">
+                          {t('scriptParams.advancedJsonView')}
+                        </summary>
+                        <textarea
+                          value={editForm.data}
+                          onChange={(e) => {
+                            const newData = e.target.value
+                            setEditForm((f) => ({ ...f, data: newData }))
+                            try {
+                              const parsed = JSON.parse(newData || '{}')
+                              setEditDynamicFormValues(parsed)
+                            } catch { /* invalid JSON, keep form values */ }
+                          }}
+                          rows={6}
+                          className="mt-1 w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono resize-y"
+                        />
+                      </details>
+                    </>
+                  ) : (
+                    <>
+                      {editHasSchema && editFields.length === 0 && (
+                        <p className="text-xs text-warning">
+                          {t('scriptParams.emptySchemaHint')}
+                        </p>
+                      )}
+                      <textarea
+                        value={editForm.data}
+                        onChange={(e) => setEditForm((f) => ({ ...f, data: e.target.value }))}
+                        rows={10}
+                        className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono resize-y"
+                      />
+                    </>
+                  )}
+                </div>
               </div>
             )
           })()}
