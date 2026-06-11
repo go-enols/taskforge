@@ -49,4 +49,4 @@ jobs:
 
       - name: Type check (server)
         working-directory: ./server
-        run: ./node_modules/.bin/tsc --noEmit --skipLibCheck
+        run: npx tsc --noEmit --skipLibCheck

@@ -57,7 +57,7 @@ jobs:
 
       - name: Build marketplace server
         working-directory: ./server
-        run: ./node_modules/.bin/tsc --noEmit --skipLibCheck
+        run: npx tsc --noEmit --skipLibCheck
 
       - name: Clear electron-builder cache (Unix)
         if: runner.os != 'Windows'
