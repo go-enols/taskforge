@@ -225,7 +225,7 @@ const stmts = {
   scriptGetPendingByAuthor: db.prepare("SELECT * FROM scripts WHERE created_by = ? AND review_status = 'pending' ORDER BY created_at DESC"),
   /** 更新脚本信息 */
   scriptUpdate: db.prepare(
-    'UPDATE scripts SET name=?, version=?, description=?, schema=?, entry_point=?, checksum=?, file_path=?, tags=?, changelog=?, updated_at=? WHERE id=?'
+    'UPDATE scripts SET name=?, version=?, description=?, schema=?, entry_point=?, checksum=?, file_path=?, tags=?, changelog=?, visible=?, review_status=?, review_comment=?, updated_at=? WHERE id=?'
   ),
   /** 切换脚本可见性 */
   scriptPatch: db.prepare(
