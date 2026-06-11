@@ -23,9 +23,11 @@ import {
   ArrowUp,
   ArrowDown,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Upload
 } from 'lucide-react'
 import { projectTemplateApi } from '../api'
+import { marketplaceApi } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import type { ProjectTemplate, ProjectTemplateField } from '../../../shared/types'
 import Modal from '../components/common/Modal'
@@ -50,6 +52,7 @@ const ProjectTemplatesPage: React.FC = () => {
   const [adding, setAdding] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [previewing, setPreviewing] = useState<ProjectTemplate | null>(null)
+  const [publishingId, setPublishingId] = useState<string | null>(null)
 
   /** 表单状态 */
   const [form, setForm] = useState({
@@ -179,6 +182,32 @@ const ProjectTemplatesPage: React.FC = () => {
     }
   }
 
+  const handlePublish = async (tpl: ProjectTemplate): Promise<void> => {
+    setPublishingId(tpl.id)
+    try {
+      await marketplaceApi.createProjectTemplate({
+        name: tpl.name,
+        description: tpl.description,
+        icon: tpl.icon,
+        fields: tpl.fields.map((f) => ({
+          name: f.name,
+          title: f.title,
+          type: f.type,
+          required: f.required,
+          default: f.default,
+          options: f.options,
+          placeholder: f.placeholder,
+          description: f.description
+        }))
+      })
+      toast.success('已上传到市场, 等待管理员审核')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '上传失败')
+    } finally {
+      setPublishingId(null)
+    }
+  }
+
   // ── 字段编辑辅助 ──
   const addField = (): void => {
     setForm((f) => ({
@@ -216,22 +245,6 @@ const ProjectTemplatesPage: React.FC = () => {
       ;[next[idx], next[target]] = [next[target], next[idx]]
       return { ...f, fields: next }
     })
-  }
-
-  const parseOptions = (raw: string): Array<{ label: string; value: string }> => {
-    return raw
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((line) => {
-        const [label, value] = line.split('|').map((s) => s.trim())
-        return { label: label || value || '', value: value || label || '' }
-      })
-  }
-
-  const optionsToText = (opts: Array<{ label: string; value: string }> | undefined): string => {
-    if (!opts || opts.length === 0) return ''
-    return opts.map((o) => `${o.label}|${o.value}`).join('\n')
   }
 
   return (
@@ -338,6 +351,19 @@ const ProjectTemplatesPage: React.FC = () => {
                     aria-label={t('common.edit')}
                   >
                     <Edit3 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handlePublish(tpl)}
+                    disabled={publishingId === tpl.id}
+                    className="p-1.5 text-text-muted hover:text-accent hover:bg-accent/10 rounded transition-colors disabled:opacity-40"
+                    title="上传到市场"
+                    aria-label="上传到市场"
+                  >
+                    {publishingId === tpl.id ? (
+                      <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Upload size={14} />
+                    )}
                   </button>
                   {!tpl.builtIn && (
                     <button
@@ -549,15 +575,61 @@ const ProjectTemplatesPage: React.FC = () => {
                       />
                     </div>
                     {field.type === 'select' && (
-                      <textarea
-                        placeholder={t('projectTemplates.fieldOptionsHint')}
-                        value={optionsToText(field.options)}
-                        onChange={(e) =>
-                          updateField(idx, { options: parseOptions(e.target.value) })
-                        }
-                        rows={3}
-                        className="w-full px-2 py-1.5 text-xs border border-border-light rounded bg-bg-card focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                      />
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-text-muted">选项 (label / value)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const opts = [...(field.options || []), { label: '', value: '' }]
+                              updateField(idx, { options: opts })
+                            }}
+                            className="text-[11px] px-2 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                          >
+                            + 添加选项
+                          </button>
+                        </div>
+                        {(field.options || []).map((opt, oi) => (
+                          <div key={oi} className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              placeholder="label"
+                              value={opt.label}
+                              onChange={(e) => {
+                                const opts = [...(field.options || [])]
+                                opts[oi] = { ...opts[oi], label: e.target.value }
+                                updateField(idx, { options: opts })
+                              }}
+                              className="flex-1 px-2 py-1 text-xs border border-border-light rounded bg-bg-card focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                            <input
+                              type="text"
+                              placeholder="value"
+                              value={opt.value}
+                              onChange={(e) => {
+                                const opts = [...(field.options || [])]
+                                opts[oi] = { ...opts[oi], value: e.target.value }
+                                updateField(idx, { options: opts })
+                              }}
+                              className="flex-1 px-2 py-1 text-xs border border-border-light rounded bg-bg-card focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const opts = (field.options || []).filter((_, i) => i !== oi)
+                                updateField(idx, { options: opts })
+                              }}
+                              className="shrink-0 p-1 text-text-muted hover:text-danger transition-colors"
+                              title="删除"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                        {(field.options || []).length === 0 && (
+                          <p className="text-[10px] text-text-muted">暂无选项, 请点击"添加选项"</p>
+                        )}
+                      </div>
                     )}
                     <label className="flex items-center gap-1.5 text-xs text-text-secondary">
                       <input

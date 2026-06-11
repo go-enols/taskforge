@@ -694,6 +694,28 @@ export const marketplaceApi = {
     return resp.json()
   },
 
+  /** 上传项目模板到市场 (开发者创建, 管理员审核) */
+  createProjectTemplate: async (data: {
+    name: string
+    description: string
+    icon?: string
+    fields: Array<{ name: string; title: string; type: string; required?: boolean; default?: unknown; options?: Array<{ label: string; value: string }>; placeholder?: string; description?: string }>
+  }) => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(base + '/api/project-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(data)
+    })
+    if (!resp.ok) {
+      const errBody = await resp.json().catch(() => ({}))
+      const msg = errBody?.error?.message || ('Failed to create project template: ' + resp.status)
+      throw new Error(msg)
+    }
+    return resp.json()
+  },
+
   /** 提交/更新脚本评分 */
   submitReview: async (
     scriptId: string,
