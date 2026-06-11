@@ -673,7 +673,7 @@ export const marketplaceApi = {
   patchProjectTemplate: async (id: string, data: Record<string, unknown>) => {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
-    const resp = await fetch(base + '/api/project-templates/' + id, {
+    const resp = await fetch(base + '/api/project-templates/' + id + '/visibility', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(data)
