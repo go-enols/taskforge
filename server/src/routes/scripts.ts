@@ -91,13 +91,22 @@ function rowToScript(row: Record<string, unknown>) {
 
 // ---- routes ----
 
-router.get("/", (req: Request, res: Response) => {
-  // ?all=true returns all scripts (admin/developer review pages); default is visible-only
-  const showAll = req.query.all === 'true'
-  const rows = (showAll ? stmts.scriptGetAllAdmin.all() : stmts.scriptGetAll.all()) as Record<string, unknown>[];
-  const items = rows.map(rowToScript);
-  res.json({ data: { items, total: items.length } });
-});
+router.get("/", (req: AuthenticatedRequest, res: Response) => {
+    const showAll = req.query.all === "true" && req.user?.role === "admin";
+    let rows: Record<string, unknown>[];
+    if (showAll) {
+      rows = stmts.scriptGetAllAdmin.all() as Record<string, unknown>[];
+    } else if (req.user?.id && (req.user?.role === "developer" || req.user?.role === "admin")) {
+      const visibleRows = stmts.scriptGetAll.all() as Record<string, unknown>[];
+      const authorRows = stmts.scriptGetByAuthor.all(req.user.id) as Record<string, unknown>[];
+      const visibleIds = new Set(visibleRows.map((r) => r.id));
+      rows = [...visibleRows, ...authorRows.filter((r) => !visibleIds.has(r.id))];
+    } else {
+      rows = stmts.scriptGetAll.all() as Record<string, unknown>[];
+    }
+    const items = rows.map(rowToScript);
+    res.json({ data: { items, total: items.length } });
+  });
 
 /** 获取待审核脚本列表（管理员专用） */
 router.get("/pending", requireRole("admin"), (_req: AuthenticatedRequest, res: Response) => {
@@ -115,7 +124,7 @@ router.get("/my-pending", requireRole("admin", "developer"), (req: Authenticated
 
 router.get("/:id", (req: AuthenticatedRequest, res: Response) => {
   const row = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
-  if (!row || ((row.visible as number) !== 1 && req.user?.role !== "admin")) {
+  if (!row || ((row.visible as number) !== 1 && req.user?.role !== "admin" && req.user?.id !== (row.created_by as string))) {
     res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
     return;
   }
@@ -124,7 +133,7 @@ router.get("/:id", (req: AuthenticatedRequest, res: Response) => {
 
 router.get("/:id/download", (req: AuthenticatedRequest, res: Response) => {
   const row = stmts.scriptGetById.get(req.params.id) as Record<string, unknown> | undefined;
-  if (!row || ((row.visible as number) !== 1 && req.user?.role !== "admin")) {
+  if (!row || ((row.visible as number) !== 1 && req.user?.role !== "admin" && req.user?.id !== (row.created_by as string))) {
     res.status(404).json({ error: { message: "脚本不存在", code: "NOT_FOUND" } });
     return;
   }
