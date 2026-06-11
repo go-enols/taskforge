@@ -21,7 +21,10 @@ import {
   MessageSquare,
   Pencil,
   Trash2,
-  X
+  X,
+  Copy,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react'
 import { fileApi, zipApi, serverApi, getMarketplaceUrl, getMarketplaceHeaders, dialogApi, marketplaceApi } from '../api'
 import { call } from '../transport'
@@ -88,6 +91,8 @@ export default function DeveloperCenter() {
   const [generating, setGenerating] = useState(false)
   const [availableTemplates, setAvailableTemplates] = useState<{id: string, name: string, type: string}[]>([])
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
+  const [showDemoPanel, setShowDemoPanel] = useState(false)
+  const [demoConfigContent, setDemoConfigContent] = useState('')
 
   const loadTemplates = async () => {
     try {
@@ -208,26 +213,50 @@ export default function DeveloperCenter() {
         ? `\n// Schema params: ${schemaProps.map((p) => p.key).join(', ')}`
         : ''
       const entryCode = `// ${projectMeta.name.trim() || 'Script'}${templateComment}${permComment}${schemaFieldsNote}
-const config = JSON.parse(process.env.TASK_CONFIG || '{}')
+// Runtime detection
+const path = require('path')
+const fs = require('fs')
+const isTaskForge = !!process.env.TASK_ID
+
+// Load config from TaskForge env or local demo file
+let config, wallets, accounts
+if (isTaskForge) {
+  config = JSON.parse(process.env.TASK_CONFIG || '{}')
+  wallets = JSON.parse(process.env.TASK_DATA_WALLETS || '[]')
+  accounts = JSON.parse(process.env.TASK_DATA_ACCOUNTS || '[]')
+} else {
+  const demoPath = path.join(__dirname, 'demo-config.json')
+  if (fs.existsSync(demoPath)) {
+    const demo = JSON.parse(fs.readFileSync(demoPath, 'utf-8'))
+    config = demo.config || {}
+    wallets = demo.wallets || []
+    accounts = demo.accounts || []
+    console.log('[demo] Running in standalone mode with demo data')
+  } else {
+    console.warn('[demo] No demo-config.json found, using empty data')
+    config = {}
+    wallets = []
+    accounts = []
+  }
+}
+
 console.log('[script] started with config:', JSON.stringify(config))
 
 // ── 权限自检（由 TaskForge 注入）──
-const canNetwork = process.env.TASK_PERM_NETWORK === '1'
-const canFilesystem = process.env.TASK_PERM_FILESYSTEM === '1'
-const isSandbox = process.env.TASK_SANDBOX === '1'
+const canNetwork = isTaskForge ? process.env.TASK_PERM_NETWORK === '1' : true
+const canFilesystem = isTaskForge ? process.env.TASK_PERM_FILESYSTEM === '1' : true
+const isSandbox = isTaskForge ? process.env.TASK_SANDBOX === '1' : false
 if (isSandbox) {
   console.warn('[script] Running in sandbox mode — network and filesystem access disabled')
 }
 
 // ── 读取钱包数据（由 TaskForge 注入）──
-const wallets = JSON.parse(process.env.TASK_DATA_WALLETS || '[]')
 if (wallets.length > 0) {
   console.log('[script] loaded', wallets.length, 'wallet(s)')
 }
 
 // ── 读取账户数据（由 TaskForge 注入）──
-const accounts = JSON.parse(process.env.TASK_DATA_ACCOUNTS || '[]')
-if (scriptParams.length > 0) {
+if (accounts.length > 0) {
   console.log('[script] loaded', accounts.length, 'account(s)')
 }
 
@@ -262,6 +291,22 @@ Install via TaskForge marketplace, then create a task using this script.
       const manifestJson5 = buildManifestJson5(manifest)
       await fileApi.writeFile(`${dir}/manifest.json`, manifestJson5)
       await fileApi.writeFile(indexPath, entryCode)
+      // Generate demo config for standalone testing
+      const demoConfigData: Record<string, unknown> = {}
+      for (const prop of schemaProps) {
+        if (prop.type === 'string') demoConfigData[prop.key] = `${prop.label || prop.key}_示例值`
+        else if (prop.type === 'number') demoConfigData[prop.key] = 0
+        else if (prop.type === 'boolean') demoConfigData[prop.key] = false
+        else demoConfigData[prop.key] = ''
+      }
+      const demoConfigJsonContent = JSON.stringify({
+        config: demoConfigData,
+        wallets: [],
+        accounts: []
+      }, null, 2)
+      await fileApi.writeFile(`${dir}/demo-config.json`, demoConfigJsonContent)
+      setDemoConfigContent(demoConfigJsonContent)
+      setShowDemoPanel(true)
       await fileApi.writeFile(`${dir}/README.md`, readme)
       setProjectFolder(dir)
       setProjectStep(2)
@@ -772,6 +817,54 @@ Install via TaskForge marketplace, then create a task using this script.
                   <ArrowRight size={14} />跳转到上传
                 </button>
               </div>
+
+              {/* Demo run panel */}
+              <div className="border border-border-light rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setShowDemoPanel(!showDemoPanel)}
+                  className="w-full flex items-center gap-2 px-4 py-3 bg-bg-tertiary hover:bg-bg-input transition-colors text-sm font-medium text-text-primary"
+                >
+                  {showDemoPanel ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  {t('quickDev.testRun', '测试运行')}
+                </button>
+                {showDemoPanel && (
+                  <div className="p-4 space-y-3 bg-bg-card">
+                    <p className="text-xs text-text-muted">
+                      {t('quickDev.standaloneHint', '直接运行 node index.js 即可使用示例数据测试')}
+                    </p>
+                    <div>
+                      <label className="text-xs font-medium text-text-secondary mb-1 block">
+                        {t('quickDev.runCommand', '运行命令')}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 bg-bg-page border border-border-light rounded-lg px-3 py-2 text-xs text-text-primary font-mono select-all">
+                          node {projectMeta.entry || 'index.js'}
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(`node ${projectMeta.entry || 'index.js'}`)
+                            toast.success('已复制')
+                          }}
+                          className="shrink-0 p-2 rounded-lg border border-border-light text-text-muted hover:text-text-primary hover:border-primary transition-colors"
+                          title="复制命令"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    {demoConfigContent && (
+                      <div>
+                        <label className="text-xs font-medium text-text-secondary mb-1 block">
+                          demo-config.json
+                        </label>
+                        <pre className="bg-bg-page border border-border-light rounded-lg p-3 text-xs text-text-secondary overflow-auto max-h-48 font-mono">
+                          {demoConfigContent}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1116,8 +1209,8 @@ Install via TaskForge marketplace, then create a task using this script.
                     >
                       <Trash2 size={14} />
                     </button>
-                  </div>
-                </div>
+              </div>
+            </div>
 
                 {script.description && (
                   <p className="text-sm text-text-secondary mb-2">{script.description}</p>

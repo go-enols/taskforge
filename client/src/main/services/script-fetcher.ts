@@ -85,7 +85,7 @@ export class ScriptFetcher {
     if (!response.ok) {
       throw new Error(`Failed to fetch script list: ${response.status} ${response.statusText}`)
     }
-    // 解析响应：兼容 {data: {items: [...]}} 和直接数组两种格式   
+    // 解析响应：兼容 {data: {items: [...]}} 和直接数组两种格式
     const json = (await response.json()) as Record<string, unknown>
 
     const data = json.data as Record<string, unknown> | undefined
@@ -197,9 +197,13 @@ export class ScriptFetcher {
 
       // 检查 manifest 声明的 requiredAccountTemplateIds 中哪些账户模板本地未下载
       // 检查 dataRequirements 中是否有未下载的脚本参数模板
-      const dataReqs = manifest.dataRequirements as Array<{
-        key: string; source: string; templateType: string
-      }> | undefined
+      const dataReqs = manifest.dataRequirements as
+        | Array<{
+            key: string
+            source: string
+            templateType: string
+          }>
+        | undefined
       if (dataReqs && dataReqs.length > 0) {
         const scriptParamReqs = dataReqs.filter((r) => r.source === 'script_param')
         if (scriptParamReqs.length > 0) {
@@ -213,7 +217,9 @@ export class ScriptFetcher {
               requiredIds,
               missing
             })
-            ;(installed as InstalledScript & { missingAccountTemplates?: string[] }).missingAccountTemplates = missing
+            ;(
+              installed as InstalledScript & { missingAccountTemplates?: string[] }
+            ).missingAccountTemplates = missing
           }
         }
       }

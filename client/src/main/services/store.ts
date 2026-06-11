@@ -1,9 +1,8 @@
 /**
  * @file StoreService — SQLite 数据访问层（核心持久层）
- * @description 封装所有数据表的 CRUD 操作，采用 better-sqlite3 同步 API + 预编译语句。
- *              JSON 字段自动序列化/反序列化，提供钱包、脚本参数、代理、任务、空投项目、
- *              模板、设置、验证码密钥、代理提供商、应用日志等实体的统一数据访问接口。
- *              内部维护 WalletRepository / ProxyRepository / TaskRepository 三个子仓库。
+ * @description 封装所有数据表的 CRUD 操作，采用 better-sqlite3 同步 API，
+ *              所有实体 CRUD 委托给对应的 Repository 子仓库处理。
+ *              提供向后兼容的方法签名供 IPC handler 调用。
  * @module main/services
  */
 
@@ -36,9 +35,21 @@ import type {
   ProjectTemplate,
   ProjectTemplateField
 } from '../../shared/types'
-import { WalletRepository } from './repositories/wallet'
-import { ProxyRepository } from './repositories/proxy'
-import { TaskRepository } from './repositories/task'
+import {
+  WalletRepository,
+  ProxyRepository,
+  TaskRepository,
+  ScriptParamRepository,
+  TemplateRepository,
+  TaskTemplateRepository,
+  ScheduledTaskRepository,
+  AirdropProjectRepository,
+  CaptchaKeyRepository,
+  ProxyProviderRepository,
+  AppLogRepository,
+  SettingsRepository,
+  ProjectTemplateRepository
+} from './repositories'
 import { Logger } from '../utils/logger'
 
 export type {
@@ -81,7 +92,8 @@ function fromJson<T>(val: JsonField): T | null {
   if (val === null) return null
   try {
     return JSON.parse(val) as T
-  } catch {
+  } catch (err) {
+    console.error('[StoreService.fromJson] JSON parse failed:', String(err).slice(0, 200))
     return null
   }
 }
@@ -94,7 +106,8 @@ function fromJsonArray<T>(val: JsonField): T[] {
   if (val === null) return []
   try {
     return JSON.parse(val) as T[]
-  } catch {
+  } catch (err) {
+    console.error('[StoreService.fromJsonArray] JSON parse failed:', String(err).slice(0, 200))
     return []
   }
 }
@@ -110,10 +123,9 @@ function nowISO(): string {
  * 职责范围：
  * - 初始化 SQLite 数据库（WAL 模式 + 外键约束）
  * - 自动建表与迁移（向后兼容）
- * - 预编译所有 SQL 语句以提升性能
- * - 提供每个实体类型的完整 CRUD + 分页搜索
+ * - 提供每个实体类型的完整 CRUD + 分页搜索（通过子仓库委托）
  * - 聚合/统计查询（Dashboard 数据）
- * - 委托子仓库处理特定逻辑（钱包、代理、任务）
+ * - 委托子仓库处理特定逻辑（钱包、代理、任务等）
  *
  * @example
  * ```ts
@@ -125,14 +137,32 @@ function nowISO(): string {
 export class StoreService {
   /** SQLite 数据库连接实例 */
   private db: Database.Database
-  /** 预编译语句缓存（名称 → PreparedStatement） */
-  private stmts: Map<string, Database.Statement>
   /** 钱包子仓库 */
   private _walletRepo: WalletRepository
   /** 代理子仓库 */
   private _proxyRepo: ProxyRepository
   /** 任务子仓库 */
   private _taskRepo: TaskRepository
+  /** 脚本参数子仓库 */
+  private _scriptParamRepo: ScriptParamRepository
+  /** 账户模板子仓库 */
+  private _templateRepo: TemplateRepository
+  /** 任务脚本模板子仓库 */
+  private _taskTemplateRepo: TaskTemplateRepository
+  /** 定时任务子仓库 */
+  private _scheduledTaskRepo: ScheduledTaskRepository
+  /** 空投项目子仓库 */
+  private _airdropRepo: AirdropProjectRepository
+  /** 验证码密钥子仓库 */
+  private _captchaKeyRepo: CaptchaKeyRepository
+  /** 代理提供商子仓库 */
+  private _proxyProviderRepo: ProxyProviderRepository
+  /** 应用日志子仓库 */
+  private _appLogRepo: AppLogRepository
+  /** 设置子仓库 */
+  private _settingsRepo: SettingsRepository
+  /** 项目模板子仓库 */
+  private _projectTemplateRepo: ProjectTemplateRepository
 
   /**
    * @param dbPath - SQLite 数据库文件路径
@@ -140,20 +170,22 @@ export class StoreService {
    */
   constructor(dbPath: string, encryption?: import('./encryption').EncryptionService) {
     this.db = new Database(dbPath)
-    this.stmts = new Map()
     this.db.pragma('journal_mode = WAL')
     this.db.pragma('foreign_keys = ON')
     this.initialize()
-    this.prepareStatements()
     this._walletRepo = new WalletRepository(this.db, encryption)
     this._proxyRepo = new ProxyRepository(this.db)
     this._taskRepo = new TaskRepository(this.db)
-
-    // seedProjectTemplates 使用 this.db 直接执行，不再依赖 this.stmts 缓存的预编译语句。
-    // 这避免了 prepareStatements 和 seedProjectTemplates 调用顺序不一致导致的 "Prepared statement not found" 错误。
-    // seedProjectTemplates 必须在 prepareStatements() 之后调用, 否则
-    // 它用到的 prepared statement (projectTemplate.exists / .insert)
-    // 还没注册, 会抛 "Prepared statement not found"
+    this._scriptParamRepo = new ScriptParamRepository(this.db)
+    this._templateRepo = new TemplateRepository(this.db)
+    this._taskTemplateRepo = new TaskTemplateRepository(this.db)
+    this._scheduledTaskRepo = new ScheduledTaskRepository(this.db)
+    this._airdropRepo = new AirdropProjectRepository(this.db)
+    this._captchaKeyRepo = new CaptchaKeyRepository(this.db)
+    this._proxyProviderRepo = new ProxyProviderRepository(this.db)
+    this._appLogRepo = new AppLogRepository(this.db)
+    this._settingsRepo = new SettingsRepository(this.db)
+    this._projectTemplateRepo = new ProjectTemplateRepository(this.db)
     this.seedProjectTemplates()
     Logger.setDbLogger((level, category, message, fields) => {
       this.addAppLog(level, category, message, fields)
@@ -173,6 +205,56 @@ export class StoreService {
   /** 获取任务子仓库（委托模式） */
   get taskRepo(): TaskRepository {
     return this._taskRepo
+  }
+
+  /** 获取脚本参数子仓库 */
+  get scriptParamRepo(): ScriptParamRepository {
+    return this._scriptParamRepo
+  }
+
+  /** 获取账户模板子仓库 */
+  get templateRepo(): TemplateRepository {
+    return this._templateRepo
+  }
+
+  /** 获取任务脚本模板子仓库 */
+  get taskTemplateRepo(): TaskTemplateRepository {
+    return this._taskTemplateRepo
+  }
+
+  /** 获取定时任务子仓库 */
+  get scheduledTaskRepo(): ScheduledTaskRepository {
+    return this._scheduledTaskRepo
+  }
+
+  /** 获取空投项目子仓库 */
+  get airdropRepo(): AirdropProjectRepository {
+    return this._airdropRepo
+  }
+
+  /** 获取验证码密钥子仓库 */
+  get captchaKeyRepo(): CaptchaKeyRepository {
+    return this._captchaKeyRepo
+  }
+
+  /** 获取代理提供商子仓库 */
+  get proxyProviderRepo(): ProxyProviderRepository {
+    return this._proxyProviderRepo
+  }
+
+  /** 获取应用日志子仓库 */
+  get appLogRepo(): AppLogRepository {
+    return this._appLogRepo
+  }
+
+  /** 获取设置子仓库 */
+  get settingsRepo(): SettingsRepository {
+    return this._settingsRepo
+  }
+
+  /** 获取项目模板子仓库 */
+  get projectTemplateRepo(): ProjectTemplateRepository {
+    return this._projectTemplateRepo
   }
 
   /** 数据库初始化：创建所有表和索引，执行向后兼容的数据库迁移 */
@@ -281,13 +363,10 @@ export class StoreService {
         earnings TEXT NOT NULL DEFAULT '[]',
         tags TEXT NOT NULL DEFAULT '[]',
         labels TEXT NOT NULL DEFAULT '[]',
+        template_id TEXT,
+        custom_fields TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS captcha_keys (
@@ -371,7 +450,7 @@ export class StoreService {
     }
   }
 
-  /** 迁移：为 airdrop_projects 表添加后续新增的字段（website, script_template_id, account_pool, template_id, custom_fields） */
+  /** 迁移：为 airdrop_projects 表添加后续新增的字段 */
   private migrateAirdropProjects(): void {
     const cols = this.db.prepare("PRAGMA table_info('airdrop_projects')").all() as Array<{
       name: string
@@ -459,7 +538,7 @@ export class StoreService {
         sortOrder: 20
       }
     ]
-    // 直接使用 this.db 执行（不依赖 prepared statement），避免初始化顺序问题
+
     const existsStmt = this.db.prepare('SELECT 1 FROM project_templates WHERE id = ?')
     const insertStmt = this.db.prepare(
       'INSERT INTO project_templates (id, name, description, icon, fields, built_in, enabled, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -482,1203 +561,226 @@ export class StoreService {
     }
   }
 
-  /** 预编译所有 SQL 语句并缓存到 this.stmts Map 中 */
-  private prepareStatements(): void {
-    const s = this.stmts
-    const db = this.db
+  // ================================================================
+  // 向后兼容包装方法 — 委托给对应的子仓库
+  // ================================================================
 
-    s.set(
-      'scriptParam.insert',
-      db.prepare(
-        'INSERT INTO script_params (id, template_id, data, pool, labels, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-    )
-    s.set('scriptParam.getById', db.prepare('SELECT * FROM script_params WHERE id = ?'))
-    s.set(
-      'scriptParam.update',
-      db.prepare(
-        'UPDATE script_params SET template_id=?, data=?, pool=?, labels=?, notes=?, updated_at=? WHERE id=?'
-      )
-    )
-    s.set('scriptParam.delete', db.prepare('DELETE FROM script_params WHERE id = ?'))
-    s.set('scriptParam.count', db.prepare('SELECT COUNT(*) as cnt FROM script_params'))
-    s.set(
-      'scriptParam.countByPool',
-      db.prepare('SELECT pool, COUNT(*) as cnt FROM script_params GROUP BY pool')
-    )
-
-    s.set(
-      'template.insert',
-      db.prepare(
-        'INSERT INTO templates (id, type, name, schema, version, is_local, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      )
-    )
-    s.set('template.getById', db.prepare('SELECT * FROM templates WHERE id = ?'))
-    s.set(
-      'template.update',
-      db.prepare(
-        'UPDATE templates SET type=?, name=?, schema=?, version=?, is_local=?, updated_at=? WHERE id=?'
-      )
-    )
-    s.set('template.delete', db.prepare('DELETE FROM templates WHERE id = ?'))
-
-    s.set(
-      'taskTemplate.insert',
-      db.prepare(
-        'INSERT INTO task_templates (id, name, version, description, install_path, manifest, remote_url, is_installed, downloaded_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-    )
-    s.set('taskTemplate.getById', db.prepare('SELECT * FROM task_templates WHERE id = ?'))
-    s.set(
-      'taskTemplate.update',
-      db.prepare(
-        'UPDATE task_templates SET name=?, version=?, description=?, install_path=?, manifest=?, remote_url=?, is_installed=?, downloaded_at=?, updated_at=? WHERE id=?'
-      )
-    )
-    s.set('taskTemplate.delete', db.prepare('DELETE FROM task_templates WHERE id = ?'))
-
-    s.set(
-      'scheduledTask.insert',
-      db.prepare(
-        'INSERT INTO scheduled_tasks (id, template_id, config, cron_expression, enabled, last_run, next_run, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-    )
-    s.set('scheduledTask.getById', db.prepare('SELECT * FROM scheduled_tasks WHERE id = ?'))
-    s.set(
-      'scheduledTask.update',
-      db.prepare(
-        'UPDATE scheduled_tasks SET template_id=?, config=?, cron_expression=?, enabled=?, last_run=?, next_run=? WHERE id=?'
-      )
-    )
-    s.set('scheduledTask.delete', db.prepare('DELETE FROM scheduled_tasks WHERE id = ?'))
-
-    s.set(
-      'airdrop.insert',
-      db.prepare(
-        'INSERT INTO airdrop_projects (id, name, chain, status, project_type, description, website, script_template_id, account_pool, links, eligibility_criteria, tasks, earnings, tags, labels, template_id, custom_fields, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-    )
-    s.set('airdrop.getById', db.prepare('SELECT * FROM airdrop_projects WHERE id = ?'))
-    s.set(
-      'airdrop.update',
-      db.prepare(
-        'UPDATE airdrop_projects SET name=?, chain=?, status=?, project_type=?, description=?, website=?, script_template_id=?, account_pool=?, links=?, eligibility_criteria=?, tasks=?, earnings=?, tags=?, labels=?, template_id=?, custom_fields=?, updated_at=? WHERE id=?'
-      )
-    )
-    s.set('airdrop.delete', db.prepare('DELETE FROM airdrop_projects WHERE id = ?'))
-
-    // project_templates CRUD
-    s.set(
-      'projectTemplate.insert',
-      db.prepare(
-        'INSERT INTO project_templates (id, name, description, icon, fields, built_in, enabled, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-    )
-    s.set(
-      'projectTemplate.update',
-      db.prepare(
-        'UPDATE project_templates SET name=?, description=?, icon=?, fields=?, built_in=?, enabled=?, sort_order=?, updated_at=? WHERE id=?'
-      )
-    )
-    s.set('projectTemplate.delete', db.prepare('DELETE FROM project_templates WHERE id = ?'))
-    s.set('projectTemplate.getById', db.prepare('SELECT * FROM project_templates WHERE id = ?'))
-    s.set('projectTemplate.list', db.prepare('SELECT * FROM project_templates ORDER BY sort_order ASC, created_at ASC'))
-    s.set('projectTemplate.exists', db.prepare('SELECT 1 FROM project_templates WHERE id = ?'))
-
-    s.set('setting.get', db.prepare('SELECT value FROM settings WHERE key = ?'))
-    s.set('setting.set', db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'))
-    s.set('setting.delete', db.prepare('DELETE FROM settings WHERE key = ?'))
-    s.set('setting.getAll', db.prepare('SELECT key, value FROM settings'))
-
-    s.set(
-      'captchaKey.insert',
-      db.prepare(
-        'INSERT INTO captcha_keys (id, provider, api_key, balance, created_at) VALUES (?, ?, ?, ?, ?)'
-      )
-    )
-    s.set('captchaKey.getById', db.prepare('SELECT * FROM captcha_keys WHERE id = ?'))
-    s.set(
-      'captchaKey.update',
-      db.prepare('UPDATE captcha_keys SET provider=?, api_key=?, balance=? WHERE id=?')
-    )
-    s.set('captchaKey.delete', db.prepare('DELETE FROM captcha_keys WHERE id = ?'))
-
-    s.set(
-      'proxyProvider.insert',
-      db.prepare(
-        'INSERT INTO proxy_providers (id, name, api_url, api_key, protocol, refresh_interval, last_sync, labels, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-    )
-    s.set('proxyProvider.getById', db.prepare('SELECT * FROM proxy_providers WHERE id = ?'))
-    s.set(
-      'proxyProvider.update',
-      db.prepare(
-        'UPDATE proxy_providers SET name=?, api_url=?, api_key=?, protocol=?, refresh_interval=?, last_sync=?, labels=? WHERE id=?'
-      )
-    )
-    s.set('proxyProvider.delete', db.prepare('DELETE FROM proxy_providers WHERE id = ?'))
-
-    s.set(
-      'appLog.insert',
-      db.prepare(
-        'INSERT INTO app_logs (timestamp, level, category, message, fields) VALUES (?, ?, ?, ?, ?)'
-      )
-    )
-  }
-
-  /**
-   * 从缓存中获取预编译语句
-   *
-   * @param name - 语句名称（prepareStatements 中注册的 key）
-   * @returns 缓存的 PreparedStatement
-   * @throws 未找到时抛出 Error
-   */
-  private stmt(name: string): Database.Statement {
-    const s = this.stmts.get(name)
-    if (!s) throw new Error(`Prepared statement not found: ${name}`)
-    return s
-  }
-
-  /** 行映射：数据库行 → ScriptParam 对象（自动反序列化 data/labels JSON 字段） */
-  private rowToScriptParam(row: Record<string, unknown>): ScriptParam {
-    return {
-      id: row.id as string,
-      templateId: row.template_id as string,
-      data: fromJson<Record<string, unknown>>(row.data as JsonField) ?? {},
-      pool: row.pool as string,
-      labels: fromJsonArray<string>(row.labels as JsonField),
-      notes: row.notes as string,
-      createdAt: row.created_at as string,
-      updatedAt: row.updated_at as string
-    }
-  }
-
-  /** 行映射：数据库行 → Template 对象（自动反序列化 schema JSON 字段） */
-  private rowToTemplate(row: Record<string, unknown>): Template {
-    return {
-      id: row.id as string,
-      type: row.type as string,
-      name: row.name as string,
-      schema: fromJson<Record<string, unknown>>(row.schema as JsonField) ?? {},
-      version: row.version as string,
-      isLocal: (row.is_local as number) === 1,
-      updatedAt: row.updated_at as string
-    }
-  }
-
-  /** 行映射：数据库行 → TaskTemplate 对象（自动反序列化 manifest JSON 字段） */
-  private rowToTaskTemplate(row: Record<string, unknown>): TaskTemplate {
-    return {
-      id: row.id as string,
-      name: row.name as string,
-      version: row.version as string,
-      description: row.description as string,
-      installPath: row.install_path as string,
-      manifest: fromJson<Record<string, unknown>>(row.manifest as JsonField) ?? {},
-      remoteUrl: row.remote_url as string | null,
-      isInstalled: (row.is_installed as number) === 1,
-      downloadedAt: row.downloaded_at as string,
-      updatedAt: row.updated_at as string
-    }
-  }
-
-  /** 行映射：数据库行 → ScheduledTask 对象（自动反序列化 config JSON 字段） */
-  private rowToScheduledTask(row: Record<string, unknown>): ScheduledTask {
-    return {
-      id: row.id as string,
-      templateId: row.template_id as string,
-      config: fromJson<Record<string, unknown>>(row.config as JsonField) ?? {},
-      cronExpression: row.cron_expression as string,
-      enabled: (row.enabled as number) === 1,
-      lastRun: row.last_run as string | null,
-      nextRun: row.next_run as string | null,
-      createdAt: row.created_at as string
-    }
-  }
-
-  /** 行映射：数据库行 → AirdropProject 对象（反序列化 links/tasks/earnings/tags/labels JSON 字段） */
-  private rowToAirdropProject(row: Record<string, unknown>): AirdropProject {
-    return {
-      id: row.id as string,
-      name: row.name as string,
-      chain: row.chain as string,
-      status: row.status as AirdropProject['status'],
-      projectType: row.project_type as AirdropProject['projectType'],
-      description: row.description as string,
-      website: row.website as string,
-      scriptTemplateId: row.script_template_id as string | undefined,
-      accountPool: row.account_pool as string,
-      links: fromJsonArray(row.links as JsonField),
-      eligibilityCriteria: fromJsonArray(row.eligibility_criteria as JsonField),
-      tasks: fromJsonArray(row.tasks as JsonField),
-      earnings: fromJsonArray(row.earnings as JsonField),
-      tags: fromJsonArray<string>(row.tags as JsonField),
-      labels: fromJsonArray<string>(row.labels as JsonField),
-      templateId: (row.template_id as string | null) ?? undefined,
-      customFields: fromJson<Record<string, unknown>>(row.custom_fields as JsonField) ?? {},
-      createdAt: row.created_at as string,
-      updatedAt: row.updated_at as string
-    }
-  }
-
-  /** 行映射：数据库行 → ProjectTemplate 对象 */
-  private rowToProjectTemplate(row: Record<string, unknown>): ProjectTemplate {
-    return {
-      id: row.id as string,
-      name: row.name as string,
-      description: row.description as string,
-      icon: row.icon as string,
-      fields: fromJson<ProjectTemplateField[]>(row.fields as JsonField) ?? [],
-      builtIn: (row.built_in as number) === 1,
-      enabled: (row.enabled as number) === 1,
-      sortOrder: row.sort_order as number,
-      createdAt: row.created_at as string,
-      updatedAt: row.updated_at as string
-    }
-  }
-
-  /** 行映射：数据库行 → CaptchaKey 对象 */
-  private rowToCaptchaKey(row: Record<string, unknown>): CaptchaKey {
-    return {
-      id: row.id as string,
-      provider: row.provider as string,
-      apiKey: row.api_key as string,
-      balance: row.balance as number,
-      createdAt: row.created_at as string
-    }
-  }
-
-  /** 行映射：数据库行 → ProxyProvider 对象（自动反序列化 labels JSON 字段） */
-  private rowToProxyProvider(row: Record<string, unknown>): ProxyProvider {
-    return {
-      id: row.id as string,
-      name: row.name as string,
-      apiUrl: row.api_url as string,
-      apiKey: row.api_key as string,
-      protocol: row.protocol as ProxyProvider['protocol'],
-      refreshInterval: row.refresh_interval as number,
-      lastSync: row.last_sync as string | null,
-      labels: fromJsonArray<string>(row.labels as JsonField),
-      createdAt: row.created_at as string
-    }
-  }
-
-  /** 行映射：数据库行 → AppLog 对象（自动反序列化 fields JSON 字段） */
-  private rowToAppLog(row: Record<string, unknown>): AppLog {
-    return {
-      id: row.id as number,
-      timestamp: row.timestamp as string,
-      level: row.level as string,
-      category: row.category as string,
-      message: row.message as string,
-      fields: fromJson(row.fields as JsonField)
-    }
-  }
-
-  /**
-   * 通用分页查询工具
-   *
-   * 封装 count + list 两条预编译语句的分页逻辑，自动计算 totalPages。
-   *
-   * @param countStmt - COUNT(*) 语句
-   * @param listStmt  - LIMIT/OFFSET 查询语句
-   * @param page      - 页码（从 1 开始）
-   * @param pageSize  - 每页条数
-   * @param mapper    - 行到实体的映射函数
-   * @param searchParams - 可选的搜索参数数组（传给两条语句的前 N 个参数）
-   * @returns 分页结果集
-   */
-  private paginate<T>(
-    countStmt: Database.Statement,
-    listStmt: Database.Statement,
-    page: number,
-    pageSize: number,
-    mapper: (row: Record<string, unknown>) => T,
-    searchParams?: unknown[]
-  ): ListResponse<T> {
-    const total = (
-      (searchParams ? countStmt.get(...searchParams) : countStmt.get()) as Record<string, number>
-    ).cnt
-    const totalPages = Math.max(1, Math.ceil(total / pageSize))
-    const offset = (page - 1) * pageSize
-    const rows = searchParams
-      ? (listStmt.all(...searchParams, pageSize, offset) as Record<string, unknown>[])
-      : (listStmt.all(pageSize, offset) as Record<string, unknown>[])
-    return {
-      items: rows.map(mapper),
-      total,
-      page,
-      pageSize,
-      totalPages
-    }
-  }
-
-  /**
-   * 创建脚本参数
-   *
-   * @param data - 脚本参数数据（无需提供 id/createdAt/updatedAt，自动生成）
-   * @returns 创建的 ScriptParam 对象
-   */
+  // ----- ScriptParams -----
   createScriptParam(data: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>): ScriptParam {
-    const id = uuidv4()
-    const now = nowISO()
-    this.stmt('scriptParam.insert').run(
-      id,
-      data.templateId,
-      toJson(data.data),
-      data.pool,
-      toJson(data.labels),
-      data.notes,
-      now,
-      now
-    )
-    return this.getScriptParam(id)!
+    return this._scriptParamRepo.create(data)
   }
-
-  /**
-   * 根据 ID 获取脚本参数
-   *
-   * @param id - 脚本参数 UUID
-   * @returns ScriptParam 对象，不存在时返回 null
-   */
   getScriptParam(id: string): ScriptParam | null {
-    const row = this.stmt('scriptParam.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToScriptParam(row) : null
+    return this._scriptParamRepo.get(id)
   }
-
-  /**
-   * 分页查询脚本参数列表（支持按 pool 或 notes 模糊搜索）
-   *
-   * @param page     - 页码（默认 1）
-   * @param pageSize - 每页条数（默认 20）
-   * @param search   - 可选搜索关键词
-   * @returns 分页结果
-   */
   listScriptParams(page = 1, pageSize = 20, search?: string): ListResponse<ScriptParam> {
-    if (search) {
-      const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM script_params WHERE pool LIKE ? OR notes LIKE ?'
-      )
-      const listStmt = this.db.prepare(
-        'SELECT * FROM script_params WHERE pool LIKE ? OR notes LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
-      )
-      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToScriptParam(r), [
-        `%${search}%`,
-        `%${search}%`
-      ])
-    }
-    const countStmt = this.stmt('scriptParam.count')
-    const listStmt = this.db.prepare(
-      'SELECT * FROM script_params ORDER BY created_at DESC LIMIT ? OFFSET ?'
-    )
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToScriptParam(r))
+    return this._scriptParamRepo.list(page, pageSize, search)
   }
-
-  /**
-   * 更新脚本参数
-   *
-   * @param id   - 脚本参数 UUID
-   * @param data - 要更新的字段（部分更新）
-   * @returns 更新后的 ScriptParam 对象，不存在时返回 null
-   */
   updateScriptParam(
     id: string,
     data: Partial<Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>>
   ): ScriptParam | null {
-    const existing = this.getScriptParam(id)
-    if (!existing) return null
-    const updated = { ...existing, ...data, updatedAt: nowISO() }
-    this.stmt('scriptParam.update').run(
-      updated.templateId,
-      toJson(updated.data),
-      updated.pool,
-      toJson(updated.labels),
-      updated.notes,
-      updated.updatedAt,
-      id
-    )
-    return this.getScriptParam(id)
+    return this._scriptParamRepo.update(id, data)
   }
-
-  /**
-   * 删除脚本参数
-   *
-   * @param id - 脚本参数 UUID
-   * @returns 是否成功删除
-   */
   deleteScriptParam(id: string): boolean {
-    const result = this.stmt('scriptParam.delete').run(id)
-    return result.changes > 0
+    return this._scriptParamRepo.delete(id)
   }
-
-  /**
-   * 获取所有不重复的参数池名称
-   *
-   * @returns 参数池名称数组（已排序）
-   */
   listScriptParamPools(): string[] {
-    const rows = this.db
-      .prepare(
-        "SELECT DISTINCT pool FROM script_params WHERE pool IS NOT NULL AND pool != '' ORDER BY pool"
-      )
-      .all() as Array<{ pool: string }>
-    return rows.map((r) => r.pool)
+    return this._scriptParamRepo.listPools()
   }
-
-  /**
-   * 创建账户模板
-   *
-   * @param data - 模板数据（id 可选，不提供时自动生成 UUID）
-   * @returns 创建的 Template 对象
-   */
-  createTemplate(data: Omit<Template, 'id' | 'updatedAt'> & { id?: string }): Template {
-    const id = data.id ?? uuidv4()
-    const updatedAt = nowISO()
-    this.stmt('template.insert').run(
-      id,
-      data.type,
-      data.name,
-      toJson(data.schema),
-      data.version,
-      data.isLocal ? 1 : 0,
-      updatedAt
-    )
-    return this.getTemplate(id)!
+  batchCreateScriptParams(items: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>[]): number {
+    return this._scriptParamRepo.batchCreate(items)
   }
-
-  getTemplate(id: string): Template | null {
-    const row = this.stmt('template.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToTemplate(row) : null
-  }
-
-  listTemplates(page = 1, pageSize = 20, search?: string): ListResponse<Template> {
-    if (search) {
-      const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM templates WHERE name LIKE ? OR type LIKE ?'
-      )
-      const listStmt = this.db.prepare(
-        'SELECT * FROM templates WHERE name LIKE ? OR type LIKE ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'
-      )
-      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToTemplate(r), [
-        `%${search}%`,
-        `%${search}%`
-      ])
-    }
-    const countStmt = this.db.prepare('SELECT COUNT(*) as cnt FROM templates')
-    const listStmt = this.db.prepare(
-      'SELECT * FROM templates ORDER BY updated_at DESC LIMIT ? OFFSET ?'
-    )
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToTemplate(r))
-  }
-
-  /**
-   * 更新账户模板
-   *
-   * @param id   - 模板 UUID
-   * @param data - 要更新的字段
-   * @returns 更新后的 Template 对象，不存在时返回 null
-   */
-  updateTemplate(id: string, data: Partial<Omit<Template, 'id' | 'updatedAt'>>): Template | null {
-    const existing = this.getTemplate(id)
-    if (!existing) return null
-    const updated = { ...existing, ...data, updatedAt: nowISO() }
-    this.stmt('template.update').run(
-      updated.type,
-      updated.name,
-      toJson(updated.schema),
-      updated.version,
-      updated.isLocal ? 1 : 0,
-      updated.updatedAt,
-      id
-    )
-    return this.getTemplate(id)
-  }
-
-  /**
-   * 删除账户模板
-   *
-   * @param id - 模板 UUID
-   * @returns 是否成功删除
-   */
-  deleteTemplate(id: string): boolean {
-    const result = this.stmt('template.delete').run(id)
-    return result.changes > 0
-  }
-
-  /**
-   * 统计使用指定模板的脚本参数数量
-   *
-   * @param templateId - 模板 UUID
-   * @returns 脚本参数数量
-   */
   countScriptParamsByTemplate(templateId: string): number {
-    const row = this.db.prepare('SELECT COUNT(*) as cnt FROM script_params WHERE template_id = ?').get(templateId) as { cnt: number }
-    return row.cnt
+    return this._scriptParamRepo.countByTemplate(templateId)
   }
 
-  /**
-   * 创建任务脚本模板
-   *
-   * @param data - 任务脚本模板数据（id 可选，不提供时自动生成 UUID）
-   * @returns 创建的 TaskTemplate 对象
-   */
-  createTaskTemplate(data: Omit<TaskTemplate, 'id' | 'downloadedAt' | 'updatedAt'> & { id?: string }): TaskTemplate {
-    const id = data.id ?? uuidv4()
-    const now = nowISO()
-    this.stmt('taskTemplate.insert').run(
-      id,
-      data.name,
-      data.version,
-      data.description,
-      data.installPath,
-      toJson(data.manifest),
-      data.remoteUrl ?? null,
-      data.isInstalled ? 1 : 0,
-      now,
-      now
-    )
-    return this.getTaskTemplate(id)!
+  // ----- Templates (账户模板) -----
+  createTemplate(data: Omit<Template, 'id' | 'updatedAt'> & { id?: string }): Template {
+    return this._templateRepo.create(data)
+  }
+  getTemplate(id: string): Template | null {
+    return this._templateRepo.get(id)
+  }
+  listTemplates(page = 1, pageSize = 20, search?: string): ListResponse<Template> {
+    return this._templateRepo.list(page, pageSize, search)
+  }
+  updateTemplate(id: string, data: Partial<Omit<Template, 'id' | 'updatedAt'>>): Template | null {
+    return this._templateRepo.update(id, data)
+  }
+  deleteTemplate(id: string): boolean {
+    return this._templateRepo.delete(id)
   }
 
-  /**
-   * 根据 ID 获取任务脚本模板
-   *
-   * @param id - 任务脚本模板 UUID
-   * @returns TaskTemplate 对象，不存在时返回 null
-   */
+  // ----- TaskTemplates (任务脚本模板) -----
+  createTaskTemplate(
+    data: Omit<TaskTemplate, 'id' | 'downloadedAt' | 'updatedAt'> & { id?: string }
+  ): TaskTemplate {
+    return this._taskTemplateRepo.create(data)
+  }
   getTaskTemplate(id: string): TaskTemplate | null {
-    const row = this.stmt('taskTemplate.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToTaskTemplate(row) : null
+    return this._taskTemplateRepo.get(id)
   }
-
-  /**
-   * 分页查询任务脚本模板列表（支持按名称或描述模糊搜索）
-   *
-   * @param page     - 页码（默认 1）
-   * @param pageSize - 每页条数（默认 20）
-   * @param search   - 可选搜索关键词
-   * @returns 分页结果
-   */
   listTaskTemplates(page = 1, pageSize = 20, search?: string): ListResponse<TaskTemplate> {
-    if (search) {
-      const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM task_templates WHERE name LIKE ? OR description LIKE ?'
-      )
-      const listStmt = this.db.prepare(
-        'SELECT * FROM task_templates WHERE name LIKE ? OR description LIKE ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'
-      )
-      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToTaskTemplate(r), [
-        `%${search}%`,
-        `%${search}%`
-      ])
-    }
-    const countStmt = this.db.prepare('SELECT COUNT(*) as cnt FROM task_templates')
-    const listStmt = this.db.prepare(
-      'SELECT * FROM task_templates ORDER BY updated_at DESC LIMIT ? OFFSET ?'
-    )
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToTaskTemplate(r))
+    return this._taskTemplateRepo.list(page, pageSize, search)
   }
-
-  /**
-   * 更新任务脚本模板
-   *
-   * @param id   - 任务脚本模板 UUID
-   * @param data - 要更新的字段
-   * @returns 更新后的 TaskTemplate 对象，不存在时返回 null
-   */
   updateTaskTemplate(
     id: string,
     data: Partial<Omit<TaskTemplate, 'id' | 'downloadedAt' | 'updatedAt'>>
   ): TaskTemplate | null {
-    const existing = this.getTaskTemplate(id)
-    if (!existing) return null
-    const updated = { ...existing, ...data, updatedAt: nowISO() }
-    this.stmt('taskTemplate.update').run(
-      updated.name,
-      updated.version,
-      updated.description,
-      updated.installPath,
-      toJson(updated.manifest),
-      updated.remoteUrl ?? null,
-      updated.isInstalled ? 1 : 0,
-      updated.downloadedAt,
-      updated.updatedAt,
-      id
-    )
-    return this.getTaskTemplate(id)
+    return this._taskTemplateRepo.update(id, data)
   }
-
-  /**
-   * 删除任务脚本模板
-   *
-   * @param id - 任务脚本模板 UUID
-   * @returns 是否成功删除
-   */
   deleteTaskTemplate(id: string): boolean {
-    const result = this.stmt('taskTemplate.delete').run(id)
-    return result.changes > 0
+    return this._taskTemplateRepo.delete(id)
   }
 
-  /**
-   * 创建定时任务
-   *
-   * @param data - 定时任务数据
-   * @returns 创建的 ScheduledTask 对象
-   */
+  // ----- ScheduledTasks -----
   createScheduledTask(data: Omit<ScheduledTask, 'id' | 'createdAt'>): ScheduledTask {
-    const id = uuidv4()
-    const createdAt = nowISO()
-    this.stmt('scheduledTask.insert').run(
-      id,
-      data.templateId,
-      toJson(data.config),
-      data.cronExpression,
-      data.enabled ? 1 : 0,
-      data.lastRun ?? null,
-      data.nextRun ?? null,
-      createdAt
-    )
-    return this.getScheduledTask(id)!
+    return this._scheduledTaskRepo.create(data)
   }
-
-  /**
-   * 根据 ID 获取定时任务
-   *
-   * @param id - 定时任务 UUID
-   * @returns ScheduledTask 对象，不存在时返回 null
-   */
   getScheduledTask(id: string): ScheduledTask | null {
-    const row = this.stmt('scheduledTask.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToScheduledTask(row) : null
+    return this._scheduledTaskRepo.get(id)
   }
-
-  /**
-   * 分页查询定时任务列表（支持按 Cron 表达式模糊搜索）
-   *
-   * @param page     - 页码（默认 1）
-   * @param pageSize - 每页条数（默认 20）
-   * @param search   - 可选搜索关键词
-   * @returns 分页结果
-   */
   listScheduledTasks(page = 1, pageSize = 20, search?: string): ListResponse<ScheduledTask> {
-    if (search) {
-      const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM scheduled_tasks WHERE cron_expression LIKE ?'
-      )
-      const listStmt = this.db.prepare(
-        'SELECT * FROM scheduled_tasks WHERE cron_expression LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
-      )
-      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToScheduledTask(r), [
-        `%${search}%`
-      ])
-    }
-    const countStmt = this.db.prepare('SELECT COUNT(*) as cnt FROM scheduled_tasks')
-    const listStmt = this.db.prepare(
-      'SELECT * FROM scheduled_tasks ORDER BY created_at DESC LIMIT ? OFFSET ?'
-    )
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToScheduledTask(r))
+    return this._scheduledTaskRepo.list(page, pageSize, search)
   }
-
-  /**
-   * 更新定时任务
-   *
-   * @param id   - 定时任务 UUID
-   * @param data - 要更新的字段
-   * @returns 更新后的 ScheduledTask 对象，不存在时返回 null
-   */
   updateScheduledTask(
     id: string,
     data: Partial<Omit<ScheduledTask, 'id' | 'createdAt'>>
   ): ScheduledTask | null {
-    const existing = this.getScheduledTask(id)
-    if (!existing) return null
-    const updated = { ...existing, ...data }
-    this.stmt('scheduledTask.update').run(
-      updated.templateId,
-      toJson(updated.config),
-      updated.cronExpression,
-      updated.enabled ? 1 : 0,
-      updated.lastRun ?? null,
-      updated.nextRun ?? null,
-      id
-    )
-    return this.getScheduledTask(id)
+    return this._scheduledTaskRepo.update(id, data)
   }
-
   deleteScheduledTask(id: string): boolean {
-    const result = this.stmt('scheduledTask.delete').run(id)
-    return result.changes > 0
+    return this._scheduledTaskRepo.delete(id)
   }
 
-  /**
-   * 创建空投项目
-   *
-   * @param data - 空投项目数据（links/tasks/earnings/tags/labels 等 JSON 字段自动序列化）
-   * @returns 创建的 AirdropProject 对象
-   */
+  // ----- Airdrops -----
   createAirdrop(data: Omit<AirdropProject, 'id' | 'createdAt' | 'updatedAt'>): AirdropProject {
-    const id = uuidv4()
-    const now = nowISO()
-    this.stmt('airdrop.insert').run(
-      id,
-      data.name,
-      data.chain,
-      data.status,
-      data.projectType,
-      data.description,
-      data.website,
-      data.scriptTemplateId ?? null,
-      data.accountPool,
-      toJson(data.links),
-      toJson(data.eligibilityCriteria),
-      toJson(data.tasks),
-      toJson(data.earnings),
-      toJson(data.tags),
-      toJson(data.labels),
-      data.templateId ?? null,
-      toJson(data.customFields ?? {}),
-      now,
-      now
-    )
-    return this.getAirdrop(id)!
+    return this._airdropRepo.create(data)
   }
-
-  /**
-   * 根据 ID 获取空投项目
-   *
-   * @param id - 空投项目 UUID
-   * @returns AirdropProject 对象，不存在时返回 null
-   */
   getAirdrop(id: string): AirdropProject | null {
-    const row = this.stmt('airdrop.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToAirdropProject(row) : null
+    return this._airdropRepo.get(id)
   }
-
-  /**
-   * 分页查询空投项目列表（支持按名称/描述/链模糊搜索）
-   *
-   * @param page     - 页码（默认 1）
-   * @param pageSize - 每页条数（默认 20）
-   * @param search   - 可选搜索关键词
-   * @returns 分页结果
-   */
   listAirdrops(page = 1, pageSize = 20, search?: string): ListResponse<AirdropProject> {
-    if (search) {
-      const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM airdrop_projects WHERE name LIKE ? OR description LIKE ? OR tags LIKE ?'
-      )
-      const listStmt = this.db.prepare(
-        'SELECT * FROM airdrop_projects WHERE name LIKE ? OR description LIKE ? OR tags LIKE ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'
-      )
-      return this.paginate(
-        countStmt,
-        listStmt,
-        page,
-        pageSize,
-        (r) => this.rowToAirdropProject(r),
-        [`%${search}%`, `%${search}%`, `%${search}%`]
-      )
-    }
-    const countStmt = this.db.prepare('SELECT COUNT(*) as cnt FROM airdrop_projects')
-    const listStmt = this.db.prepare(
-      'SELECT * FROM airdrop_projects ORDER BY updated_at DESC LIMIT ? OFFSET ?'
-    )
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToAirdropProject(r))
+    return this._airdropRepo.list(page, pageSize, search)
   }
-
-  /**
-   * 更新空投项目
-   *
-   * @param id   - 空投项目 UUID
-   * @param data - 要更新的字段（links/tasks/earnings/tags/labels 自动序列化）
-   * @returns 更新后的 AirdropProject 对象，不存在时返回 null
-   */
   updateAirdrop(
     id: string,
     data: Partial<Omit<AirdropProject, 'id' | 'createdAt' | 'updatedAt'>>
   ): AirdropProject | null {
-    const existing = this.getAirdrop(id)
-    if (!existing) return null
-    const updated = { ...existing, ...data, updatedAt: nowISO() }
-    this.stmt('airdrop.update').run(
-      updated.name,
-      updated.chain,
-      updated.status,
-      updated.projectType,
-      updated.description,
-      updated.website,
-      updated.scriptTemplateId ?? null,
-      updated.accountPool,
-      toJson(updated.links),
-      toJson(updated.eligibilityCriteria),
-      toJson(updated.tasks),
-      toJson(updated.earnings),
-      toJson(updated.tags),
-      toJson(updated.labels),
-      updated.templateId ?? null,
-      toJson(updated.customFields ?? {}),
-      updated.updatedAt,
-      id
-    )
-    return this.getAirdrop(id)
+    return this._airdropRepo.update(id, data)
   }
-
-  /**
-   * 删除空投项目
-   *
-   * @param id - 空投项目 UUID
-   * @returns 是否成功删除
-   */
   deleteAirdrop(id: string): boolean {
-    const result = this.stmt('airdrop.delete').run(id)
-    return result.changes > 0
+    return this._airdropRepo.delete(id)
   }
-
-  /**
-   * 获取空投分析数据
-   *
-   * 统计各状态数量、总收益估算、代币分布和即将到期列表。
-   *
-   * @returns AirdropAnalytics 分析结果
-   */
   getAirdropAnalytics(): AirdropAnalytics {
-    const countByStatus = this.db
-      .prepare('SELECT status, COUNT(*) as cnt FROM airdrop_projects GROUP BY status')
-      .all() as Array<{ status: string; cnt: number }>
-    const counts: Record<string, number> = {
-      ongoing: 0,
-      completed: 0,
-      cancelled: 0,
-      claimed: 0
-    }
-    let totalAirdrops = 0
-    for (const row of countByStatus) {
-      const cnt = Number(row.cnt) || 0
-      totalAirdrops += cnt
-      if (row.status in counts) counts[row.status] = cnt
-    }
-
-    const allRows = this.db
-      .prepare('SELECT * FROM airdrop_projects')
-      .all() as Array<Record<string, unknown>>
-
-    let totalEarningsValueUsd = 0
-    const tokenMap = new Map<string, { amount: number; valueUsd: number }>()
-    const deadlineEntries: UpcomingDeadline[] = []
-
-    for (const row of allRows) {
-      const airdrop = this.rowToAirdropProject(row)
-      const earnings = airdrop.earnings ?? []
-      for (const e of earnings) {
-        const v = Number(e.valueUsd) || 0
-        totalEarningsValueUsd += v
-        const token = (e.token ?? '').trim()
-        if (token) {
-          const prev = tokenMap.get(token) ?? { amount: 0, valueUsd: 0 }
-          tokenMap.set(token, {
-            amount: prev.amount + (Number(e.amount) || 0),
-            valueUsd: prev.valueUsd + v
-          })
-        }
-      }
-      const tasks = airdrop.tasks ?? []
-      for (const t of tasks) {
-        if (t.deadline && t.deadline.trim().length > 0) {
-          deadlineEntries.push({
-            taskId: t.id,
-            projectName: airdrop.name,
-            taskTitle: t.title,
-            deadline: t.deadline
-          })
-        }
-      }
-    }
-
-    const tokenEarnings: TokenEarnings[] = Array.from(tokenMap.entries())
-      .map(([token, v]) => ({ token, totalAmount: v.amount, totalValueUsd: v.valueUsd }))
-      .sort((a, b) => {
-        if (b.totalValueUsd !== a.totalValueUsd) return b.totalValueUsd - a.totalValueUsd
-        return b.totalAmount - a.totalAmount
-      })
-
-    const upcomingDeadlines = deadlineEntries
-      .sort((a, b) => a.deadline.localeCompare(b.deadline))
-      .slice(0, 5)
-
-    return {
-      totalAirdrops,
-      ongoingCount: counts.ongoing,
-      completedCount: counts.completed,
-      claimedCount: counts.claimed,
-      cancelledCount: counts.cancelled,
-      totalEarningsValueUsd,
-      tokenEarnings,
-      upcomingDeadlines
-    }
+    return this._airdropRepo.getAnalytics()
   }
 
-  /**
-   * 创建验证码 API 密钥记录
-   *
-   * @param data - 验证码密钥数据
-   * @returns 创建的 CaptchaKey 对象
-   */
+  // ----- CaptchaKeys -----
   createCaptchaKey(data: Omit<CaptchaKey, 'id' | 'createdAt'>): CaptchaKey {
-    const id = uuidv4()
-    const createdAt = nowISO()
-    this.stmt('captchaKey.insert').run(id, data.provider, data.apiKey, data.balance, createdAt)
-    return this.getCaptchaKey(id)!
+    return this._captchaKeyRepo.create(data)
   }
-
-  /**
-   * 根据 ID 获取验证码密钥
-   *
-   * @param id - 验证码密钥 UUID
-   * @returns CaptchaKey 对象，不存在时返回 null
-   */
   getCaptchaKey(id: string): CaptchaKey | null {
-    const row = this.stmt('captchaKey.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToCaptchaKey(row) : null
+    return this._captchaKeyRepo.get(id)
   }
-
-  /**
-   * 分页查询验证码密钥列表（支持按提供商名称模糊搜索）
-   *
-   * @param page     - 页码（默认 1）
-   * @param pageSize - 每页条数（默认 20）
-   * @param search   - 可选搜索关键词
-   * @returns 分页结果
-   */
   listCaptchaKeys(page = 1, pageSize = 20, search?: string): ListResponse<CaptchaKey> {
-    if (search) {
-      const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM captcha_keys WHERE provider LIKE ?'
-      )
-      const listStmt = this.db.prepare(
-        'SELECT * FROM captcha_keys WHERE provider LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
-      )
-      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToCaptchaKey(r), [
-        `%${search}%`
-      ])
-    }
-    const countStmt = this.db.prepare('SELECT COUNT(*) as cnt FROM captcha_keys')
-    const listStmt = this.db.prepare(
-      'SELECT * FROM captcha_keys ORDER BY created_at DESC LIMIT ? OFFSET ?'
-    )
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToCaptchaKey(r))
+    return this._captchaKeyRepo.list(page, pageSize, search)
   }
-
-  /**
-   * 更新验证码密钥信息
-   *
-   * @param id   - 验证码密钥 UUID
-   * @param data - 要更新的字段
-   * @returns 更新后的 CaptchaKey 对象，不存在时返回 null
-   */
   updateCaptchaKey(
     id: string,
     data: Partial<Omit<CaptchaKey, 'id' | 'createdAt'>>
   ): CaptchaKey | null {
-    const existing = this.getCaptchaKey(id)
-    if (!existing) return null
-    const updated = { ...existing, ...data }
-    this.stmt('captchaKey.update').run(updated.provider, updated.apiKey, updated.balance, id)
-    return this.getCaptchaKey(id)
+    return this._captchaKeyRepo.update(id, data)
   }
-
-  /**
-   * 删除验证码密钥
-   *
-   * @param id - 验证码密钥 UUID
-   * @returns 是否成功删除
-   */
   deleteCaptchaKey(id: string): boolean {
-    const result = this.stmt('captchaKey.delete').run(id)
-    return result.changes > 0
+    return this._captchaKeyRepo.delete(id)
   }
 
-  /**
-   * 创建代理提供商配置
-   *
-   * @param data - 代理提供商数据
-   * @returns 创建的 ProxyProvider 对象
-   */
+  // ----- ProxyProviders -----
   createProxyProvider(data: Omit<ProxyProvider, 'id' | 'createdAt'>): ProxyProvider {
-    const id = uuidv4()
-    const createdAt = nowISO()
-    this.stmt('proxyProvider.insert').run(
-      id,
-      data.name,
-      data.apiUrl,
-      data.apiKey,
-      data.protocol,
-      data.refreshInterval,
-      data.lastSync ?? null,
-      toJson(data.labels),
-      createdAt
-    )
-    return this.getProxyProvider(id)!
+    return this._proxyProviderRepo.create(data)
   }
-
-  /**
-   * 根据 ID 获取代理提供商
-   *
-   * @param id - 代理提供商 UUID
-   * @returns ProxyProvider 对象，不存在时返回 null
-   */
   getProxyProvider(id: string): ProxyProvider | null {
-    const row = this.stmt('proxyProvider.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToProxyProvider(row) : null
+    return this._proxyProviderRepo.get(id)
   }
-
-  /**
-   * 分页查询代理提供商列表（支持按名称或 API URL 模糊搜索）
-   *
-   * @param page     - 页码（默认 1）
-   * @param pageSize - 每页条数（默认 20）
-   * @param search   - 可选搜索关键词
-   * @returns 分页结果
-   */
   listProxyProviders(page = 1, pageSize = 20, search?: string): ListResponse<ProxyProvider> {
-    if (search) {
-      const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM proxy_providers WHERE name LIKE ? OR api_url LIKE ?'
-      )
-      const listStmt = this.db.prepare(
-        'SELECT * FROM proxy_providers WHERE name LIKE ? OR api_url LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
-      )
-      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToProxyProvider(r), [
-        `%${search}%`,
-        `%${search}%`
-      ])
-    }
-    const countStmt = this.db.prepare('SELECT COUNT(*) as cnt FROM proxy_providers')
-    const listStmt = this.db.prepare(
-      'SELECT * FROM proxy_providers ORDER BY created_at DESC LIMIT ? OFFSET ?'
-    )
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToProxyProvider(r))
+    return this._proxyProviderRepo.list(page, pageSize, search)
   }
-
-  /**
-   * 更新代理提供商配置
-   *
-   * @param id   - 代理提供商 UUID
-   * @param data - 要更新的字段
-   * @returns 更新后的 ProxyProvider 对象，不存在时返回 null
-   */
   updateProxyProvider(
     id: string,
     data: Partial<Omit<ProxyProvider, 'id' | 'createdAt'>>
   ): ProxyProvider | null {
-    const existing = this.getProxyProvider(id)
-    if (!existing) return null
-    const updated = { ...existing, ...data }
-    this.stmt('proxyProvider.update').run(
-      updated.name,
-      updated.apiUrl,
-      updated.apiKey,
-      updated.protocol,
-      updated.refreshInterval,
-      updated.lastSync ?? null,
-      toJson(updated.labels),
-      id
-    )
-    return this.getProxyProvider(id)
+    return this._proxyProviderRepo.update(id, data)
   }
-
-  /**
-   * 删除代理提供商
-   *
-   * @param id - 代理提供商 UUID
-   * @returns 是否成功删除
-   */
   deleteProxyProvider(id: string): boolean {
-    const result = this.stmt('proxyProvider.delete').run(id)
-    return result.changes > 0
+    return this._proxyProviderRepo.delete(id)
   }
 
-  /**
-   * 添加应用日志
-   *
-   * @param level    - 日志级别（info / warn / error / debug）
-   * @param category - 日志分类
-   * @param message  - 日志内容
-   * @param fields   - 可选的附加字段（自动序列化为 JSON）
-   */
+  // ----- AppLogs -----
   addAppLog(level: string, category: string, message: string, fields?: unknown): void {
-    this.stmt('appLog.insert').run(nowISO(), level, category, message, toJson(fields))
+    this._appLogRepo.add(level, category, message, fields)
   }
-
-  /**
-   * 分页查询应用日志（支持按分类或内容模糊搜索）
-   *
-   * @param page     - 页码（默认 1）
-   * @param pageSize - 每页条数（默认 20）
-   * @param search   - 可选搜索关键词
-   * @returns 分页结果
-   */
   listAppLogs(page = 1, pageSize = 20, search?: string): ListResponse<AppLog> {
-    if (search) {
-      const countStmt = this.db.prepare(
-        'SELECT COUNT(*) as cnt FROM app_logs WHERE category LIKE ? OR message LIKE ?'
-      )
-      const listStmt = this.db.prepare(
-        'SELECT * FROM app_logs WHERE category LIKE ? OR message LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?'
-      )
-      return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToAppLog(r), [
-        `%${search}%`,
-        `%${search}%`
-      ])
-    }
-    const countStmt = this.db.prepare('SELECT COUNT(*) as cnt FROM app_logs')
-    const listStmt = this.db.prepare('SELECT * FROM app_logs ORDER BY id DESC LIMIT ? OFFSET ?')
-    return this.paginate(countStmt, listStmt, page, pageSize, (r) => this.rowToAppLog(r))
+    return this._appLogRepo.list(page, pageSize, search)
+  }
+  queryLogs(
+    level?: string,
+    category?: string,
+    search?: string,
+    since?: string,
+    until?: string,
+    limit = 100
+  ): ListResponse<AppLog> {
+    return this._appLogRepo.queryLogs(level, category, search, since, until, limit)
+  }
+  getLogCategories(): string[] {
+    return this._appLogRepo.getCategories()
+  }
+  deleteAllLogs(): number {
+    return this._appLogRepo.deleteAll()
   }
 
-  /**
-   * 获取设置项的值
-   *
-   * @param key - 设置键名
-   * @returns 设置值，不存在时返回 null
-   */
+  // ----- Settings -----
   getSetting(key: string): string | null {
-    const row = this.stmt('setting.get').get(key) as Record<string, string> | undefined
-    return row ? row.value : null
+    return this._settingsRepo.get(key)
   }
-
-  /**
-   * 设置键值对（INSERT OR REPLACE）
-   *
-   * @param key   - 设置键名
-   * @param value - 设置值
-   */
   setSetting(key: string, value: string): void {
-    this.stmt('setting.set').run(key, value)
+    this._settingsRepo.set(key, value)
   }
-
-  /**
-   * 获取所有设置项
-   *
-   * @returns 键值对对象
-   */
   getAllSettings(): Record<string, string> {
-    const rows = this.stmt('setting.getAll').all() as Record<string, string>[]
-    const result: Record<string, string> = {}
-    for (const row of rows) {
-      result[row.key] = row.value
-    }
-    return result
+    return this._settingsRepo.getAll()
+  }
+  deleteSetting(key: string): boolean {
+    return this._settingsRepo.delete(key)
   }
 
-  /**
-   * 删除设置项
-   *
-   * @param key - 设置键名
-   * @returns 是否成功删除
-   */
-  deleteSetting(key: string): boolean {
-    const result = this.stmt('setting.delete').run(key)
-    return result.changes > 0
+  setLogLevel(level: string): void {
+    this.setSetting('logLevel', level)
+  }
+  getLogLevel(): string {
+    return this.getSetting('logLevel') ?? 'info'
+  }
+
+  // ----- ProjectTemplates -----
+  listProjectTemplates(): ProjectTemplate[] {
+    return this._projectTemplateRepo.list()
+  }
+  getProjectTemplate(id: string): ProjectTemplate | null {
+    return this._projectTemplateRepo.get(id)
+  }
+  createProjectTemplate(
+    data: Omit<ProjectTemplate, 'id' | 'createdAt' | 'updatedAt'>
+  ): ProjectTemplate {
+    return this._projectTemplateRepo.create(data)
+  }
+  updateProjectTemplate(
+    id: string,
+    data: Partial<Omit<ProjectTemplate, 'id' | 'createdAt' | 'updatedAt'>>
+  ): ProjectTemplate | null {
+    return this._projectTemplateRepo.update(id, data)
+  }
+  deleteProjectTemplate(id: string): boolean {
+    return this._projectTemplateRepo.delete(id)
   }
 
   /**
@@ -1697,12 +799,8 @@ export class StoreService {
     const proxyProtocolDistribution = this._proxyRepo.countByProtocol()
     const proxyStatusDistribution = this._proxyRepo.countByStatus()
 
-    const scriptParamTotal = (this.stmt('scriptParam.count').get() as Record<string, number>).cnt
-    const scriptParamPoolRows = this.stmt('scriptParam.countByPool').all() as Record<string, unknown>[]
-    const scriptParamPoolDistribution: Record<string, number> = {}
-    for (const row of scriptParamPoolRows) {
-      scriptParamPoolDistribution[row.pool as string] = row.cnt as number
-    }
+    const scriptParamTotal = this._scriptParamRepo.count()
+    const scriptParamPoolDistribution = this._scriptParamRepo.countByPool()
 
     const taskTotal = this._taskRepo.count()
     const taskStatusDistribution = this._taskRepo.countByStatus()
@@ -1813,7 +911,7 @@ export class StoreService {
     }
 
     const walletCount = this._walletRepo.count()
-    const scriptParamCount = (this.stmt('scriptParam.count').get() as Record<string, number>).cnt
+    const scriptParamCount = this._scriptParamRepo.count()
     const proxyCount = this._proxyRepo.count()
     const taskCount = this._taskRepo.count()
 
@@ -1834,198 +932,6 @@ export class StoreService {
       runningTaskCount,
       totalLogs: 0
     }
-  }
-
-  /**
-   * 批量创建脚本参数（事务内执行，提升导入性能）
-   *
-   * @param items - 脚本参数数据数组
-   * @returns 成功创建的脚本参数数量
-   */
-  batchCreateScriptParams(items: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>[]): number {
-    const insert = this.stmt('scriptParam.insert')
-    const transaction = this.db.transaction(
-      (data: Omit<ScriptParam, 'id' | 'createdAt' | 'updatedAt'>[]) => {
-        let count = 0
-        for (const item of data) {
-          const id = uuidv4()
-          const now = nowISO()
-          insert.run(
-            id,
-            item.templateId,
-            toJson(item.data),
-            item.pool,
-            toJson(item.labels),
-            item.notes,
-            now,
-            now
-          )
-          count++
-        }
-        return count
-      }
-    )
-    return transaction(items)
-  }
-
-  /**
-   * 高级日志查询（支持按级别、分类、关键词、时间范围过滤）
-   *
-   * @param level    - 可选的日志级别过滤
-   * @param category - 可选的日志分类过滤
-   * @param search   - 可选的关键词模糊搜索
-   * @param since    - 可选的起始时间（ISO 8601）
-   * @param until    - 可选的结束时间（ISO 8601）
-   * @param limit    - 返回条数上限（默认 100）
-   * @returns 过滤后的日志分页结果
-   */
-  queryLogs(
-    level?: string,
-    category?: string,
-    search?: string,
-    since?: string,
-    until?: string,
-    limit = 100
-  ): ListResponse<AppLog> {
-    const conditions: string[] = []
-    const params: unknown[] = []
-
-    if (level) {
-      conditions.push('level = ?')
-      params.push(level)
-    }
-    if (category) {
-      conditions.push('category = ?')
-      params.push(category)
-    }
-    if (search) {
-      conditions.push('message LIKE ?')
-      params.push(`%${search}%`)
-    }
-    if (since) {
-      conditions.push('timestamp >= ?')
-      params.push(since)
-    }
-    if (until) {
-      conditions.push('timestamp <= ?')
-      params.push(until)
-    }
-
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-    const countRow = this.db
-      .prepare(`SELECT COUNT(*) as cnt FROM app_logs ${where}`)
-      .get(...params) as Record<string, number>
-    const total = countRow.cnt
-    const rows = this.db
-      .prepare(`SELECT * FROM app_logs ${where} ORDER BY id DESC LIMIT ?`)
-      .all(...params, limit) as Record<string, unknown>[]
-    return {
-      items: rows.map((r) => this.rowToAppLog(r)),
-      total,
-      page: 1,
-      pageSize: limit,
-      totalPages: Math.max(1, Math.ceil(total / limit))
-    }
-  }
-
-  /**
-   * 获取所有不重复的日志分类名称
-   *
-   * @returns 分类名称数组（已排序）
-   */
-  getLogCategories(): string[] {
-    const rows = this.db
-      .prepare('SELECT DISTINCT category FROM app_logs ORDER BY category')
-      .all() as Record<string, string>[]
-    return rows.map((r) => r.category)
-  }
-
-  /**
-   * 设置日志级别（持久化到 settings 表）
-   *
-   * @param level - 日志级别名称
-   */
-  setLogLevel(level: string): void {
-    this.setSetting('logLevel', level)
-  }
-
-  /**
-   * 获取当前日志级别
-   *
-   * @returns 日志级别（默认 'info'）
-   */
-  getLogLevel(): string {
-    return this.getSetting('logLevel') ?? 'info'
-  }
-
-  /** 删除所有应用日志（用于日志清理） */
-  deleteAllLogs(): number {
-    const result = this.db.prepare('DELETE FROM app_logs').run()
-    return result.changes
-  }
-
-  // ── ProjectTemplate CRUD ─────────────────────────────────────
-
-  /** 列出所有项目模板 (按 sortOrder ASC, createdAt ASC) */
-  listProjectTemplates(): ProjectTemplate[] {
-    const rows = this.stmt('projectTemplate.list').all() as Record<string, unknown>[]
-    return rows.map((r) => this.rowToProjectTemplate(r))
-  }
-
-  /** 获取单个项目模板 */
-  getProjectTemplate(id: string): ProjectTemplate | null {
-    const row = this.stmt('projectTemplate.getById').get(id) as Record<string, unknown> | undefined
-    return row ? this.rowToProjectTemplate(row) : null
-  }
-
-  /** 创建项目模板 */
-  createProjectTemplate(data: Omit<ProjectTemplate, 'id' | 'createdAt' | 'updatedAt'>): ProjectTemplate {
-    const id = uuidv4()
-    const now = nowISO()
-    this.stmt('projectTemplate.insert').run(
-      id,
-      data.name,
-      data.description,
-      data.icon,
-      toJson(data.fields),
-      data.builtIn ? 1 : 0,
-      data.enabled ? 1 : 0,
-      data.sortOrder,
-      now,
-      now
-    )
-    return this.getProjectTemplate(id)!
-  }
-
-  /** 更新项目模板 */
-  updateProjectTemplate(
-    id: string,
-    data: Partial<Omit<ProjectTemplate, 'id' | 'createdAt' | 'updatedAt'>>
-  ): ProjectTemplate | null {
-    const existing = this.getProjectTemplate(id)
-    if (!existing) return null
-    const updated = { ...existing, ...data, updatedAt: nowISO() }
-    this.stmt('projectTemplate.update').run(
-      updated.name,
-      updated.description,
-      updated.icon,
-      toJson(updated.fields),
-      updated.builtIn ? 1 : 0,
-      updated.enabled ? 1 : 0,
-      updated.sortOrder,
-      updated.updatedAt,
-      id
-    )
-    return this.getProjectTemplate(id)
-  }
-
-  /** 删除项目模板 (内置模板不允许删除) */
-  deleteProjectTemplate(id: string): boolean {
-    const existing = this.getProjectTemplate(id)
-    if (!existing) return false
-    if (existing.builtIn) return false
-    const result = this.stmt('projectTemplate.delete').run(id)
-    return result.changes > 0
   }
 
   /** 关闭数据库连接（应用退出时调用） */

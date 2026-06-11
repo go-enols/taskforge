@@ -190,6 +190,13 @@ function mapJsonSchemaType(jsonType: string, enumValues: string[] | undefined): 
 }
 
 /** 解析单个 Zod 字段为 FieldMeta 元数据 */
+/**
+ * 解析单个 Zod 字段，提取 FieldMeta 信息
+ *
+ * 使用 Zod 公共 API（instanceof）进行类型判別，仅在无法通过公共 API
+ * 获取的值（如 number 的 min/max、enum 的选项值、default 的值）上
+ * 访问 ._def 内部属性，并通过 instanceof 守卫保证类型安全。
+ */
 function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
   const meta: FieldMeta = {
     name,
@@ -205,67 +212,68 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
   }
 
   const unwrapped = unwrapSchema(schema)
-  const schemaType = unwrapped._def.type as string
 
-  switch (schemaType) {
-    case 'string':
-      meta.type = 'string'
-      break
-    case 'number': {
-      meta.type = 'number'
-      const numSchema = unwrapped as unknown as { _def?: { checks?: Array<{ kind: string; value: number }> } }
-      const checks = numSchema._def?.checks
-      if (checks?.length) {
-        for (const check of checks) {
-          if (check.kind === 'min' && meta.min == null) meta.min = check.value
-          if (check.kind === 'max' && meta.max == null) meta.max = check.value
-        }
+  // 使用 instanceof 公共 API 进行类型判別（替代 _def.type）
+  if (unwrapped instanceof z.ZodString) {
+    meta.type = 'string'
+  } else if (unwrapped instanceof z.ZodNumber) {
+    meta.type = 'number'
+    // Zod 未提供 minValue/maxValue 公共 getter，需通过 _def.checks 获取
+    const checks = (unwrapped._def as { checks?: Array<{ kind: string; value: number }> }).checks
+    if (checks?.length) {
+      for (const check of checks) {
+        if (check.kind === 'min' && meta.min == null) meta.min = check.value
+        if (check.kind === 'max' && meta.max == null) meta.max = check.value
       }
-      break
     }
-    case 'boolean':
-      meta.type = 'boolean'
-      break
-    case 'enum': {
-      meta.type = 'select'
-      const values = (unwrapped._def as unknown as { values?: string[] }).values
-      if (values?.length) {
-        meta.options = values.map((v) => ({ label: v, value: v }))
-      }
-      break
+  } else if (unwrapped instanceof z.ZodBoolean) {
+    meta.type = 'boolean'
+  } else if (unwrapped instanceof z.ZodEnum) {
+    meta.type = 'select'
+    // Zod 未提供 enum 选项值的公共 getter，需通过 _def.values 获取
+    const values = (unwrapped._def as { values: string[] }).values
+    if (values?.length) {
+      meta.options = values.map((v) => ({ label: v, value: v }))
     }
-    default:
-      meta.type = 'string'
   }
 
-  if (isOptionalSchema(schema)) {
+  // 使用 instanceof 公共 API 判断是否可选（替代 _def.type）
+  if (schema instanceof z.ZodOptional || schema instanceof z.ZodDefault) {
     meta.required = false
   }
 
-  const def = schema._def as unknown as { type?: string; defaultValue?: unknown }
-  if (def.type === 'default' && def.defaultValue !== undefined) {
-    meta.defaultValue = def.defaultValue
-    meta.required = false
+  // 提取默认值：Zod 未提供公共 getter，需通过 _def.defaultValue
+  if (schema instanceof z.ZodDefault) {
+    const defValue = (schema._def as { defaultValue?: unknown }).defaultValue
+    if (defValue !== undefined) {
+      meta.defaultValue = defValue
+      meta.required = false
+    }
   }
 
   return meta
 }
 
-/** 解包 Zod 包装类型（Optional、Default），获取内部真实类型 */
+/**
+ * 解包 Zod 包装类型（ZodOptional、ZodDefault），获取内部真实类型。
+ * 使用 Zod 公共 API: .unwrap() 和 .removeDefault()（替代 _def.innerType）
+ */
 function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
-  const def = schema._def as unknown as { type?: string; innerType?: z.ZodTypeAny }
-  if ((def.type === 'optional' || def.type === 'default') && def.innerType) {
-    return unwrapSchema(def.innerType)
+  if (schema instanceof z.ZodOptional) {
+    return unwrapSchema(schema.unwrap())
+  }
+  if (schema instanceof z.ZodDefault) {
+    return unwrapSchema(schema.removeDefault())
   }
   return schema
 }
 
-/** 判断 Zod Schema 是否为可选类型 */
+/**
+ * 判断 Zod Schema 是否为可选类型。
+ * 使用 Zod 公共 API instanceof 检查（替代 _def.type 字符串比较）
+ */
 function isOptionalSchema(schema: z.ZodTypeAny): boolean {
-  const def = schema._def as unknown as { type?: string }
-  if (def.type === 'optional') return true
-  if (def.type === 'default') return true
-  return false
+  return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault
 }
 
 /**

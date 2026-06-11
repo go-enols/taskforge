@@ -17,6 +17,7 @@ import JSON5 from "json5";
 import { db, stmts, getScriptsDir } from "../db";
 import { AuthenticatedRequest } from "../types";
 import { requireRole } from "../middleware/auth";
+import { ScriptManifestSchema } from "../shared/schemas/manifest";
 
 const router = Router();
 
@@ -27,51 +28,6 @@ const upload = multer({
 });
 
 // ---- manifest zod schema (inlined to avoid cross-project imports) ----
-
-const jsonSchemaField: z.ZodType<Record<string, unknown>> = z.lazy(() =>
-  z.object({
-    type: z.string().min(1),
-    title: z.string().optional(),
-    description: z.string().optional(),
-    default: z.unknown().optional(),
-    enum: z.array(z.string()).optional(),
-    required: z.boolean().optional(),
-    properties: z.record(z.string(), jsonSchemaField).optional(),
-    items: jsonSchemaField.optional(),
-    minLength: z.number().optional(),
-    maxLength: z.number().optional(),
-    minimum: z.number().optional(),
-    maximum: z.number().optional(),
-    pattern: z.string().optional(),
-  }).passthrough()
-);
-
-const manifestSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  version: z.string().min(1).regex(/^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$/, 'invalid semver'),
-  description: z.string().min(1),
-  entryPoint: z.string().min(1),
-  runtime: z.literal('node'),
-  schema: z.object({
-    type: z.literal('object'),
-    properties: z.record(z.string(), jsonSchemaField).optional(),
-    required: z.array(z.string()).optional(),
-  }).passthrough(),
-  requiredAccountTemplateIds: z.array(z.string()).optional(),
-  dataRequirements: z.array(z.object({
-    key: z.string().min(1),
-    label: z.string().min(1),
-    templateType: z.string().min(1),
-    min: z.number().int().min(0).optional(),
-    max: z.number().int().min(-1).optional(),
-    source: z.enum(['wallet', 'proxy', 'script_param']),
-    description: z.string().optional(),
-  })).optional(),
-  permissions: z.array(z.enum(['network', 'filesystem'])).optional(),
-  tags: z.array(z.string()).optional(),
-  changelog: z.string().optional(),
-});
 
 /**
  * Validate a manifest.json from a zip buffer using adm-zip + zod.
@@ -92,7 +48,7 @@ function validateZipManifest(zipBuffer: Buffer): { ok: true; manifest: Record<st
   try { obj = JSON5.parse(raw) as Record<string, unknown>; } catch {
     return { ok: false, error: "manifest.json 不是有效的 JSON（支持 JSON5 注释格式）" };
   }
-  const parsed = manifestSchema.safeParse(obj);
+  const parsed = ScriptManifestSchema.safeParse(obj);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const field = first.path.join(".");

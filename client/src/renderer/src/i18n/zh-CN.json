@@ -227,6 +227,8 @@
     "poolNotExistConfirm": "参数池「{{name}}」尚不存在，是否创建？",
     "unknownTemplate": "未知模板",
     "noTemplatesHint": "请先从模板市场下载参数模板",
+    "formTab": "表单配置",
+    "jsonTab": "JSON 编辑",
     "importFile": "从文件导入",
     "importPreview": "导入预览",
     "importSucceeded": "成功导入 {{count}} 个参数",
@@ -282,6 +284,8 @@
     },
     "startTime": "开始时间",
     "endTime": "结束时间",
+    "scriptName": "脚本名称",
+    "configSummary": "配置摘要",
     "noTasks": "暂无任务",
     "scriptFolder": "脚本路径",
     "config": "配置",
@@ -477,7 +481,10 @@
       "earnings": "{{count}} 笔收益"
     },
     "stalenessWarning": "该项目在您打开编辑表单后已被修改，保存前请确认覆盖",
-    "earningsSummary": "汇总"
+    "earningsSummary": "汇总",
+    "jsonView": "高级 / JSON 编辑",
+    "jsonViewHint": "直接编辑 JSON 数据，修改后点击「预览」切换回表单视图",
+    "unlockEdit": "解锁编辑"
   },
   "debug": {
     "title": "调试",
@@ -968,7 +975,13 @@
     "manifestContent": "manifest.json 内容:",
     "noManifestInZip": "ZIP 中未找到 manifest.json",
     "noManifestFound": "No manifest.json found in ZIP",
-    "allFieldsComplete": "所有必填字段完整"
+    "allFieldsComplete": "所有必填字段完整",
+    "demoMode": "独立运行模式",
+    "runWithDemo": "使用示例数据运行",
+    "runCommand": "运行命令",
+    "demoConfigGenerated": "已生成 demo-config.json 示例配置",
+    "standaloneHint": "直接运行 node index.js 即可使用示例数据测试",
+    "testRun": "测试运行"
   },
   "userManagement": {
     "title": "用户管理",

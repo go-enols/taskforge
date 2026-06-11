@@ -84,7 +84,8 @@ export abstract class BaseRepository<_T = unknown> {
     if (val === null) return null
     try {
       return JSON.parse(val) as V
-    } catch {
+    } catch (err) {
+      console.error('[BaseRepository.fromJson] JSON parse failed:', String(err).slice(0, 200))
       return null
     }
   }
@@ -98,7 +99,8 @@ export abstract class BaseRepository<_T = unknown> {
     if (val === null) return []
     try {
       return JSON.parse(val) as V[]
-    } catch {
+    } catch (err) {
+      console.error('[BaseRepository.fromJsonArray] JSON parse failed:', String(err).slice(0, 200))
       return []
     }
   }

@@ -61,7 +61,7 @@ const jsonSchemaSchema = z.object({
   type: z.literal('object'),
   properties: z.record(z.string(), jsonSchemaFieldSchema).optional(),
   required: z.array(z.string()).optional()
-})
+}).passthrough()
 
 const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$/
 

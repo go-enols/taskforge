@@ -296,16 +296,13 @@ export class TaskService {
       // because NODE_OPTIONS=--require doesn't work cleanly with tsx's
       // own pre-loads; in that case the user is running their own
       // TypeScript dev script and should be in control.
-      const isTsx = command === 'npx' && args[0] === 'tsx'
-      if (!isTsx) {
-        const enforcerPath = resolvePath(__dirname, 'sandbox-enforcer.cjs')
-        // Sanity check: enforcer file must exist
-        if (existsSync(enforcerPath)) {
-          const existingOpts = env.NODE_OPTIONS || ''
-          env.NODE_OPTIONS = `--require ${enforcerPath}${existingOpts ? ' ' + existingOpts : ''}`
-        } else {
-          createLogger('task').warn('Sandbox enforcer not found at ' + enforcerPath)
-        }
+      const enforcerPath = resolvePath(__dirname, 'sandbox-enforcer.cjs')
+
+      if (existsSync(enforcerPath)) {
+        const existingOpts = env.NODE_OPTIONS || ''
+        env.NODE_OPTIONS = `--require ${enforcerPath}${existingOpts ? ' ' + existingOpts : ''}`
+      } else {
+        createLogger('task').warn('Sandbox enforcer not found at ' + enforcerPath)
       }
 
       const proc = spawn(command, args, {

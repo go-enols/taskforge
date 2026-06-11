@@ -359,23 +359,26 @@ const Tasks: React.FC = () => {
       // 兜底：如果 handleScriptSelect 没能从 InstalledScript.schema 解析出表单字段，
       // 从 TaskTemplate.manifest.schema 再试一次
       if (manifest?.schema) {
-        setFormFields((prev) => {
-          if (prev.length === 0) {
-            const mSchema = manifest.schema as Record<string, unknown>
-            if (mSchema.type === 'object' && mSchema.properties) {
-              const fields = jsonSchemaToFieldMeta(mSchema)
-              if (fields.length > 0) {
-                const defaults: Record<string, unknown> = {}
-                for (const f of fields) {
-                  if (f.defaultValue !== undefined) defaults[f.name] = f.defaultValue
-                }
-                setFormValues(defaults)
-              }
-              return fields
+        const mSchema = manifest.schema as Record<string, unknown>
+        if (mSchema.type === 'object' && mSchema.properties) {
+          const fields = jsonSchemaToFieldMeta(mSchema)
+          if (fields.length > 0) {
+            setFormFields(fields)
+            const defaults: Record<string, unknown> = {}
+            for (const f of fields) {
+              if (f.defaultValue !== undefined) defaults[f.name] = f.defaultValue
             }
+            setFormValues(defaults)
+          } else {
+            setFormFields([])
+            setFormValues({})
           }
-          return prev
-        })
+        } else {
+          setFormFields([])
+          setFormValues({})
+        }
+      } else {
+        // No manifest schema: keep whatever handleScriptSelect set from script.schema
       }
 
       const reqs = manifest?.dataRequirements as DataRequirement[] | undefined
@@ -751,6 +754,49 @@ const Tasks: React.FC = () => {
     return new Date(v).toLocaleString()
   }
 
+  /** 根据 task.scriptFolder 查找已安装脚本名称，找不到则取路径 basename */
+  const getScriptName = (task: Task): string => {
+    const match = installedScripts.find((s) => s.installPath === task.scriptFolder)
+    if (match) return match.name
+    // Fallback: extract basename from path
+    const segments = task.scriptFolder.replace(/\\/g, '/').split('/')
+    return segments[segments.length - 1] || task.scriptFolder
+  }
+
+  /** 生成任务配置摘要：统计引用的 account pool / 代理 / 钱包数量，截断 30 字符 */
+  const getConfigSummary = (task: Task): string => {
+    const parts: string[] = []
+    if (task.config && typeof task.config === 'object') {
+      for (const key of Object.keys(task.config)) {
+        if (key.startsWith('_data_')) {
+          const val = task.config[key]
+          if (val && typeof val === 'object') {
+            // _data_* entries typically have entries/items or pool info
+            const d = val as Record<string, unknown>
+            if (d.pool && typeof d.pool === 'string') {
+              parts.push(d.pool)
+            }
+            if (d.selectedIds && Array.isArray(d.selectedIds)) {
+              parts.push(`(${d.selectedIds.length})`)
+            }
+          }
+        }
+      }
+      // Also count top-level simple config value indicators
+      const proxyKeys = Object.keys(task.config).filter(
+        (k) => k === 'proxyCount' || k === 'proxies' || k === '_data_proxy'
+      )
+      const walletKeys = Object.keys(task.config).filter(
+        (k) => k === 'walletCount' || k === 'wallets' || k === '_data_wallet'
+      )
+      if (proxyKeys.length > 0) parts.push(t('proxies.title'))
+      if (walletKeys.length > 0) parts.push('wallets')
+    }
+    if (parts.length === 0) return '—'
+    const text = parts.join(', ')
+    return text.length > 30 ? text.slice(0, 30) + '…' : text
+  }
+
   const renderActionButtons = (task: Task): React.JSX.Element => {
     const btnBase = 'p-1.5 rounded-lg transition-colors '
     const s = task.status
@@ -938,6 +984,8 @@ const Tasks: React.FC = () => {
                   </button>
                 </th>
                 <th className="px-4 py-3 font-medium text-text-muted text-center w-[100px]">{t('common.status')}</th>
+                <th className="px-4 py-3 font-medium text-text-muted text-center w-[120px]">{t('tasks.scriptName')}</th>
+                <th className="px-4 py-3 font-medium text-text-muted text-center min-w-[120px]">{t('tasks.configSummary')}</th>
                 <th className="px-4 py-3 font-medium text-text-muted text-center w-[160px]">{t('tasks.startTime')}</th>
                 <th className="px-4 py-3 font-medium text-text-muted text-center w-[160px]">{t('tasks.endTime')}</th>
                 <th className="px-4 py-3 font-medium text-text-muted text-center flex-1">
@@ -948,7 +996,7 @@ const Tasks: React.FC = () => {
             <tbody>
               {items.map((task) => (
                 <tr key={task.id} className="border-b border-border-light/50">
-                  <td colSpan={5} className="p-0">
+                    <td colSpan={7} className="p-0">
                     <div
                       onClick={() => handleToggleExpand(task.id)}
                       className="flex items-center cursor-pointer hover:bg-bg-card-hover transition-colors"
@@ -978,6 +1026,12 @@ const Tasks: React.FC = () => {
                           )}
                           {t(`tasks.status.${task.status}`)}
                         </span>
+                      </div>
+                      <div className="px-4 py-3 w-[120px] shrink-0 text-text-secondary text-xs text-center truncate" title={getScriptName(task)}>
+                        {getScriptName(task)}
+                      </div>
+                      <div className="px-4 py-3 min-w-[120px] shrink-0 text-text-secondary text-xs text-center truncate" title={getConfigSummary(task)}>
+                        {getConfigSummary(task)}
                       </div>
                       <div className="px-4 py-3 w-[160px] shrink-0 text-text-secondary text-xs text-center">
                         {formatTime(task.startedAt)}

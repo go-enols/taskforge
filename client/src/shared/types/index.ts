@@ -22,30 +22,6 @@ export interface Wallet {
   createdAt: string
 }
 
-/**
- * @file 共享 TypeScript 类型定义
- * @description 定义客户端与服务端共享的所有数据接口，包括钱包、脚本参数、代理、任务、空投项目等。
- * @module shared/types
- */
-
-/** 钱包数据：支持 EVM、Solana、SUI 和 Bitcoin 链 */
-export interface Wallet {
-  /** 钱包 UUID */
-  id: string
-  /** 钱包地址（EVM: 0x... / Solana: base58 编码） */
-  address: string
-  /** 加密存储的私钥（可为空） */
-  privateKey: string | null
-  /** 助记词（可为空，用于 HD 钱包派生） */
-  mnemonic: string | null
-  /** 钱包类型 */
-  walletType: 'evm' | 'solana' | 'sui' | 'bitcoin'
-  /** 标签数组，用于分类筛选 */
-  labels: string[]
-  /** ISO 8601 创建时间 */
-  createdAt: string
-}
-
 /** 脚本参数池中的条目（关联模板，由模板 schema 定义结构，作为任务脚本的输入参数） */
 export interface ScriptParam {
   /** 脚本参数 UUID */
