@@ -20,7 +20,7 @@ if (os.platform() === 'win32' || process.env.CI === 'true') {
 
 try {
   execSync('npx electron-builder install-app-deps', { stdio: 'inherit' })
-} catch (err) {
+} catch {
   console.warn(
     '⚠ postinstall: electron-builder install-app-deps failed\n' +
       '  Run `npm run rebuild:electron` before `npm run dev` if needed.'

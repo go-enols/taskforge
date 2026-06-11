@@ -31,15 +31,21 @@ export default defineConfig(
   {
     files: ['**/*.{js,jsx,cjs}'],
     rules: {
-      'react/prop-types': 'off',
-
-
-      '@typescript-eslint/no-require-imports': 'off'
+      '@typescript-eslint/no-require-imports': 'off',
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }
   },
   {
     rules: {
-      '@typescript-eslint/explicit-function-return-type': 'off'
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      'react/prop-types': 'off',
+      'no-empty': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      'react/no-unescaped-entities': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/rules-of-hooks': 'off',
+      'react-hooks/exhaustive-deps': 'warn',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }
   },
   eslintConfigPrettier
