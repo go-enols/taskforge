@@ -67,9 +67,9 @@ export const handlerMap = new Map<string, ApiHandler>()
  * @param err - 捕获到的任意异常
  * @returns 包含错误信息的 ApiResult 对象
  */
-export function handleError(err: unknown): ApiResult {
+export function handleError(err: unknown, channel?: string): ApiResult {
   const message = err instanceof Error ? err.message : String(err)
-  logger.error('handler error', { message })
+  logger.error('handler error', { channel: channel ?? '(unknown)', message })
   return {
     error: {
       message,
@@ -104,7 +104,7 @@ export async function executeHandler(channel: string, args: unknown[]): Promise<
     const result = await handler(...args)
     return { data: result }
   } catch (err) {
-    return handleError(err)
+    return handleError(err, channel)
   }
 }
 
