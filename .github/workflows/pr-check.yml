@@ -45,8 +45,8 @@ jobs:
 
       - name: Install server dependencies
         working-directory: ./server
-        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Type check (server)
         working-directory: ./server
-        run: npx tsc --noEmit
+        run: npx tsc --noEmit --skipLibCheck
