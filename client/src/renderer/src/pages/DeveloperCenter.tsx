@@ -127,45 +127,23 @@ export default function DeveloperCenter() {
   }
 
   const buildManifestJson5 = (m: Record<string, unknown>): string => {
-    const props = m.schema && typeof m.schema === 'object' ? (m.schema as Record<string, unknown>).properties : undefined
-    const propsStr = props ? `  "properties": ${JSON.stringify(props, null, 4).replace(/\n/g, '\n  ')}` : '  "properties": {}'
-    return `/**
- * ${m.name || 'Script'} — 任务脚本配置清单
- *
- * id:               全局唯一标识符（推荐反向域名格式，如 com.example.my-script）
- * name:             脚本显示名称
- * version:          语义化版本号（SemVer）
- * description:      脚本用途说明
- * entryPoint:       入口文件名（相对于脚本目录）
- * runtime:          运行时环境（当前仅支持 "node"）
- * permissions:      运行时权限声明 ["network", "filesystem"]，默认全部拒绝
- * tags:             分类标签（用于市场搜索）
- * changelog:        更新日志
- * requiredAccountTemplateIds: 需要的参数模板 ID 列表（用于注入账户数据）
- * schema:           任务配置表单的 JSON Schema（用于 DynamicForm 自动渲染）
- */
-{
-  // 必填字段
-  "id": ${JSON.stringify(m.id)},
-  "name": ${JSON.stringify(m.name)},
-  "version": ${JSON.stringify(m.version)},
-  "description": ${JSON.stringify(m.description)},
-  "entryPoint": ${JSON.stringify(m.entryPoint)},
-  "runtime": "node",
-
-  // 可选字段
-  "permissions": ${JSON.stringify(m.permissions)},
-  "tags": ${JSON.stringify(m.tags)},
-  "changelog": ${JSON.stringify(m.changelog)},
-  "requiredAccountTemplateIds": ${JSON.stringify(m.requiredAccountTemplateIds)},
-
-  // Schema 定义（任务配置表单的 JSON Schema）
-  "schema": {
-    "type": "object",
-${propsStr}${(m.schema as Record<string, unknown>)?.required ? `,\n    "required": ${JSON.stringify((m.schema as Record<string, unknown>).required)}` : ''}
-  }
-}
-`
+    return JSON.stringify(
+      {
+        id: m.id,
+        name: m.name,
+        version: m.version,
+        description: m.description,
+        entryPoint: m.entryPoint,
+        runtime: m.runtime,
+        permissions: m.permissions,
+        tags: m.tags,
+        changelog: m.changelog,
+        dataRequirements: m.dataRequirements,
+        schema: m.schema
+      },
+      null,
+      2
+    )
   }
 
   const initProject = async () => {
@@ -204,7 +182,14 @@ ${propsStr}${(m.schema as Record<string, unknown>)?.required ? `,\n    "required
         permissions,
         tags,
         changelog: projectMeta.changelog.trim(),
-        requiredAccountTemplateIds: selectedTemplateIds,
+        dataRequirements: selectedTemplateIds.map((id: string) => ({
+          key: id.replace(/[^a-zA-Z0-9]/g, '_'),
+          label: id,
+          templateType: id,
+          min: 1,
+          max: -1,
+          source: 'script_param'
+        })),
         schema: {
           type: 'object',
           properties,
@@ -235,15 +220,15 @@ if (isSandbox) {
 }
 
 // ── 读取钱包数据（由 TaskForge 注入）──
-const wallets = JSON.parse(process.env.TASK_WALLETS || '[]')
+const wallets = JSON.parse(process.env.TASK_DATA_WALLETS || '[]')
 if (wallets.length > 0) {
   console.log('[script] loaded', wallets.length, 'wallet(s)')
 }
 
 // ── 读取账户数据（由 TaskForge 注入）──
-const scriptParams = JSON.parse(process.env.TASK_SCRIPT_PARAMS || '[]')
+const accounts = JSON.parse(process.env.TASK_DATA_ACCOUNTS || '[]')
 if (scriptParams.length > 0) {
-  console.log('[script] loaded', scriptParams.length, 'script param(s)')
+  console.log('[script] loaded', accounts.length, 'account(s)')
 }
 
 // TODO: add your script logic here
@@ -333,7 +318,7 @@ Install via TaskForge marketplace, then create a task using this script.
         permissions: [],
         tags: [],
         changelog: '',
-        requiredAccountTemplateIds: [],
+        dataRequirements: [],
         schema: { type: 'object', properties: {} }
       }
       const json = JSON.stringify(basicManifest, null, 2)
@@ -1214,24 +1199,99 @@ Install via TaskForge marketplace, then create a task using this script.
             </div>
           </div>
         )}
-      </div>
-
       {/* ══════════════════════════════════════════
           Tab 4: SDK 文档
           ══════════════════════════════════════════ */}
       <div className={activeTab === 'sdk' ? 'space-y-4' : 'hidden'}>
         <h1 className="text-2xl font-bold text-text-primary">SDK 文档</h1>
-        <p className="text-text-muted text-sm">TaskForge 任务脚本开发指南 — manifest.json 规范、运行时环境变量与沙箱权限模型。</p>
+        <p className="text-text-muted text-sm">TaskForge 任务脚本开发指南 — 两种输入类型、manifest.json 规范、运行时环境变量与沙箱权限模型。</p>
 
         <div className="bg-bg-card rounded-xl border border-border-light p-6 space-y-6">
-          {/* manifest.json 规范 */}
+
+          {/* ============ 核心概念：两种输入 ============ */}
+          <section>
+            <h2 className="text-lg font-semibold text-text-primary mb-3">核心概念：脚本的两种输入</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              每个任务脚本在运行时接收两种输入，由开发者通过 manifest.json 分别声明。
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="p-4 rounded-lg bg-bg-page border border-primary/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium">schema</span>
+                  <span className="font-medium text-text-primary">开发者自定义参数</span>
+                </div>
+                <p className="text-text-secondary mb-2">
+                  由开发者在 manifest.schema 中定义，用户在创建任务时通过表单填写。运行时注入为 TASK_CONFIG 及 TASK_{"{"}KEY{"}"}。
+                </p>
+                <p className="text-xs text-text-muted">例：目标 URL、并发数、超时时间等一次性配置参数。</p>
+              </div>
+
+              <div className="p-4 rounded-lg bg-bg-page border border-purple/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 rounded bg-purple/10 text-purple text-xs font-medium">dataRequirements</span>
+                  <span className="font-medium text-text-primary">数据模板选择</span>
+                </div>
+                <p className="text-text-secondary mb-2">
+                  由开发者声明需要哪种数据（钱包/代理/数据模板），用户在创建任务时从已有数据中勾选。运行时注入为 TASK_DATA_{"{"}KEY{"}"}。
+                </p>
+                <p className="text-xs text-text-muted">例：选择要操作的钱包列表、代理配置、社交媒体账号池。</p>
+              </div>
+            </div>
+          </section>
+
+          {/* ============ manifest.json 规范 ============ */}
           <section>
             <h2 className="text-lg font-semibold text-text-primary mb-3">manifest.json 规范</h2>
             <p className="text-sm text-text-secondary mb-3">
-              每个任务脚本在 zip 包根目录下必须包含 <code className="text-xs bg-bg-tertiary px-1.5 py-0.5 rounded">manifest.json</code>，定义脚本的元数据、参数 schema 和权限声明。
+              每个任务脚本在 zip 包根目录下必须包含 manifest.json，定义脚本的元数据、两类输入声明和权限声明。
             </p>
 
-            <table className="w-full text-sm">
+            <p className="text-xs text-text-muted mb-2">完整示例：</p>
+            <pre className="bg-bg-page border border-border-light rounded-lg p-4 text-xs text-text-secondary overflow-auto mb-4">
+{`{
+  "id": "com.example.daily-checkin",
+  "name": "每日签到",
+  "version": "1.0.0",
+  "description": "多钱包自动签到脚本",
+  "entryPoint": "index.js",
+  "runtime": "node",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "targetUrl": { "type": "string", "title": "签到 URL" },
+      "threadCount": { "type": "number", "title": "并发数", "default": 1 }
+    },
+    "required": ["targetUrl"]
+  },
+  "dataRequirements": [
+    {
+      "key": "wallets",
+      "label": "EVM 钱包",
+      "templateType": "evm",
+      "min": 1,
+      "max": 5,
+      "source": "wallet",
+      "description": "选择要签到的 EVM 钱包"
+    },
+    {
+      "key": "accounts",
+      "label": "社交账号",
+      "templateType": "twitter-account",
+      "min": 1,
+      "max": -1,
+      "source": "script_param",
+      "description": "绑定 Twitter 账号用于自动发推"
+    }
+  ],
+  "permissions": ["network"],
+  "tags": ["airdrop", "checkin"],
+  "changelog": "v1.0.0 初始版本"
+}`}
+            </pre>
+
+            <h3 className="text-md font-medium text-text-primary mb-2">基础字段</h3>
+            <table className="w-full text-sm mb-4">
               <thead>
                 <tr className="border-b border-border-light text-left">
                   <th className="py-2 pr-4 font-medium text-text-primary">字段</th>
@@ -1242,16 +1302,16 @@ Install via TaskForge marketplace, then create a task using this script.
               </thead>
               <tbody className="divide-y divide-border-light">
                 {[
-                  ['id', 'string', '✅', '全局唯一标识符（推荐反向域名格式 com.example.my-script）'],
+                  ['id', 'string', '✅', '全局唯一标识符（推荐反向域名格式）'],
                   ['name', 'string', '✅', '脚本显示名称'],
                   ['version', 'string', '✅', '语义化版本号（SemVer）'],
                   ['description', 'string', '✅', '脚本用途说明'],
-                  ['entryPoint', 'string', '✅', '入口文件名（相对于脚本目录，如 index.js）'],
-                  ['runtime', 'string', '✅', '运行时环境（目前仅支持 "node"）'],
-                  ['requiredAccountTemplateIds', 'string[]', '❌', '需要的参数模板 ID 列表'],
-                  ['schema', 'object', '✅', '任务配置表单的 JSON Schema（自动渲染 DynamicForm）'],
-                  ['permissions', 'string[]', '❌', '权限声明：["network", "filesystem"]，默认全部拒绝'],
-                  ['tags', 'string[]', '❌', '分类标签（用于市场搜索）'],
+                  ['entryPoint', 'string', '✅', '入口文件名（相对于脚本目录）'],
+                  ['runtime', 'string', '✅', '运行时（目前仅支持 node）'],
+                  ['schema', 'object', '✅', 'JSON Schema，定义自定义参数 → 运行时注入 TASK_CONFIG'],
+                  ['dataRequirements', 'DataRequirement[]', '❌', '数据模板声明 → 运行时注入 TASK_DATA_{"{"}KEY{"}"}'],
+                  ['permissions', 'string[]', '❌', '["network", "filesystem"]，默认全部拒绝'],
+                  ['tags', 'string[]', '❌', '分类标签'],
                   ['changelog', 'string', '❌', '更新日志'],
                 ].map(([field, type, required, desc]) => (
                   <tr key={field}>
@@ -1263,34 +1323,52 @@ Install via TaskForge marketplace, then create a task using this script.
                 ))}
               </tbody>
             </table>
-          </section>
 
-          {/* 运行时环境变量 */}
-          <section>
-            <h2 className="text-lg font-semibold text-text-primary mb-3">运行时环境变量</h2>
-            <p className="text-sm text-text-secondary mb-3">
-              脚本子进程启动时由 TaskForge 注入以下环境变量，供脚本运行时自检和使用。
-            </p>
+            <h3 className="text-md font-medium text-text-primary mb-2">schema 属性字段类型</h3>
+            <table className="w-full text-sm mb-4">
+              <thead>
+                <tr className="border-b border-border-light text-left">
+                  <th className="py-2 pr-4 font-medium text-text-primary">type</th>
+                  <th className="py-2 font-medium text-text-primary">渲染</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-light">
+                {[
+                  ['string', '单行文本输入框'],
+                  ['number', '数字输入框（支持 min/max）'],
+                  ['boolean', '复选框'],
+                  ['string + enum', '下拉选择框'],
+                ].map(([t, d]) => (
+                  <tr key={t}>
+                    <td className="py-2 pr-4"><code className="text-xs bg-bg-tertiary px-1.5 py-0.5 rounded font-mono">{t}</code></td>
+                    <td className="py-2 text-text-secondary">{d}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
+            <h3 className="text-md font-medium text-text-primary mb-2">dataRequirements 字段说明</h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border-light text-left">
-                  <th className="py-2 pr-4 font-medium text-text-primary">变量名</th>
+                  <th className="py-2 pr-4 font-medium text-text-primary">字段</th>
+                  <th className="py-2 pr-4 font-medium text-text-primary">类型</th>
                   <th className="py-2 font-medium text-text-primary">说明</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-light">
                 {[
-                  ['TASK_ID', '任务 UUID'],
-                  ['TASK_CONFIG', 'JSON 序列化的任务配置（根据 manifest schema 填写）'],
-                  ['TASK_PERM_NETWORK', '"1" 或 "0"，生效的网络权限'],
-                  ['TASK_PERM_FILESYSTEM', '"1" 或 "0"，生效的文件系统权限'],
-                  ['TASK_SANDBOX', '"1" 或 "0"，是否沙箱模式'],
-                  ['TASK_WALLETS', '(非沙箱) JSON 数组格式的钱包数据'],
-                  ['TASK_SCRIPT_PARAMS', '(非沙箱) JSON 数组格式的脚本参数数据'],
-                ].map(([name, desc]) => (
-                  <tr key={name}>
-                    <td className="py-2 pr-4"><code className="text-xs bg-bg-tertiary px-1.5 py-0.5 rounded font-mono">{name}</code></td>
+                  ['key', 'string', '环境变量 key → 运行时通过 TASK_DATA_{"{"}KEY{"}"} 访问'],
+                  ['label', 'string', '任务创建页显示的名称'],
+                  ['templateType', 'string', '匹配 templates.type，决定系统从哪个数据表查询'],
+                  ['min', 'number', '最少选择条数（默认 0）'],
+                  ['max', 'number', '最多选择条数（-1 = 无上限）'],
+                  ['source', '"wallet" | "proxy" | "script_param"', '数据来源路由'],
+                  ['description', 'string（可选）', '帮助说明文字'],
+                ].map(([field, type, desc]) => (
+                  <tr key={field}>
+                    <td className="py-2 pr-4"><code className="text-xs bg-bg-tertiary px-1.5 py-0.5 rounded font-mono">{field}</code></td>
+                    <td className="py-2 pr-4 text-text-muted">{type}</td>
                     <td className="py-2 text-text-secondary">{desc}</td>
                   </tr>
                 ))}
@@ -1298,7 +1376,42 @@ Install via TaskForge marketplace, then create a task using this script.
             </table>
           </section>
 
-          {/* 权限模型 */}
+          {/* ============ 运行时环境变量 ============ */}
+          <section>
+            <h2 className="text-lg font-semibold text-text-primary mb-3">运行时环境变量</h2>
+            <p className="text-sm text-text-secondary mb-3">
+              脚本子进程启动时由 TaskForge 注入以下环境变量。
+            </p>
+
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-light text-left">
+                  <th className="py-2 pr-4 font-medium text-text-primary">变量名</th>
+                  <th className="py-2 pr-4 font-medium text-text-primary">来源</th>
+                  <th className="py-2 font-medium text-text-primary">说明</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-light">
+                {[
+                  ['TASK_ID', '系统', '任务 UUID'],
+                  ['TASK_CONFIG', 'schema', '完整 JSON 配置（用户在表单填写的所有参数）'],
+                  ['TASK_{"{"}KEY{"}"}', 'schema', '每个 schema 属性独立注入（如 TASK_TARGETURL）'],
+                  ['TASK_DATA_{"{"}KEY{"}"}', 'dataRequirements', '用户选中的数据（如 TASK_DATA_WALLETS / TASK_DATA_ACCOUNTS）'],
+                  ['TASK_PERM_NETWORK', '系统', '"1" 或 "0"，生效的网络权限'],
+                  ['TASK_PERM_FILESYSTEM', '系统', '"1" 或 "0"，生效的文件系统权限'],
+                  ['TASK_SANDBOX', '系统', '"1" 或 "0"，是否沙箱模式'],
+                ].map(([name, source, desc]) => (
+                  <tr key={name}>
+                    <td className="py-2 pr-4"><code className="text-xs bg-bg-tertiary px-1.5 py-0.5 rounded font-mono">{name}</code></td>
+                    <td className="py-2 pr-4 text-text-muted">{source}</td>
+                    <td className="py-2 text-text-secondary">{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+
+          {/* ============ 权限模型 ============ */}
           <section>
             <h2 className="text-lg font-semibold text-text-primary mb-3">四层权限模型</h2>
             <div className="space-y-3 text-sm text-text-secondary">
@@ -1308,45 +1421,47 @@ Install via TaskForge marketplace, then create a task using this script.
               </div>
               <div className="p-3 rounded-lg bg-bg-page border border-border-light">
                 <span className="font-medium text-text-primary">Layer 2 — 沙箱模式覆盖 (task.is_sandbox)</span>
-                <p className="mt-1">用户在创建任务时可启用沙箱模式，覆盖 Layer 1 的所有权限声明，全部拒绝。</p>
+                <p className="mt-1">用户在创建任务时可启用沙箱模式，覆盖 Layer 1 的所有权限声明。</p>
               </div>
               <div className="p-3 rounded-lg bg-bg-page border border-border-light">
                 <span className="font-medium text-text-primary">Layer 3 — 系统关键环境变量白名单</span>
-                <p className="mt-1">PATH、HOME、APPDATA 等系统环境变量只能从父进程继承，不可被 task.config 覆盖。</p>
+                <p className="mt-1">PATH、HOME、APPDATA 等系统变量不可被 task.config 覆盖。</p>
               </div>
               <div className="p-3 rounded-lg bg-bg-page border border-border-light">
                 <span className="font-medium text-text-primary">Layer 4 — 运行时强制 patch (sandbox-enforcer.cjs)</span>
-                <p className="mt-1">通过 NODE_OPTIONS=--require 在用户脚本运行前 monkey-patch 所有受限 API（http、fs、child_process 等），脚本无法绕过。</p>
+                <p className="mt-1">通过 NODE_OPTIONS=--require monkey-patch 所有受限 API（http、fs、child_process），无法绕过。</p>
               </div>
             </div>
           </section>
 
-          {/* 快速开始示例 */}
+          {/* ============ 快速开始 ============ */}
           <section>
             <h2 className="text-lg font-semibold text-text-primary mb-3">快速开始</h2>
             <pre className="bg-bg-page border border-border-light rounded-lg p-4 text-xs text-text-secondary overflow-auto">
-{`// index.js — 一个简单的任务脚本模板
+{`// ── 读取自定义参数（schema）──
 const config = JSON.parse(process.env.TASK_CONFIG || '{}')
-console.log('[script] started with config:', JSON.stringify(config))
+console.log('[script] config:', config.targetUrl)
 
-// 权限自检
-const canNetwork = process.env.TASK_PERM_NETWORK === '1'
+// ── 读取数据模板（dataRequirements）──
+// key 即为 manifest 中声明的 key
+const wallets  = JSON.parse(process.env.TASK_DATA_WALLETS || '[]')
+const accounts = JSON.parse(process.env.TASK_DATA_ACCOUNTS || '[]')
+console.log('[script]', wallets.length, 'wallets,', accounts.length, 'accounts')
+
+// ── 权限自检 ──
 const isSandbox = process.env.TASK_SANDBOX === '1'
-
 if (isSandbox) {
   console.warn('[script] Sandbox mode — network disabled')
 }
 
-// 读取钱包
-const wallets = JSON.parse(process.env.TASK_WALLETS || '[]')
-console.log('[script]', wallets.length, 'wallet(s) loaded')
-
-// TODO: 在此编写你的脚本逻辑
-// 退出码：0 = 成功，非 0 = 错误
-`}
+// ── 业务逻辑 ──
+for (const wallet of wallets) {
+  await checkIn(config.targetUrl, wallet, accounts)
+}`}
             </pre>
           </section>
         </div>
+      </div>
       </div>
 
       {/* ══════════════════════════════════════

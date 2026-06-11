@@ -4,12 +4,25 @@
  *              Used by both client (pre-upload validation) and server (API validation).
  *
  *              Mandatory: id, name, version, description, entryPoint, runtime, schema
- *              Optional:  requiredAccountTemplateIds, permissions, tags, changelog
+ *              Optional:  dataRequirements, permissions, tags, changelog
  * @module shared/schemas
  */
 import { z } from 'zod'
 
-// JSON Schema 字段类型定义（递归类型）
+/** 数据源类型 */
+const dataSourceSchema = z.enum(['wallet', 'proxy', 'script_param'])
+
+/** 数据需求声明 */
+const dataRequirementSchema = z.object({
+  key: z.string().min(1, 'key is required'),
+  label: z.string().min(1, 'label is required'),
+  templateType: z.string().min(1, 'templateType is required'),
+  min: z.number().int().min(0).default(0),
+  max: z.number().int().min(-1).default(-1),
+  source: dataSourceSchema,
+  description: z.string().optional()
+})
+
 export type JsonSchemaField = {
   type: string
   title?: string
@@ -71,8 +84,8 @@ export const ScriptManifestSchema = z.object({
   runtime: z.literal('node'),
   /** 任务配置表单的 JSON Schema */
   schema: jsonSchemaSchema,
-  /** （可选）需要的账户模板 ID 列表 */
-  requiredAccountTemplateIds: z.array(z.string()).optional(),
+  /** 脚本需要的数据模板声明（替代旧的 requiredAccountTemplateIds） */
+  dataRequirements: z.array(dataRequirementSchema).optional(),
   /** （可选）权限声明 */
   permissions: z.array(z.enum(['network', 'filesystem'])).optional(),
   /** （可选）分类标签 */

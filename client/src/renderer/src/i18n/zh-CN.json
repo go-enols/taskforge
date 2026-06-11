@@ -337,6 +337,24 @@
     "batchPartial": "部分成功：{{succeeded}} 个成功，{{failed}} 个失败",
     "batchFailed": "批量执行失败，共 {{count}} 个任务失败"
   },
+  "dataRequirement": {
+    "title": "需要的数据",
+    "selectAll": "全选",
+    "selectedCount": "已选 {{selected}}/{{total}}",
+    "noneAvailable": "暂无可用数据",
+    "noneSelected": "未选择",
+    "createNew": "新建",
+    "importData": "导入",
+    "filterByPool": "按池筛选",
+    "allPools": "全部池",
+    "source_wallet": "钱包",
+    "source_proxy": "代理",
+    "source_script_param": "数据模板",
+    "createWallet": "新建钱包",
+    "createProxy": "新建代理",
+    "minHint": "至少需要 {{count}} 个",
+    "maxHint": "最多可选 {{count}} 个"
+  },
   "templates": {
     "title": "模板市场",
     "scriptParamTemplates": "参数模板",

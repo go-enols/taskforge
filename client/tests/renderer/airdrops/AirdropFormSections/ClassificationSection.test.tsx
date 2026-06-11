@@ -140,7 +140,7 @@ describe('ClassificationSection (server render)', () => {
     expect(html).toMatch(/accountPool.*\*/i)
   })
 
-  it('renders scriptTemplate dropdown with "(可�?" hint', () => {
+  it('renders scriptTemplate dropdown with "(可选)" hint', () => {
     const html = renderToString(
       <ClassificationSection
         form={baseForm()}

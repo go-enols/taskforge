@@ -1,9 +1,9 @@
 ﻿/**
- * @file AdminCenter 鈥?绠＄悊涓績 (瀹℃牳 + 鐢ㄦ埛绠＄悊)
- * @description 绠＄悊鍛樹竴绔欏紡鎺у埗鍙帮細
- *   - Tab 1: 鑴氭湰瀹℃牳
- *   - Tab 2: 妯℃澘瀹℃牳
- *   - Tab 3: 鐢ㄦ埛绠＄悊
+ * @file AdminCenter — 管理中心 (审核 + 用户管理)
+ * @description 管理员一站式控制台：
+ *   - Tab 1: 脚本审核
+ *   - Tab 2: 模板审核
+ *   - Tab 3: 用户管理
  * @module renderer/pages
  */
 
@@ -27,8 +27,7 @@ import { toast } from '../utils/toast'
 import { ConfirmDialog } from '../components/common'
 import type { RemoteScript, RemoteTemplate } from '../types'
 
-/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?   Tab type
-   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+/* ── Tab type ── */
 
 type AdminTab = 'users'
 
@@ -36,8 +35,7 @@ const TAB_ITEMS: { key: AdminTab; icon: typeof Shield; labelKey: string }[] = [
   { key: 'users', icon: Users, labelKey: 'userManagement.title' }
 ]
 
-/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?   User Management helpers
-   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+/* ── User Management helpers ── */
 
 interface User {
   id: string
@@ -72,26 +70,25 @@ const roleBadge: Record<string, string> = {
   user: 'bg-text-muted/10 text-text-muted'
 }
 
-/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?   Component
-   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+/* ── Component ── */
 
 export default function AdminCenter() {
   const { t } = useTranslation()
   const { isAdmin } = useAuth()
 
-  /* 鈹€鈹€ Tab 鈹€鈹€ */
+  /* ── Tab ── */
   const [activeTab, setActiveTab] = useState<AdminTab>('users')
 
-  /* 鈹€鈹€ Review state (shared between scripts & templates tabs) 鈹€鈹€ */
+  /* ── Review state (shared between scripts & templates tabs) ── */
   const [scripts, setScripts] = useState<RemoteScript[]>([])
   const [templates, setTemplates] = useState<RemoteTemplate[]>([])
   const [reviewLoading, setReviewLoading] = useState(true)
-  /** 姣忎釜寰呭鏍搁」鐙珛鐨勮瘎璁鸿緭鍏ユ锛坘ey = item.id锛?*/
+  /** 每个待审核项独立的评论输入框（key = item.id）*/
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({})
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
 
-  /* 鈹€鈹€ User Management state 鈹€鈹€ */
+  /* ── User Management state ── */
   const [users, setUsers] = useState<User[]>([])
   const [usersLoading, setUsersLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -112,8 +109,7 @@ export default function AdminCenter() {
   const [deleting, setDeleting] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
-  /* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?     Review logic
-     鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+/* ── Review logic ── */
 
   const toggleExpanded = (id: string) => {
     setExpandedItems((prev) => {
@@ -134,7 +130,7 @@ export default function AdminCenter() {
       setScripts(scriptsRes.data?.items || [])
       setTemplates(templatesRes.data?.items || [])
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '鑾峰彇寰呭鏍搁」鐩け璐?)
+      toast.error(e instanceof Error ? e.message : '获取待审核项目失败')
     } finally {
       setReviewLoading(false)
     }
@@ -164,15 +160,16 @@ export default function AdminCenter() {
       } else {
         await marketplaceApi.reviewTemplate(id, action, comment)
       }
-      toast.success(action === 'approve' ? '宸叉壒鍑? : '宸叉嫆缁?)
-      // 娓呯悊宸插鏍搁」鐨勮瘎璁鸿緭鍏?      setReviewComments((prev) => {
+      toast.success(action === 'approve' ? '已批准' : '已拒绝')
+      // 清理已审核项的评论输入
+      setReviewComments((prev) => {
         const next = { ...prev }
         delete next[id]
         return next
       })
       fetchPending()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '瀹℃牳澶辫触')
+      toast.error(e instanceof Error ? e.message : '审核失败')
     } finally {
       setReviewingId(null)
     }
@@ -184,12 +181,11 @@ export default function AdminCenter() {
       const url = `${base}${item.downloadUrl}`
       window.open(url, '_blank')
     } catch {
-      toast.error('鑾峰彇涓嬭浇閾炬帴澶辫触')
+      toast.error('获取下载链接失败')
     }
   }
 
-  /* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?     User Management logic
-     鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+/* ── User Management logic ── */
 
   const marketFetch = useCallback(async (method: string, path: string, body?: unknown) => {
     const base = await getMarketplaceUrl()
@@ -281,7 +277,7 @@ export default function AdminCenter() {
       if (editForm.displayName !== editTarget.displayName) body.displayName = editForm.displayName
       if (editForm.role !== editTarget.role) body.role = editForm.role
       await marketFetch('PATCH', `/api/users/${editTarget.id}`, body)
-      toast.success(t('userManagement.editSuccess') || '鐢ㄦ埛鏇存柊鎴愬姛')
+      toast.success(t('userManagement.editSuccess') || '用户更新成功')
       setEditTarget(null)
       fetchUsers()
     } catch (e) {
@@ -340,8 +336,7 @@ export default function AdminCenter() {
     })
   }, [])
 
-  /* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?     Access guard
-     鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+/* ── Access guard ── */
 
   if (!isAdmin) {
     return (
@@ -351,13 +346,12 @@ export default function AdminCenter() {
     )
   }
 
-  /* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?     Render helpers
-     鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+/* ── Render helpers ── */
 
 
   const renderUsersTab = () => (
     <div>
-      {/* 鈹€鈹€ Header 鈹€鈹€ */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-text-primary">{t('userManagement.title')}</h2>
@@ -372,7 +366,7 @@ export default function AdminCenter() {
         </button>
       </div>
 
-      {/* 鈹€鈹€ User table 鈹€鈹€ */}
+      {/* ── User table ── */}
       <div className="bg-bg-card border border-border-light rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -425,7 +419,7 @@ export default function AdminCenter() {
                         <p className="text-xs text-text-muted font-mono">{user.id}</p>
                       </td>
                       <td className="px-3 py-2.5 text-sm text-text-secondary">
-                        {user.displayName || '鈥?}
+                        {user.displayName || '—'}
                       </td>
                       <td className="px-3 py-2.5">
                         <span
@@ -506,7 +500,7 @@ export default function AdminCenter() {
         </div>
       </div>
 
-      {/* 鈹€鈹€ Create User Modal 鈹€鈹€ */}
+      {/* ── Create User Modal ── */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div
@@ -607,7 +601,7 @@ export default function AdminCenter() {
         </div>
       )}
 
-      {/* 鈹€鈹€ Edit User Modal 鈹€鈹€ */}
+      {/* ── Edit User Modal ── */}
       {editTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div
@@ -655,7 +649,7 @@ export default function AdminCenter() {
                   type="password"
                   value={editForm.password}
                   onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder={t('userManagement.editModal.passwordPlaceholder') || '鐣欑┖鍒欎笉淇敼瀵嗙爜'}
+                  placeholder={t('userManagement.editModal.passwordPlaceholder') || '留空则不修改密码'}
                   className="w-full px-3 py-2 rounded-lg border border-border-light bg-bg-input text-sm text-text-primary focus:border-primary outline-none transition-colors"
                 />
               </div>
@@ -701,7 +695,7 @@ export default function AdminCenter() {
         </div>
       )}
 
-      {/* 鈹€鈹€ Delete Confirm Dialog 鈹€鈹€ */}
+      {/* ── Delete Confirm Dialog ── */}
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -714,7 +708,7 @@ export default function AdminCenter() {
         loading={deleting}
       />
 
-      {/* 鈹€鈹€ Regenerate Key Confirm Dialog 鈹€鈹€ */}
+      {/* ── Regenerate Key Confirm Dialog ── */}
       <ConfirmDialog
         open={!!regenerateTarget}
         onClose={() => setRegenerateTarget(null)}
@@ -729,12 +723,11 @@ export default function AdminCenter() {
     </div>
   )
 
-  /* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?     Main render
-     鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+/* ── Main render ── */
 
   return (
     <div className="space-y-6">
-      {/* 鈹€鈹€ Tab bar 鈹€鈹€ */}
+      {/* ── Tab bar ── */}
       <div className="flex gap-1 border-b border-border-light pb-0">
         {TAB_ITEMS.map(({ key, icon: Icon, labelKey }) => (
           <button
@@ -752,7 +745,7 @@ export default function AdminCenter() {
         ))}
       </div>
 
-      {/* 鈹€鈹€ Tab content 鈹€鈹€ */}
+      {/* ── Tab content ── */}
       {activeTab === 'users' && renderUsersTab()}
     </div>
   )

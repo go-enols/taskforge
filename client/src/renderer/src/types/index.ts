@@ -43,5 +43,7 @@ export type {
   TaskLogBatch,
   TaskProgressUpdate,
   ProjectTemplate,
-  ProjectTemplateField
+  ProjectTemplateField,
+  DataRequirement,
+  DataSource
 } from '../../../shared/types'

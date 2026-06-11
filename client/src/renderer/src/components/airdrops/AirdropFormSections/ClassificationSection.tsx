@@ -43,7 +43,7 @@ const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   loading
 }) => {
   const { t } = useTranslation()
-  const set = <K extends keyof AirdropFormData>(key: K, value: AirdropFormData[K]) =>
+  const set = <K extends keyof AirdropFormData,>(key: K, value: AirdropFormData[K]) =>
     onChange({ ...form, [key]: value })
 
   return (
@@ -92,7 +92,7 @@ const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           </select>
         </div>
 
-        {/* Account Pool â€?required */}
+        {/* Account Pool â€”required */}
         <div>
           <label className="block text-xs font-medium text-text-secondary mb-1 flex items-center gap-1">
             <Folder size={11} />
@@ -134,7 +134,7 @@ const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           )}
         </div>
 
-        {/* Script template â€?optional */}
+        {/* Script template â€”optional */}
         <div>
           <label className="block text-xs font-medium text-text-secondary mb-1 flex items-center gap-1">
             <FileCode size={11} />

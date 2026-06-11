@@ -64,7 +64,7 @@ export class TaskService {
       // dependencies actually exist on disk, skip install.
       if (pkgStat.mtimeMs < nmStat.mtimeMs) {
         if (this.areAllDepsInstalled(pkgPath, nmPath)) return
-        running.logBuffer.push('warn', 'node_modules 不完整（部分依赖缺失），将重新安装…')
+        running.logBuffer.push('warn', 'node_modules 不完整（部分依赖缺失），将重新安装...')
       } else {
         running.logBuffer.push('info', 'package.json 已更新，重新安装依赖...')
       }
@@ -217,9 +217,10 @@ export class TaskService {
       for (const [key, value] of Object.entries(task.config)) {
         if (value === undefined || value === null) continue
         if (key === 'args' || key === '_command') continue
+        if (key.startsWith('_data_')) continue
         const envKey = `TASK_${key.toUpperCase()}`
         if (SYSTEM_PROTECTED_KEYS.has(envKey)) continue
-        env[envKey] = String(value)
+        env[envKey] = typeof value === 'object' ? JSON.stringify(value) : String(value)
       }
 
       // ② 继承系统基础设施变量（安全值来自父进程，不可被 config 覆盖）
@@ -240,50 +241,28 @@ export class TaskService {
       // ④ 注入钱包数据（仅在有网络权限且非沙箱时注入，防止敏感数据泄露）
       if (!task.isSandbox && effectivePermissions.network) {
         try {
-          const wallets = this.store.walletRepo.listWallets(1, 99999)
-          const walletData = wallets.items.map((w) => ({
-            id: w.id,
-            address: w.address,
-            walletType: w.walletType,
-            privateKey: w.privateKey,
-            mnemonic: w.mnemonic,
-            labels: w.labels
-          }))
-          env['TASK_WALLETS'] = JSON.stringify(walletData)
+          const manifestPath = join(resolvedPath, 'manifest.json')
+          if (existsSync(manifestPath)) {
+            const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+            const reqs = manifest.dataRequirements as Array<{
+              key: string; source: string; templateType: string
+            }> | undefined
+            if (reqs && reqs.length > 0) {
+              for (const req of reqs) {
+                const dataKey = `_data_${req.key}`
+                const selectedData = (task.config as Record<string, unknown>)[dataKey]
+                if (Array.isArray(selectedData) && selectedData.length > 0) {
+                  env[`TASK_DATA_${req.key.toUpperCase()}`] = JSON.stringify(selectedData)
+                }
+              }
+            }
+          }
         } catch (err) {
-          createLogger('task').warn('Failed to inject wallet data', { error: String(err) })
+          createLogger('task').warn('Failed to inject data requirements', { error: String(err) })
         }
-      } else {
-        env['TASK_WALLETS'] = '[]'
       }
 
       // ⑤ 注入账户数据（仅在有网络权限且非沙箱时注入）
-      // 如果 config 没有显式注入账户，尝试从 manifest 的 requiredAccountTemplateIds 匹配
-      if (!task.isSandbox && effectivePermissions.network) {
-        try {
-          const allScriptParams = this.store.listScriptParams(1, 99999)
-          const relevantTemplateIds = new Set<string>()
-          // 检查 config 中是否有 template 引用
-          if (task.config._accounts && Array.isArray(task.config._accounts)) {
-            for (const acc of task.config._accounts as Array<{ templateId?: string }>) {
-              if (acc.templateId) relevantTemplateIds.add(acc.templateId)
-            }
-          }
-          if (relevantTemplateIds.size > 0) {
-            const matched = allScriptParams.items.filter((a) => relevantTemplateIds.has(a.templateId))
-            if (matched.length > 0) {
-              env['TASK_SCRIPT_PARAMS'] = JSON.stringify(matched.map((a) => ({
-                id: a.id, templateId: a.templateId, pool: a.pool, labels: a.labels, data: a.data
-              })))
-            }
-          }
-        } catch (err) {
-          createLogger('task').warn('Failed to inject script param data', { error: String(err) })
-        }
-      } else {
-        env['TASK_SCRIPT_PARAMS'] = '[]'
-      }
-
       let command = entryPoint
       const args: string[] = []
 

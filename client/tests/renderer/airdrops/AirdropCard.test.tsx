@@ -130,7 +130,7 @@ describe('AirdropCard (server render)', () => {
   })
 
   // 用例：描述为空且无链信息时仍能渲染
-  it('shows "�? when description empty and no chain', () => {
+  it('shows "—" when description empty and no chain', () => {
     const html = renderToString(
       <AirdropCard
         project={sample({ description: '', chain: '' })}

@@ -66,6 +66,31 @@ export interface ScriptParam {
   updatedAt: string
 }
 
+// ============================================================
+// 通用数据需求系统 — 替代 requiredAccountTemplateIds
+// ============================================================
+
+/** 数据源类型：决定任务创建时从哪个表查询数据 */
+export type DataSource = 'wallet' | 'proxy' | 'script_param'
+
+/** 数据需求声明：开发者在 manifest 中声明脚本需要何种模板数据 */
+export interface DataRequirement {
+  /** 运行时注入的环境变量 key（如 wallets → TASK_DATA_WALLETS） */
+  key: string
+  /** 用户界面显示名称 */
+  label: string
+  /** 匹配 templates.type 字段，决定系统从哪个数据表查询 */
+  templateType: string
+  /** 最少需要选择几条数据 */
+  min: number
+  /** 最多可选几条数据（-1 表示无上限） */
+  max: number
+  /** 数据来源路由：wallet → wallets 表, proxy → proxies 表, script_param → script_params 表 */
+  source: DataSource
+  /** 用途说明，显示在选择面板中帮助用户理解 */
+  description?: string
+}
+
 /** 代理格式类型 */
 export type ProxyFormat = 'manual' | 'api' | 'ip' | 'ws'
 

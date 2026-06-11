@@ -28,7 +28,7 @@ interface TagsSectionProps {
 const TagsSection: React.FC<TagsSectionProps> = ({ form, onChange }) => {
   const { t } = useTranslation()
   /** 通用字段更新辅助函数 */
-  const set = <K extends keyof AirdropFormData>(key: K, value: AirdropFormData[K]) =>
+  const set = <K extends keyof AirdropFormData,>(key: K, value: AirdropFormData[K]) =>
     onChange({ ...form, [key]: value })
 
   return (

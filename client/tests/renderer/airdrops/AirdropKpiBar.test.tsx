@@ -46,7 +46,7 @@ describe('AirdropKpiBar', () => {
     expect(html).toContain('12')
     expect(html).toContain('5')
     expect(html).toContain('2')
-    // USD formatted �?exact string depends on locale, but contains digits and $
+    // USD formatted — exact string depends on locale, but contains digits and $
     expect(html).toMatch(/1,?234\.56|\$1,234\.56|\$1234\.56/)
   })
 

@@ -1,6 +1,9 @@
 /**
- * @file ScriptFetcher 鈥?杩滅▼鑴氭湰涓嬭浇鍣? * @description 浠?Marketplace Server 涓嬭浇浠诲姟鑴氭湰 zip 鍖咃紝鏍￠獙 SHA256 鏍￠獙鍜岋紝
- *              瑙ｅ帇鍒版湰鍦?scripts 鐩綍锛岃В鏋?manifest.json 骞跺啓鍏?meta.json锛? *              鏈€鍚庢敞鍐屽埌 task_templates 琛ㄣ€傚悓鏃舵彁渚涘凡瀹夎鑴氭湰鐨勭鐞嗗姛鑳姐€? * @module main/services
+ * @file ScriptFetcher — 远程脚本下载器
+ * @description 从 Marketplace Server 下载任务脚本 zip 包，校验 SHA256 校验和，
+ *              解压到本地 scripts 目录，解析 manifest.json 并写入 meta.json，
+ *              最后注册到 task_templates 表。同时提供已安装脚本的管理功能。
+ * @module main/services
  */
 
 import { app } from 'electron'
@@ -21,12 +24,15 @@ import type { StoreService } from './store'
 const logger = createLogger('script-fetcher')
 
 /**
- * 杩滅▼鑴氭湰涓嬭浇涓庣鐞嗗櫒
+ * 远程脚本下载与管理器
  *
- * 鑱岃矗鑼冨洿锛? * - 浠?Marketplace Server 鑾峰彇杩滅▼鑴氭湰鍒楄〃
- * - 涓嬭浇鑴氭湰 zip 鍖?鈫?鏍￠獙 SHA256 鈫?瑙ｅ帇鍒?{userData}/scripts/{scriptId}/
- * - 瑙ｆ瀽 manifest.json锛屾彁鍙栬繍琛屾椂鏉冮檺澹版槑
- * - 鍐欏叆 meta.json锛屾敞鍐屽埌 task_templates 琛? * - 妫€鏌ユ洿鏂帮紙姣斿鏈湴涓庤繙绋嬬増鏈彿锛? * - 鍒楀嚭/鍒犻櫎宸插畨瑁呰剼鏈紙鍚屾椂娓呯悊鍏宠仈浠诲姟鍜屽畾鏃朵换鍔★級
+ * 职责范围：
+ * - 从 Marketplace Server 获取远程脚本列表
+ * - 下载脚本 zip 包 → 校验 SHA256 → 解压到 {userData}/scripts/{scriptId}/
+ * - 解析 manifest.json，提取运行时权限声明
+ * - 写入 meta.json，注册到 task_templates 表
+ * - 检查更新（比对本地与远程版本号）
+ * - 列出/删除已安装脚本（同时清理关联任务和定时任务）
  *
  * @example
  * ```ts
@@ -42,7 +48,7 @@ export class ScriptFetcher {
   private defaultServerUrl = 'http://localhost:3400'
 
   /**
-   * @param store - StoreService 瀹炰緥锛岀敤浜庤鍐欐暟鎹簱鍜岄厤缃?   */
+   * @param store - StoreService 实例，用于读写数据库和配置   */
   constructor(store: StoreService) {
     this.store = store
     this.scriptsDir = join(app.getPath('userData'), 'scripts')
@@ -51,13 +57,13 @@ export class ScriptFetcher {
     }
   }
 
-  /** 鑾峰彇 Marketplace Server 鍩虹 URL锛堜粠 setting 涓鍙栵紝榛樿 localhost:3400锛?*/
+  /** 获取 Marketplace Server 基础 URL（从 setting 中读取，默认 localhost:3400 */
   getServerUrl(): string {
     const url = this.store.getSetting('marketplace_server_url')
     return url || this.defaultServerUrl
   }
 
-  /** 鏋勯€?HTTP 璁よ瘉澶达細浼樺厛浣跨敤 JWT token锛屽叾娆?API key */
+  /** 构建 HTTP 认证头：优先使用 JWT token，其次 API key */
   private getAuthHeaders(): Record<string, string> {
     // Prefer JWT over API key
     const jwt = this.store.getSetting('marketplace_jwt')
@@ -67,9 +73,10 @@ export class ScriptFetcher {
   }
 
   /**
-   * 浠?Marketplace Server 鑾峰彇杩滅▼鑴氭湰鍒楄〃
+   * 从 Marketplace Server 获取远程脚本列表
    *
-   * @returns 杩滅▼鑴氭湰鍏冩暟鎹暟缁?   * @throws 缃戠粶璇锋眰澶辫触鏃舵姏鍑?Error
+   * @returns 远程脚本元数据数据
+   * @throws 网络请求失败时抛出Error
    */
   async fetchScriptList(): Promise<RemoteScript[]> {
     const serverUrl = this.getServerUrl()
@@ -78,7 +85,7 @@ export class ScriptFetcher {
     if (!response.ok) {
       throw new Error(`Failed to fetch script list: ${response.status} ${response.statusText}`)
     }
-    // 瑙ｆ瀽鍝嶅簲锛氬吋瀹?{data: {items: [...]}} 鍜岀洿鎺ユ暟缁勪袱绉嶆牸寮?    
+    // 解析响应：兼容 {data: {items: [...]}} 和直接数组两种格式   
     const json = (await response.json()) as Record<string, unknown>
 
     const data = json.data as Record<string, unknown> | undefined
@@ -86,15 +93,22 @@ export class ScriptFetcher {
   }
 
   /**
-   * 涓嬭浇骞跺畨瑁呰繙绋嬭剼鏈?   *
-   * 瀹屾暣娴佺▼锛?   * 1. 浠庤繙绋嬪垪琛ㄦ煡鎵炬寚瀹氳剼鏈?   * 2. 鍒涘缓鏈湴 {userData}/scripts/{scriptId}/ 鐩綍
-   * 3. 涓嬭浇 zip 鍖呭埌涓存椂鏂囦欢
-   * 4. 璁＄畻 SHA256 鏍￠獙鍜屽苟涓庢湇鍔＄姣斿
-   * 5. 瑙ｅ帇鍒扮洰鏍囩洰褰?   * 6. 璇诲彇骞惰В鏋?manifest.json
-   * 7. 鎻愬彇杩愯鏃舵潈闄愬０鏄?   * 8. 鍐欏叆 meta.json 鎸佷箙鍖栧厓鏁版嵁
-   * 9. 娉ㄥ唽鍒?task_templates 琛紙宸插瓨鍦ㄥ垯鏇存柊锛?   *
-   * @param scriptId - 鑴氭湰 UUID
-   * @returns 宸插畨瑁呰剼鏈殑瀹屾暣鍏冩暟鎹?   * @throws 鑴氭湰鏈壘鍒般€佹牎楠屽拰涓嶅尮閰嶃€佷笅杞藉け璐ユ椂鎶涘嚭 Error
+   * 下载并安装远程脚本
+   *
+   * 完整流程：
+   * 1. 从远程列表查找指定脚本
+   * 2. 创建本地 {userData}/scripts/{scriptId}/ 目录
+   * 3. 下载 zip 包到临时文件
+   * 4. 计算 SHA256 校验和并与服务端比对
+   * 5. 解压到目标目录
+   * 6. 读取并解析 manifest.json
+   * 7. 提取运行时权限声明
+   * 8. 写入 meta.json 持久化元数据
+   * 9. 注册到 task_templates 表（已存在则更新）
+   *
+   * @param scriptId - 脚本 UUID
+   * @returns 已安装脚本的完整元数据
+   * @throws 脚本未找到、校验和不匹配、下载失败时抛出 Error
    */
   async downloadScript(scriptId: string): Promise<InstalledScript> {
     const scripts = await this.fetchScriptList()
@@ -110,8 +124,8 @@ export class ScriptFetcher {
       ? script.downloadUrl
       : `${this.getServerUrl()}${script.downloadUrl}`
 
-    // 把下载缓存放到系统临时目录（位于 scriptDir 之外），避免 zip 文件被
-    // extractZip 在清理 destDir 时误删。这是防御性修复，详见 zipExtractor.ts。
+    // 把下载缓存放到系统临时目录（位于 scriptDir 之外），避免 zip 文件和
+    // extractZip 在清理 destDir 时误删。这是防御性修复，详见 zipExtractor.ts
     const downloadCacheDir = join(tmpdir(), 'taskforge-downloads')
     if (!existsSync(downloadCacheDir)) {
       mkdirSync(downloadCacheDir, { recursive: true })
@@ -182,19 +196,25 @@ export class ScriptFetcher {
       logger.info('Script downloaded', { scriptId, version: script.version })
 
       // 检查 manifest 声明的 requiredAccountTemplateIds 中哪些账户模板本地未下载
-      // 注意: 这里是软检查, 仍然返回 installed 由 UI 决定是否提示
-      const requiredIds = manifest.requiredAccountTemplateIds as string[] | undefined
-      if (requiredIds && requiredIds.length > 0) {
-        const templatesRes = this.store.listTemplates(1, 9999)
-        const installedIds = new Set(templatesRes.items.map((t) => t.id))
-        const missing = requiredIds.filter((id) => !installedIds.has(id))
-        if (missing.length > 0) {
-          logger.warn('Script requires account templates not installed locally', {
-            scriptId,
-            requiredIds,
-            missing
-          })
-          ;(installed as InstalledScript & { missingAccountTemplates?: string[] }).missingAccountTemplates = missing
+      // 检查 dataRequirements 中是否有未下载的脚本参数模板
+      const dataReqs = manifest.dataRequirements as Array<{
+        key: string; source: string; templateType: string
+      }> | undefined
+      if (dataReqs && dataReqs.length > 0) {
+        const scriptParamReqs = dataReqs.filter((r) => r.source === 'script_param')
+        if (scriptParamReqs.length > 0) {
+          const templatesRes = this.store.listTemplates(1, 9999)
+          const installedIds = new Set(templatesRes.items.map((t) => t.id))
+          const requiredIds = scriptParamReqs.map((r) => r.templateType)
+          const missing = requiredIds.filter((id) => !installedIds.has(id))
+          if (missing.length > 0) {
+            logger.warn('Script requires templates not installed locally', {
+              scriptId,
+              requiredIds,
+              missing
+            })
+            ;(installed as InstalledScript & { missingAccountTemplates?: string[] }).missingAccountTemplates = missing
+          }
         }
       }
 
@@ -208,10 +228,12 @@ export class ScriptFetcher {
   }
 
   /**
-   * 妫€鏌ュ凡瀹夎鑴氭湰鏄惁鏈夊彲鐢ㄦ洿鏂?   *
-   * 閬嶅巻鎵€鏈夊凡瀹夎鑴氭湰锛屼笌杩滅▼鍒楄〃姣斿鐗堟湰鍙凤紝
-   * 杩斿洖鐗堟湰鍙蜂笉鍚岋紙鏈夋柊鐗堟湰锛夌殑杩滅▼鑴氭湰鍒楄〃銆?   *
-   * @returns 闇€瑕佹洿鏂扮殑杩滅▼鑴氭湰鏁扮粍
+   * 检查已安装脚本是否有可用更新
+   *
+   * 遍历所有已安装脚本，与远程列表比对版本号，
+   * 返回版本号不同（有新版本）的远程脚本列表。
+   *
+   * @returns 需要更新的远程脚本数组
    */
   async checkUpdates(): Promise<RemoteScript[]> {
     const installed = this.getInstalledScripts()
@@ -224,10 +246,13 @@ export class ScriptFetcher {
   }
 
   /**
-   * 鑾峰彇鎵€鏈夊凡瀹夎鑴氭湰鍒楄〃
+   * 获取所有已安装脚本列表
    *
-   * 鎵弿 {userData}/scripts/ 鐩綍锛岃鍙栨瘡涓瓙鐩綍涓嬬殑 meta.json锛?   * 浣跨敤 JSON5 瑙ｆ瀽浠ュ吋瀹瑰鏉炬牸寮忋€?   *
-   * @returns 宸插畨瑁呰剼鏈暟缁?   */
+   * 扫描 {userData}/scripts/ 目录，读取每个子目录下的 meta.json。
+   * 使用 JSON5 解析以兼容宽松格式。
+   *
+   * @returns 已安装脚本数组
+   */
   getInstalledScripts(): InstalledScript[] {
     if (!existsSync(this.scriptsDir)) return []
 
@@ -242,7 +267,7 @@ export class ScriptFetcher {
       try {
         const raw = readFileSync(metaPath, 'utf-8')
         const script = JSON5.parse(raw) as InstalledScript
-        // 鍚戝悗鍏煎锛氭棫鐗?meta.json 鍙兘娌℃湁 permissions 瀛楁
+        // 向后兼容：旧版 meta.json 可能没有 permissions 字段
         if (!script.permissions) {
           script.permissions = { network: false, filesystem: false }
         }
@@ -255,11 +280,14 @@ export class ScriptFetcher {
   }
 
   /**
-   * 鍗歌浇宸插畨瑁呯殑鑴氭湰
+   * 卸载已安装的脚本
    *
-   * 1. 鍒犻櫎鍏宠仈鐨勬墍鏈変换鍔¤褰曞拰鏃ュ織
-   * 2. 鍒犻櫎鍏宠仈鐨勫畾鏃朵换鍔?   * 3. 浠?task_templates 琛ㄧЩ闄?   * 4. 鍒犻櫎鑴氭湰鐩綍鍙婃墍鏈夋枃浠?   *
-   * @param scriptId - 鑴氭湰 UUID
+   * 1. 删除关联的所有任务记录和日志
+   * 2. 删除关联的定时任务
+   * 3. 从 task_templates 表移除
+   * 4. 删除脚本目录及所有文件
+   *
+   * @param scriptId - 脚本 UUID
    */
   removeScript(scriptId: string): void {
     const scriptDir = join(this.scriptsDir, scriptId)
@@ -288,7 +316,8 @@ export class ScriptFetcher {
   }
 
   /**
-   * 浠?manifest 涓彁鍙栬繍琛屾椂鏉冮檺澹版槑锛岀己澶?闈炴硶鍊奸粯璁ゆ嫆缁濓紙瀹夊叏浼樺厛锛夈€?   */
+   * 从 manifest 中提取运行时权限声明，缺失/非法值默认拒绝（安全优先）。
+   */
   private extractPermissions(manifest: Record<string, unknown>): PermissionSet {
     const raw = manifest.permissions
     if (!Array.isArray(raw)) {
@@ -301,7 +330,7 @@ export class ScriptFetcher {
     }
   }
 
-  /** 璇诲彇骞惰В鏋愯剼鏈洰褰曚腑鐨?manifest.json锛堜娇鐢?JSON5 浠ュ吋瀹规敞閲婂拰瀹芥澗鏍煎紡锛?*/
+  /** 读取并解析脚本目录中的 manifest.json（使用 JSON5 以兼容注释和宽松格式） */
   private readManifest(scriptDir: string): Record<string, unknown> {
     const manifestPath = join(scriptDir, 'manifest.json')
     if (!existsSync(manifestPath)) {
@@ -317,7 +346,7 @@ export class ScriptFetcher {
     }
   }
 
-  /** 鍐呴儴锛氫笅杞芥枃浠跺埌鏈湴锛屾敮鎸佽嚜鍔ㄩ噸璇曪紙鎸囨暟閫€閬匡紝榛樿 3 娆★級 */
+  /** 内部：下载文件到本地，支持自动重试（指数退避，默认 3 次） */
   private async downloadFile(url: string, destPath: string, retries = 3): Promise<void> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -342,7 +371,7 @@ export class ScriptFetcher {
     }
   }
 
-  /** 鍐呴儴杈呭姪锛氬皢 Web ReadableStream 杞崲涓?Node.js Readable 娴?*/
+  /** 内部辅助：将 Web ReadableStream 转换为 Node.js Readable 流 */
   private async webStreamToNode(stream: ReadableStream<Uint8Array>): Promise<Readable> {
     const reader = stream.getReader()
     return new Readable({
@@ -354,13 +383,13 @@ export class ScriptFetcher {
     })
   }
 
-  /** 鍐呴儴杈呭姪锛氳绠楁枃浠剁殑 SHA256 鏍￠獙鍜?*/
+  /** 内部辅助：计算文件的 SHA256 校验和 */
   private calculateChecksum(filePath: string): string {
     const content = readFileSync(filePath)
     return createHash('sha256').update(content).digest('hex')
   }
 
-  /** 浠庝笅杞?URL 鎺ㄦ柇鍘嬬缉鍖呮牸寮忥細鏀寔 zip銆乼ar銆乼ar.gz */
+  /** 从下载 URL 推断压缩包格式：支持 zip、tar、tar.gz */
   private getArchiveExtension(url: string): string {
     if (url.endsWith('.tar.gz') || url.endsWith('.tgz')) return 'tar.gz'
     if (url.endsWith('.tar')) return 'tar'
@@ -370,7 +399,7 @@ export class ScriptFetcher {
   /**
    * 内部：解压脚本包到目标目录
    *
-   * 纯 JS 解压（adm-zip），跨平台一致行为，零外部命令依赖。
+   * 用 JS 解压（adm-zip），跨平台一致行为，零外部命令依赖。
    * tar/tar.gz 暂不支持（当前仅 zip）。
    */
   private async extractArchive(archivePath: string, destDir: string, _ext: string): Promise<void> {

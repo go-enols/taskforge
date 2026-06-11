@@ -179,7 +179,7 @@ describe('AirdropFormModal (interactive)', () => {
       setter2?.call(websiteInput, 'https://test.com')
       websiteInput.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    // need to set accountPool too �?but it has no `accountPool` input, it has select[name=accountPool]
+    // need to set accountPool too — but it has no `accountPool` input, it has select[name=accountPool]
     const poolSelect = container.querySelector('select[name="accountPool"]') as HTMLSelectElement
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(poolSelect.constructor.prototype, 'value')?.set

@@ -88,7 +88,7 @@ describe('LogViewer (server render)', () => {
       message: 'hello'
     }
     const html = renderToString(<LogViewer logs={[log]} />)
-    // Either 13:45:30 or 1:45:30 PM depending on locale �?just check the date parts
+    // Either 13:45:30 or 1:45:30 PM depending on locale — just check the date parts
     expect(html).toMatch(/45:30|13:45:30/)
   })
 
@@ -114,7 +114,7 @@ describe('LogViewer (server render)', () => {
   })
 })
 
-describe('LogViewer (interactive �?filter)', () => {
+  describe('LogViewer (interactive — filter)', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -187,7 +187,7 @@ describe('LogViewer (interactive �?filter)', () => {
   })
 })
 
-describe('LogViewer (interactive �?clear button)', () => {
+describe('LogViewer (interactive —?clear button)', () => {
   let container: HTMLDivElement
   let root: Root
 

@@ -628,7 +628,7 @@ export const marketplaceApi = {
     return (await resp.json()).data
   },
 
-  /** ��ȡ�ű������б����ҳ�� */
+  /** 获取脚本评论列表（分页） */
   getReviews: async (scriptId: string, page = 1, pageSize = 10) => {
     const base = await getMarketplaceUrl()
     const resp = await fetch(
@@ -644,7 +644,7 @@ export const marketplaceApi = {
     }
   },
 
-  /** ��ȡ��ǰ�û��Խű������� */
+  /** 获取当前用户对脚本的评论 */
   getMyReview: async (scriptId: string) => {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
@@ -653,7 +653,7 @@ export const marketplaceApi = {
     return (await resp.json()).data as Record<string, unknown> | null
   },
 
-  /** ɾ����ǰ�û��Խű������� */
+  /** 删除当前用户对脚本的评论 */
   deleteMyReview: async (scriptId: string) => {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
@@ -665,7 +665,7 @@ export const marketplaceApi = {
     return (await resp.json()).data
   },
 
-  /** ��ȡ�ű�����ͳ�� */
+  /** 获取脚本评分统计 */
   getRatingStats: async (scriptId: string) => {
     const base = await getMarketplaceUrl()
     const resp = await fetch(`${base}/api/scripts/${scriptId}/rating-stats`)

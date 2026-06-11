@@ -49,7 +49,7 @@ interface BasicInfoSectionProps {
 const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({ form, onChange, errors = {} }) => {
   const { t } = useTranslation()
 
-  const set = <K extends keyof AirdropFormData>(key: K, value: AirdropFormData[K]) =>
+  const set = <K extends keyof AirdropFormData,>(key: K, value: AirdropFormData[K]) =>
     onChange({ ...form, [key]: value })
 
   return (

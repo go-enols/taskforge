@@ -28,9 +28,20 @@ import {
   taskTemplateApi,
   templateApi,
   marketplaceApi,
-  scriptParamApi
+  scriptParamApi,
+  walletApi,
+  proxyApi
 } from '../api'
-import type { Task, TaskLog, InstalledScript, RemoteScript, ScriptParam } from '../types'
+import type {
+  Task,
+  TaskLog,
+  InstalledScript,
+  RemoteScript,
+  ScriptParam,
+  Wallet,
+  Proxy,
+  DataRequirement
+} from '../types'
 import type { FieldMeta } from '../../../shared/schemas/task-params'
 import {
   jsonSchemaToFieldMeta,
@@ -39,6 +50,10 @@ import {
 } from '../../../shared/schemas/task-params'
 import { usePaginatedList } from '../hooks'
 import { SearchInput, Pagination, Modal, DynamicForm } from '../components/common'
+import DataRequirementPanel, {
+  type RequirementSelection,
+  type DataForRequirement
+} from '../components/DataRequirementPanel'
 import { toast } from '../utils/toast'
 
 /** 每页显示任务数 */
@@ -89,11 +104,10 @@ const Tasks: React.FC = () => {
   const [logFilter, setLogFilter] = useState<string>('all')
   const logEndRef = useRef<HTMLDivElement | null>(null)
   const [requiredTemplates, setRequiredTemplates] = useState<string[]>([])
-  const [availableScriptParams, setAvailableScriptParams] = useState<ScriptParam[]>([])
-  const [selectedScriptParamIds, setSelectedScriptParamIds] = useState<Set<string>>(new Set())
-  const [scriptParamPoolFilter, setScriptParamPoolFilter] = useState<string>('')
+  const [dataRequirements, setDataRequirements] = useState<DataRequirement[]>([])
+  const [dataMap, setDataMap] = useState<Map<string, DataForRequirement>>(new Map())
+  const [selections, setSelections] = useState<Map<string, RequirementSelection>>(new Map())
   const [batchMode, setBatchMode] = useState(false)
-  const [availablePools, setAvailablePools] = useState<string[]>([])
   const [newIsSandbox, setNewIsSandbox] = useState(false)
 
   useEffect(() => {
@@ -285,13 +299,20 @@ const Tasks: React.FC = () => {
       setSelectedScript(script)
       setNewScriptFolder(script.installPath)
       try {
-        const schema = script.schema as Record<string, unknown>
+        // 优先使用 InstalledScript.schema
+        let schemaSource = script.schema
+        // schema 可能是 JSON 字符串（从服务端 API 返回的），需要解析
+        if (typeof schemaSource === 'string') {
+          try { schemaSource = JSON.parse(schemaSource) } catch { schemaSource = null }
+        }
         let fieldsToSet: FieldMeta[] = []
-        if (schema.type === 'object' && schema.properties) {
-          fieldsToSet = jsonSchemaToFieldMeta(schema)
-        } else if (schema.fields && Array.isArray(schema.fields)) {
+        const schemaObj = (schemaSource || {}) as Record<string, unknown>
+
+        if (schemaObj.type === 'object' && schemaObj.properties) {
+          fieldsToSet = jsonSchemaToFieldMeta(schemaObj)
+        } else if (schemaObj.fields && Array.isArray(schemaObj.fields)) {
           const validTypes = new Set(['string', 'number', 'boolean', 'select', 'multiselect'])
-          const raw = schema.fields as Array<Record<string, unknown>>
+          const raw = schemaObj.fields as Array<Record<string, unknown>>
           const validated: FieldMeta[] = []
           for (const item of raw) {
             if (typeof item.name === 'string' && validTypes.has(item.type as string)) {
@@ -301,6 +322,9 @@ const Tasks: React.FC = () => {
             }
           }
           fieldsToSet = validated
+        } else {
+          // 兜底：尝试从 TaskTemplate.manifest 读取 schema
+          console.warn('[Tasks] InstalledScript.schema missing or invalid, trying task template manifest')
         }
         setFormFields(fieldsToSet)
         const defaults: Record<string, unknown> = {}
@@ -308,48 +332,98 @@ const Tasks: React.FC = () => {
           if (f.defaultValue !== undefined) defaults[f.name] = f.defaultValue
         }
         setFormValues(defaults)
-      } catch {
+      } catch (err) {
+        console.error('[Tasks] Failed to parse script schema:', err)
         setFormFields([])
         setFormValues({})
       }
-      loadScriptParamsForScript(script)
+      loadDataForRequirements(script)
     } else {
       setSelectedScript(null)
       setFormFields([])
       setFormValues({})
       setNewScriptFolder('')
       setRequiredTemplates([])
-      setAvailableScriptParams([])
-      setAvailablePools([])
-      setSelectedScriptParamIds(new Set())
+      setDataRequirements([])
+      setDataMap(new Map())
+      setSelections(new Map())
       setBatchMode(false)
     }
   }
 
-  const loadScriptParamsForScript = async (script: InstalledScript): Promise<void> => {
+  const loadDataForRequirements = async (script: InstalledScript): Promise<void> => {
     try {
       const tmpl = await taskTemplateApi.get(script.id)
       const manifest = tmpl?.manifest as Record<string, unknown> | undefined
-      const requiredIds = manifest?.requiredAccountTemplateIds as string[] | undefined
-      if (requiredIds && requiredIds.length > 0) {
-        setRequiredTemplates(requiredIds)
-        const res = await scriptParamApi.list(1, 9999)
-        const params = (res.items || []).filter((a) => requiredIds.includes(a.templateId))
-        setAvailableScriptParams(params)
-        const pools = [...new Set(params.map((a) => a.pool).filter(Boolean))]
-        setAvailablePools(pools)
-      } else {
-        setRequiredTemplates([])
-        setAvailableScriptParams([])
-        setAvailablePools([])
-        setSelectedScriptParamIds(new Set())
-        setBatchMode(false)
+
+      // 兜底：如果 handleScriptSelect 没能从 InstalledScript.schema 解析出表单字段，
+      // 从 TaskTemplate.manifest.schema 再试一次
+      if (manifest?.schema) {
+        setFormFields((prev) => {
+          if (prev.length === 0) {
+            const mSchema = manifest.schema as Record<string, unknown>
+            if (mSchema.type === 'object' && mSchema.properties) {
+              const fields = jsonSchemaToFieldMeta(mSchema)
+              if (fields.length > 0) {
+                const defaults: Record<string, unknown> = {}
+                for (const f of fields) {
+                  if (f.defaultValue !== undefined) defaults[f.name] = f.defaultValue
+                }
+                setFormValues(defaults)
+              }
+              return fields
+            }
+          }
+          return prev
+        })
       }
+
+      const reqs = manifest?.dataRequirements as DataRequirement[] | undefined
+      if (!reqs || reqs.length === 0) {
+        setDataRequirements([])
+        setDataMap(new Map())
+        setSelections(new Map())
+        return
+      }
+
+      setDataRequirements(reqs)
+
+      const newDataMap = new Map<string, DataForRequirement>()
+      const newSelections = new Map<string, RequirementSelection>()
+
+      for (const req of reqs) {
+        const entry: DataForRequirement = { requirementKey: req.key }
+
+        if (req.source === 'wallet') {
+          const walletsRes = await walletApi.list(1, 99999)
+          entry.wallets = walletsRes.items.filter(
+            (w: Wallet) => w.walletType === req.templateType || req.templateType === '*'
+          )
+        } else if (req.source === 'proxy') {
+          const proxiesRes = await proxyApi.list(1, 99999)
+          entry.proxies = proxiesRes.items.filter(
+            (p: Proxy) =>
+              req.templateType === '*' || p.protocol === req.templateType || p.format === req.templateType
+          )
+        } else if (req.source === 'script_param') {
+          const paramsRes = await scriptParamApi.list(1, 99999)
+          entry.scriptParams = (paramsRes.items || []).filter(
+            (a: ScriptParam) => a.templateId === req.templateType
+          )
+
+        }
+
+        newDataMap.set(req.key, entry)
+        newSelections.set(req.key, { key: req.key, selectedIds: new Set(), poolFilter: '' })
+      }
+
+      setDataMap(newDataMap)
+      setSelections(newSelections)
     } catch (e: unknown) {
       showError(t('common.operationFailed') + ': ' + String(e))
-      setRequiredTemplates([])
-      setAvailableScriptParams([])
-      setAvailablePools([])
+      setDataRequirements([])
+      setDataMap(new Map())
+      setSelections(new Map())
     }
   }
 
@@ -369,37 +443,46 @@ const Tasks: React.FC = () => {
         return
       }
     }
-    try {
-      const tmpl = await taskTemplateApi.get(selectedScript.id)
-      if (tmpl?.manifest) {
-        const manifest = tmpl.manifest as Record<string, unknown>
-        const requiredIds = manifest.requiredAccountTemplateIds as string[] | undefined
-        if (requiredIds && requiredIds.length > 0) {
-          const installed = await templateApi.list(1, 9999)
-          const installedIds = new Set(installed.items.map((t) => t.id))
-          const missing = requiredIds.filter((id) => !installedIds.has(id))
-          if (missing.length > 0) {
-            showError(t('tasks.missingTemplates', { ids: missing.join(', ') }))
-            return
-          }
+
+    // 校验数据需求模板是否已安装
+    if (dataRequirements.length > 0) {
+      try {
+        const installed = await templateApi.list(1, 9999)
+        const installedIds = new Set(installed.items.map((t) => t.id))
+        const missing = dataRequirements
+          .filter((r) => r.source === 'script_param')
+          .map((r) => r.templateType)
+          .filter((id) => !installedIds.has(id))
+        if (missing.length > 0) {
+          showError(t('tasks.missingTemplates', { ids: missing.join(', ') }))
+          return
         }
+      } catch (e: unknown) {
+        showError(t('common.operationFailed') + ': ' + String(e))
+        return
       }
-    } catch (e: unknown) {
-      showError(t('common.operationFailed') + ': ' + String(e))
     }
+
     const rawConfig = formFields.length > 0 ? formValues : {}
     const config = unflattenDotNotation(rawConfig)
 
-    if (batchMode && selectedScriptParamIds.size > 0 && requiredTemplates.length > 0) {
-      const params = availableScriptParams.filter((a) => selectedScriptParamIds.has(a.id))
-      await createBatchTasks(params, config)
+    if (batchMode && hasAnySelection() && dataRequirements.length > 0) {
+      await createBatchTasks(config)
     } else {
       await createSingleTask(config)
     }
   }
 
+  /** 检查是否有任何数据需求被选中 */
+  const hasAnySelection = (): boolean => {
+    for (const sel of selections.values()) {
+      if (sel.selectedIds.size > 0) return true
+    }
+    return false
+  }
+
   const createSingleTask = async (config: Record<string, unknown>): Promise<void> => {
-    const finalConfig = injectScriptParamData(config)
+    const finalConfig = injectDataSelections(config)
     setCreating(true)
     try {
       await taskApi.create({ scriptFolder: newScriptFolder, config: finalConfig, isSandbox: newIsSandbox })
@@ -413,21 +496,66 @@ const Tasks: React.FC = () => {
     }
   }
 
-  const createBatchTasks = async (
-    params: ScriptParam[],
-    config: Record<string, unknown>
-  ): Promise<void> => {
+  const createBatchTasks = async (config: Record<string, unknown>): Promise<void> => {
     setCreating(true)
+    // 收集所有选中数据的笛卡尔积组合
+    const selectedByReq: Array<Array<{ key: string; id: string }>> = []
+    for (const req of dataRequirements) {
+      const sel = selections.get(req.key)
+      if (!sel || sel.selectedIds.size === 0) continue
+      const items: Array<{ key: string; id: string }> = []
+      for (const id of sel.selectedIds) {
+        items.push({ key: req.key, id })
+      }
+      selectedByReq.push(items)
+    }
+
+    if (selectedByReq.length === 0) {
+      await createSingleTask(config)
+      return
+    }
+
+    // 笛卡尔积展开
+    type Combo = Array<{ key: string; id: string }>
+    const combinations = cartesianProduct(selectedByReq)
+
     let created = 0
     try {
-      for (const param of params) {
-        const scriptParamConfig = {
-          ...config,
-          _account_id: param.id,
-          _account_data: param.data,
-          _account_pool: param.pool
+      for (const combo of combinations) {
+        const taskConfig = { ...config }
+        for (const { key, id } of combo) {
+          const req = dataRequirements.find((r) => r.key === key)
+          if (!req) continue
+          const data = dataMap.get(key)
+          if (!data) continue
+
+          // 查找具体数据条目
+          if (req.source === 'wallet' && data.wallets) {
+            const wallet = data.wallets.find((w) => w.id === id)
+            if (wallet) {
+              taskConfig[`_data_${key}`] = {
+                id: wallet.id, address: wallet.address, walletType: wallet.walletType
+              }
+            }
+          } else if (req.source === 'proxy' && data.proxies) {
+            const proxy = data.proxies.find((p) => p.id === id)
+            if (proxy) {
+              taskConfig[`_data_${key}`] = {
+                id: proxy.id, host: proxy.host, port: proxy.port,
+                protocol: proxy.protocol, username: proxy.username, password: proxy.password
+              }
+            }
+          } else if (req.source === 'script_param' && data.scriptParams) {
+            const param = data.scriptParams.find((p) => p.id === id)
+            if (param) {
+              taskConfig[`_data_${key}`] = {
+                id: param.id, templateId: param.templateId, data: param.data,
+                pool: param.pool, labels: param.labels, notes: param.notes
+              }
+            }
+          }
         }
-        await taskApi.create({ scriptFolder: newScriptFolder, config: scriptParamConfig, isSandbox: newIsSandbox })
+        await taskApi.create({ scriptFolder: newScriptFolder, config: taskConfig, isSandbox: newIsSandbox })
         created++
       }
       setShowCreate(false)
@@ -439,7 +567,7 @@ const Tasks: React.FC = () => {
         setShowCreate(false)
         resetCreateForm()
         refresh()
-        showSuccess(t('tasks.batchCreatedPartial', { created, total: params.length }))
+        showSuccess(t('tasks.batchCreatedPartial', { created, total: combinations.length }))
       } else {
         showError(e instanceof Error ? e.message : String(e))
       }
@@ -448,21 +576,34 @@ const Tasks: React.FC = () => {
     }
   }
 
-  const injectScriptParamData = (config: Record<string, unknown>): Record<string, unknown> => {
-    if (requiredTemplates.length === 0) return config
-    const selected = availableScriptParams.filter((a) => selectedScriptParamIds.has(a.id))
-    if (selected.length === 0) return config
-    return {
-      ...config,
-      _accounts: selected.map((a) => ({
-        id: a.id,
-        templateId: a.templateId,
-        data: a.data,
-        pool: a.pool,
-        labels: a.labels,
-        notes: a.notes
-      }))
+  /** 将数据需求选择注入到 task.config._data */
+  const injectDataSelections = (config: Record<string, unknown>): Record<string, unknown> => {
+    if (dataRequirements.length === 0 || selections.size === 0) return config
+    const result = { ...config }
+    for (const req of dataRequirements) {
+      const sel = selections.get(req.key)
+      if (!sel || sel.selectedIds.size === 0) continue
+      const data = dataMap.get(req.key)
+      if (!data) continue
+
+      const selectedItems: Record<string, unknown>[] = []
+      for (const id of sel.selectedIds) {
+        if (req.source === 'wallet' && data.wallets) {
+          const w = data.wallets.find((x) => x.id === id)
+          if (w) selectedItems.push({ id: w.id, address: w.address, walletType: w.walletType })
+        } else if (req.source === 'proxy' && data.proxies) {
+          const p = data.proxies.find((x) => x.id === id)
+          if (p) selectedItems.push({ id: p.id, host: p.host, port: p.port, protocol: p.protocol })
+        } else if (req.source === 'script_param' && data.scriptParams) {
+          const a = data.scriptParams.find((x) => x.id === id)
+          if (a) selectedItems.push({ id: a.id, templateId: a.templateId, data: a.data, pool: a.pool })
+        }
+      }
+      if (selectedItems.length > 0) {
+        result[`_data_${req.key}`] = selectedItems
+      }
     }
+    return result
   }
 
   const resetCreateForm = (): void => {
@@ -471,35 +612,73 @@ const Tasks: React.FC = () => {
     setFormFields([])
     setFormValues({})
     setRequiredTemplates([])
-    setAvailableScriptParams([])
-    setAvailablePools([])
-    setSelectedScriptParamIds(new Set())
+    setDataRequirements([])
+    setDataMap(new Map())
+    setSelections(new Map())
     setBatchMode(false)
-    setScriptParamPoolFilter('')
     setNewIsSandbox(false)
   }
 
-  const toggleScriptParamSelect = (id: string): void => {
-    setSelectedScriptParamIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+  // ============================================================
+  // 数据需求选择回调
+  // ============================================================
+
+  const handleToggleItem = (reqKey: string, itemId: string): void => {
+    setSelections((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(reqKey)
+      if (!existing) return prev
+      const newSelectedIds = new Set(existing.selectedIds)
+      if (newSelectedIds.has(itemId)) newSelectedIds.delete(itemId)
+      else newSelectedIds.add(itemId)
+      next.set(reqKey, { ...existing, selectedIds: newSelectedIds })
       return next
     })
   }
 
-  const selectAllScriptParams = (): void => {
-    const filtered = getFilteredScriptParams()
-    if (selectedScriptParamIds.size === filtered.length && filtered.length > 0) {
-      setSelectedScriptParamIds(new Set())
-    } else {
-      setSelectedScriptParamIds(new Set(filtered.map((a) => a.id)))
-    }
+  const handleToggleAll = (reqKey: string): void => {
+    setSelections((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(reqKey)
+      const data = dataMap.get(reqKey)
+      if (!existing || !data) return prev
+      const rows =
+        data.wallets || data.proxies || data.scriptParams || []
+      const allIds = rows.map((r: { id: string }) => r.id)
+      const allSelected = allIds.every((id: string) => existing.selectedIds.has(id))
+      next.set(reqKey, {
+        ...existing,
+        selectedIds: allSelected ? new Set() : new Set(allIds)
+      })
+      return next
+    })
   }
 
-  const getFilteredScriptParams = (): ScriptParam[] => {
-    if (!scriptParamPoolFilter) return availableScriptParams
-    return availableScriptParams.filter((a) => a.pool === scriptParamPoolFilter)
+  const handlePoolFilterChange = (reqKey: string, pool: string): void => {
+    setSelections((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(reqKey)
+      if (!existing) return prev
+      next.set(reqKey, { ...existing, poolFilter: pool })
+      return next
+    })
+  }
+
+  /** 统计总选中数量 */
+  const countTotalSelections = (): number => {
+    let count = 0
+    for (const sel of selections.values()) {
+      count += sel.selectedIds.size
+    }
+    return count
+  }
+
+  /** 笛卡尔积 */
+  const cartesianProduct = <T,>(arrays: T[][]): T[][] => {
+    return arrays.reduce<T[][]>(
+      (acc, curr) => acc.flatMap((a) => curr.map((c) => [...a, c])),
+      [[]]
+    )
   }
 
   const handleOpenEdit = (task: Task): void => {
@@ -982,11 +1161,11 @@ const Tasks: React.FC = () => {
               )}
             </div>
           )}
-          {availableScriptParams.length > 0 && (
-            <div className="border border-border-light rounded-lg p-3 space-y-2">
+          {dataRequirements.length > 0 && (
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-text-secondary">
-                  {t('tasks.selectScriptParams')}
+                  {t('dataRequirement.title')}
                 </span>
                 <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
                   <input
@@ -998,64 +1177,17 @@ const Tasks: React.FC = () => {
                   {t('tasks.batchMode')}
                 </label>
               </div>
-              {availablePools.length > 1 && (
-                <select
-                  value={scriptParamPoolFilter}
-                  onChange={(e) => setScriptParamPoolFilter(e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs rounded border border-border-light bg-bg-card focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="">
-                    {t('scriptParams.pool')}: {t('tasks.allPools')}
-                  </option>
-                  {availablePools.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <div className="max-h-40 overflow-y-auto space-y-0.5">
-                <div className="flex items-center gap-2 px-1 py-0.5">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedScriptParamIds.size === getFilteredScriptParams().length &&
-                      getFilteredScriptParams().length > 0
-                    }
-                    onChange={selectAllScriptParams}
-                    className="rounded"
-                  />
-                  <span className="text-xs text-text-muted">
-                    {t('common.selectAll')} ({getFilteredScriptParams().length})
-                  </span>
-                </div>
-                {getFilteredScriptParams().map((a) => (
-                  <label
-                    key={a.id}
-                    className="flex items-center gap-2 px-1 py-1 rounded hover:bg-bg-card-hover cursor-pointer text-xs"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedScriptParamIds.has(a.id)}
-                      onChange={() => toggleScriptParamSelect(a.id)}
-                      className="rounded"
-                    />
-                    <span className="text-text-primary truncate">
-                      {typeof a.data === 'object' && a.data
-                        ? Object.values(a.data as Record<string, unknown>)
-                            .slice(0, 2)
-                            .join(' / ')
-                        : a.id.slice(0, 8)}
-                    </span>
-                    <span className="text-text-muted shrink-0">{a.pool}</span>
-                  </label>
-                ))}
-              </div>
-              {selectedScriptParamIds.size > 0 && (
+              <DataRequirementPanel
+                requirements={dataRequirements}
+                dataMap={dataMap}
+                selections={selections}
+                onToggleItem={handleToggleItem}
+                onToggleAll={handleToggleAll}
+                onPoolFilterChange={handlePoolFilterChange}
+              />
+              {!batchMode && hasAnySelection() && (
                 <div className="text-xs text-text-muted">
-                  {batchMode
-                    ? t('tasks.willCreateNTasks', { count: selectedScriptParamIds.size })
-                    : t('tasks.selectedScriptParams', { count: selectedScriptParamIds.size })}
+                  {t('tasks.selectedAccounts', { count: countTotalSelections() })}
                 </div>
               )}
             </div>

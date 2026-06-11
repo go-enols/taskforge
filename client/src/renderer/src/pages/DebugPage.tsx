@@ -166,8 +166,11 @@ const DebugPage: React.FC = () => {
         info.name = (manifest.name as string) || info.name
         info.entry = (manifest.entryPoint as string) || 'index.js'
         info.hasManifest = 'schema' in manifest
-        if (Array.isArray(manifest.requiredAccountTemplateIds)) {
-          info.requiredTemplates = manifest.requiredAccountTemplateIds as string[]
+        if (Array.isArray(manifest.dataRequirements)) {
+          const reqs = manifest.dataRequirements as Array<{ source: string; templateType: string }>
+          info.requiredTemplates = reqs
+            .filter((r) => r.source === 'script_param')
+            .map((r) => r.templateType)
         }
         if (Array.isArray(manifest.permissions)) {
           info.permissions = manifest.permissions as string[]
