@@ -135,16 +135,20 @@ export abstract class BaseRepository<_T = unknown> {
     mapper: (row: Record<string, unknown>) => V,
     searchParams?: unknown[]
   ): ListResponse<V> {
+    // Electron IPC serializes `undefined` → `null`, which breaks SQLite INTEGER params.
+    // Defaults via `??` instead of JS default-param syntax to handle null from IPC.
+    const p = page ?? 1
+    const ps = pageSize ?? 20
     try {
       const total = (
         (searchParams ? countStmt.get(...searchParams) : countStmt.get()) as Record<string, number>
       ).cnt
-      const totalPages = Math.max(1, Math.ceil(total / pageSize))
-      const offset = (page - 1) * pageSize
+      const totalPages = Math.max(1, Math.ceil(total / ps))
+      const offset = (p - 1) * ps
       const rows = searchParams
-        ? (listStmt.all(...searchParams, pageSize, offset) as Record<string, unknown>[])
-        : (listStmt.all(pageSize, offset) as Record<string, unknown>[])
-      return { items: rows.map(mapper), total, page, pageSize, totalPages }
+        ? (listStmt.all(...searchParams, ps, offset) as Record<string, unknown>[])
+        : (listStmt.all(ps, offset) as Record<string, unknown>[])
+      return { items: rows.map(mapper), total, page: p, pageSize: ps, totalPages }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(
