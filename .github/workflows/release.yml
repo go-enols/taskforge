@@ -51,11 +51,13 @@ jobs:
         working-directory: ./client
         run: npm run i18n:check
 
+      - name: Install server dependencies
+        working-directory: ./server
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
       - name: Build marketplace server
         working-directory: ./server
-        run: |
-          npm install --ignore-scripts --no-audit --no-fund
-          npm run build
+        run: npm run build
 
       - name: Clear electron-builder cache (Unix)
         if: runner.os != 'Windows'
