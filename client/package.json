@@ -1,6 +1,6 @@
 {
     "name":  "taskforge",
-    "version":  "0.2.2",
+    "version":  "0.2.3",
     "description":  "TaskForge — script distribution and task automation platform (Electron + React + TypeScript)",
     "main":  "./out/main/index.js",
     "bin":  {
