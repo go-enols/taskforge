@@ -20,6 +20,7 @@ import type {
   TaskTemplate,
   TaskOutput,
   ProjectTemplate,
+  RemoteProjectTemplate,
   ScriptVersion
 } from './types'
 import { call } from './transport'
@@ -657,6 +658,42 @@ export const marketplaceApi = {
     if (!resp.ok) throw new Error(`Failed to review template: ${resp.status}`)
     return resp.json()
   },
+
+  /** 列出市场的项目模板 (普通用户只看 visible, 开发者可见自己所有) */
+  listProjectTemplates: async (serverUrl?: string) => {
+    const base = serverUrl || (await getMarketplaceUrl())
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(base + '/api/project-templates', { headers })
+    if (!resp.ok) throw new Error('Failed to fetch project templates: ' + resp.status)
+    const json = await resp.json()
+    return (json.data?.items ?? json.data ?? []) as RemoteProjectTemplate[]
+  },
+
+  /** 切换项目模板可见性 */
+  patchProjectTemplate: async (id: string, data: Record<string, unknown>) => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(base + '/api/project-templates/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(data)
+    })
+    if (!resp.ok) throw new Error('Failed to update project template: ' + resp.status)
+    return resp.json()
+  },
+
+  /** 删除项目模板 */
+  deleteProjectTemplate: async (id: string) => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const resp = await fetch(base + '/api/project-templates/' + id, {
+      method: 'DELETE',
+      headers
+    })
+    if (!resp.ok) throw new Error('Failed to delete project template: ' + resp.status)
+    return resp.json()
+  },
+
   /** 提交/更新脚本评分 */
   submitReview: async (
     scriptId: string,

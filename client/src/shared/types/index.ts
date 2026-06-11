@@ -405,6 +405,22 @@ export interface ProjectTemplate {
   updatedAt: string
 }
 
+/** 市场（服务端）返回的项目模板 */
+export interface RemoteProjectTemplate {
+  id: string
+  name: string
+  description: string
+  icon: string
+  fields: ProjectTemplateField[]
+  visible: boolean
+  createdBy?: string
+  createdByName?: string
+  reviewStatus?: string
+  reviewComment?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 代币收益汇总 */
 export interface TokenEarnings {
   /** 代币名称 */

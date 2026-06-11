@@ -45,6 +45,7 @@ export type {
   TaskProgressUpdate,
   ProjectTemplate,
   ProjectTemplateField,
+  RemoteProjectTemplate,
   DataRequirement,
   DataSource
 } from '../../../shared/types'

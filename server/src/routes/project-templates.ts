@@ -101,12 +101,20 @@ function validateFields(fields: unknown): { valid: true; sanitized: Array<Record
   return { valid: true, sanitized };
 }
 
-/** 列出项目模板 (普通用户仅看到 visible=1, 管理员 ?all=true 看全部) */
+/** 列出项目模板 (admin 看全部, 开发者看见 visible 的 + 自己的, 普通用户只看 visible=1) */
 router.get("/", (req: AuthenticatedRequest, res: Response) => {
   const showAll = req.query.all === "true" && req.user?.role === "admin";
-  const rows = showAll
-    ? (stmts.projectTemplateGetAllAdmin.all() as Record<string, unknown>[])
-    : (stmts.projectTemplateGetAll.all() as Record<string, unknown>[]);
+  let rows: Record<string, unknown>[];
+  if (showAll) {
+    rows = stmts.projectTemplateGetAllAdmin.all() as Record<string, unknown>[];
+  } else if (req.user?.id && (req.user?.role === "developer" || req.user?.role === "admin")) {
+    const visibleRows = stmts.projectTemplateGetAll.all() as Record<string, unknown>[];
+    const authorRows = stmts.projectTemplateGetByAuthor.all(req.user.id) as Record<string, unknown>[];
+    const visibleIds = new Set(visibleRows.map((r) => r.id));
+    rows = [...visibleRows, ...authorRows.filter((r) => !visibleIds.has(r.id))];
+  } else {
+    rows = stmts.projectTemplateGetAll.all() as Record<string, unknown>[];
+  }
   res.json({ data: { items: rows.map(rowToProjectTemplate), total: rows.length } });
 });
 
@@ -116,12 +124,20 @@ router.get("/pending", requireRole("admin"), (_req: AuthenticatedRequest, res: R
   res.json({ data: { items: rows.map(rowToProjectTemplate), total: rows.length } });
 });
 
-/** 按 ID 获取 */
+/** 按 ID 获取 (hidden 只有作者和管理员可见) */
 router.get("/:id", (req: AuthenticatedRequest, res: Response) => {
   const row = stmts.projectTemplateGetById.get(req.params.id) as Record<string, unknown> | undefined;
   if (!row) {
     res.status(404).json({ error: { message: "Project template not found", code: "NOT_FOUND" } });
     return;
+  }
+  if ((row.visible as number) !== 1) {
+    const isAuthor = req.user?.id && row.created_by === req.user.id;
+    const isAdmin = req.user?.role === "admin";
+    if (!isAuthor && !isAdmin) {
+      res.status(404).json({ error: { message: "Project template not found", code: "NOT_FOUND" } });
+      return;
+    }
   }
   res.json({ data: rowToProjectTemplate(row) });
 });

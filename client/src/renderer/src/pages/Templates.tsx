@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { templateApi, marketplaceApi, getMarketplaceUrl, scriptApi, dialogApi } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../utils/toast'
-import type { Template, RemoteTemplate, RemoteScript, InstalledScript } from '../types'
+import type { Template, RemoteTemplate, RemoteScript, InstalledScript, RemoteProjectTemplate } from '../types'
 import {
   Search,
   Download,
@@ -36,7 +36,7 @@ const Templates: React.FC = () => {
   const { t } = useTranslation()
   const { user: marketUser, isAdmin, isDeveloper } = useAuth()
   const canManage = isAdmin || isDeveloper
-  const [activeTab, setActiveTab] = useState<'templates' | 'scripts'>('templates')
+  const [activeTab, setActiveTab] = useState<'templates' | 'scripts' | 'project-templates'>('templates')
   const [marketplaceUrl, setMarketplaceUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,6 +44,7 @@ const Templates: React.FC = () => {
   const [scriptParamTemplates, setScriptParamTemplates] = useState<RemoteTemplate[]>([])
   const [installedTemplates, setInstalledTemplates] = useState<Template[]>([])
   const [taskScripts, setTaskScripts] = useState<RemoteScript[]>([])
+  const [projectTemplates, setProjectTemplates] = useState<RemoteProjectTemplate[]>([])
   const [installedScripts, setInstalledScripts] = useState<InstalledScript[]>([])
   const [installingId, setInstallingId] = useState<string | null>(null)
 
@@ -84,12 +85,14 @@ const Templates: React.FC = () => {
       if (!silent) setLoading(true)
       if (!silent) setError(null)
       try {
-        const [tplRes, scriptRes] = await Promise.all([
+        const [tplRes, scriptRes, projRes] = await Promise.all([
           marketplaceApi.listTemplates(baseUrl),
-          marketplaceApi.listScripts(baseUrl)
+          marketplaceApi.listScripts(baseUrl),
+          marketplaceApi.listProjectTemplates(baseUrl).catch(() => ({ items: [] } as any))
         ])
         setScriptParamTemplates(tplRes.items || [])
         setTaskScripts(scriptRes.items || [])
+        setProjectTemplates((projRes as any).items ?? projRes ?? [])
       } catch (e: unknown) {
         if (!silent) setError(e instanceof Error ? e.message : t('common.error'))
       } finally {
@@ -288,6 +291,16 @@ const Templates: React.FC = () => {
     )
   }, [taskScripts, debouncedSearch])
 
+  const filteredProjectTemplates = useMemo(() => {
+    if (!debouncedSearch.trim()) return projectTemplates
+    const q = debouncedSearch.toLowerCase()
+    return projectTemplates.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q))
+    )
+  }, [projectTemplates, debouncedSearch])
+
   const getTemplateStatus = (id: string, version: string) => {
     const installed = installedTemplates.find((i) => i.id === id)
     if (!installed) return 'none' as const
@@ -360,6 +373,17 @@ const Templates: React.FC = () => {
         >
           <Zap size={16} />
           {t('templates.taskScripts')} ({taskScripts.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('project-templates')}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors -mb-[1px] border-b-2 ${
+            activeTab === 'project-templates'
+              ? 'text-primary border-primary bg-primary/5'
+              : 'text-text-muted border-transparent hover:text-text-secondary'
+          }`}
+        >
+          <FileText size={16} />
+          项目模板 ({projectTemplates.length})
         </button>
       </div>
 
@@ -618,6 +642,66 @@ const Templates: React.FC = () => {
                      </div>
                    )
                  })}
+              </div>
+            ))}
+
+          {activeTab === 'project-templates' &&
+            (filteredProjectTemplates.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-text-muted">
+                <FileText size={48} />
+                <p className="mt-4 text-lg">暂无项目模板</p>
+                <p className="mt-1 text-sm">请在开发者中心创建项目模板并上传到市场</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {filteredProjectTemplates.map((pt) => (
+                  <div key={pt.id}
+                    className="flex flex-col p-4 rounded-xl border border-border-light bg-bg-card hover:border-primary/30 transition-colors gap-2.5"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="p-1.5 rounded-lg bg-primary/10 shrink-0">
+                        <FileText size={18} className="text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-medium text-text-primary text-sm truncate">{pt.name}</h3>
+                          {!pt.visible && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-warning/10 text-warning">隐藏</span>
+                          )}
+                        </div>
+                        {pt.description && (
+                          <p className="text-xs text-text-muted line-clamp-2 mt-1">{pt.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border-light/50">
+                      <div className="flex items-center gap-2 text-xs text-text-muted">
+                        {pt.createdByName && <span>作者: {pt.createdByName}</span>}
+                        <span>字段: {pt.fields?.length ?? 0}</span>
+                      </div>
+                      {isAdmin && (
+                        <label className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-xs text-text-muted">{pt.visible ? '可见' : '隐藏'}</span>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              try {
+                                await marketplaceApi.patchProjectTemplate(pt.id, { visible: !pt.visible })
+                                toast.success(pt.visible ? '已设为隐藏' : '已设为可见')
+                                fetchMarketplace()
+                              } catch {
+                                toast.error('操作失败')
+                              }
+                            }}
+                            className={'w-7 h-3.5 rounded-full transition-colors ' + (pt.visible ? 'bg-success' : 'bg-text-muted/40')}
+                          >
+                            <span className={'block w-3 h-3 rounded-full bg-white transition-transform ' + (pt.visible ? 'translate-x-3.5' : 'translate-x-0.5')} />
+                          </button>
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
         </>
