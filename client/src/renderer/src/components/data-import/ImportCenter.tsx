@@ -40,7 +40,7 @@ const TABS: TabDef[] = [
   {
     key: 'account',
     icon: Users,
-    labelKey: 'data.import.accountTab',
+    labelKey: 'data.import.scriptParamTab',
     expectedType: 'scriptParam',
     acceptFormats: ['.json', '.txt']
   },
