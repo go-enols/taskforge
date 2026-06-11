@@ -251,6 +251,7 @@ export const serverApi = {
    * @param zipPath Local zip file to upload
    * @param headers Request headers (e.g. Authorization)
    * @param formFields Extra form fields to include in the multipart body
+   * @param method  HTTP method: 'POST' (default, new script) or 'PUT' (script update with ZIP)
    * @param onProgress Optional progress callback (0-100)
    */
   upload: (
@@ -258,10 +259,11 @@ export const serverApi = {
     zipPath: string,
     headers: Record<string, string>,
     formFields?: Record<string, string>,
+    method: 'POST' | 'PUT' = 'POST'
   ): Promise<{ success: boolean; status: number; data?: unknown; error?: string }> => {
     return call<{ success: boolean; status: number; data?: unknown; error?: string }>(
       'server:upload',
-      [url, zipPath, headers, formFields]
+      [url, zipPath, headers, formFields, method]
     )
   }
 }
@@ -517,6 +519,32 @@ export const marketplaceApi = {
     })
     if (!resp.ok) throw new Error(`Failed to update script: ${resp.status}`)
     return resp.json()
+  },
+
+  /**
+   * Re-upload a script's ZIP code package (or just update its metadata).
+   * Uses PUT multipart/form-data; the server validates the new manifest and
+   * replaces the binary + schema. Pass an empty/undefined zipPath to send
+   * a metadata-only update (e.g. just bumping version + changelog).
+   */
+  updateScript: async (
+    id: string,
+    formFields: Record<string, string>,
+    zipPath?: string
+  ): Promise<{ success: boolean; status: number; data?: unknown; error?: string }> => {
+    const base = await getMarketplaceUrl()
+    const headers = await getMarketplaceHeaders()
+    const result = await serverApi.upload(
+      `${base}/api/scripts/${id}`,
+      zipPath ?? '',
+      headers,
+      formFields,
+      'PUT'
+    )
+    if (!result.success && result.error) {
+      throw new Error(result.error)
+    }
+    return result
   },
 
   deleteScript: async (id: string) => {

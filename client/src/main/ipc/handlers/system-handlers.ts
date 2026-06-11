@@ -2,7 +2,7 @@
  * @file 系统级 IPC 处理器
  * @description 包含更新、对话框、文件系统、压缩、窗口、Shell 等直接使用 Electron API 的处理器。
  */
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import fs from 'fs'
 import path from 'path'
@@ -15,8 +15,7 @@ import { createLogger } from '../../utils/logger'
 const logger = createLogger('ipc')
 
 export function registerSystemHandlers(services: Services): void {
-  const { store } = services
-
+  void services  // 注册到 handlerMap 时由调用方注入；本模块暂未直接使用 services 字段
   /* ────────── 更新 ────────── */
 
   /**
@@ -202,13 +201,15 @@ export function registerSystemHandlers(services: Services): void {
   /**
    * Multipart/form-data 上传共享实现，同时供 IPC（带进度推送）和 HTTP 通道使用。
    * 仅 `ipcMain.handle` 路径会触发 `upload:progress` 事件回传到渲染进程。
+   * `method` 默认 'POST'；脚本代码包更新用 'PUT'。
    */
   async function uploadMultipart(
     url: string,
     zipPath: string,
     headers: Record<string, string>,
     formFields: Record<string, string>,
-    onProgress?: (pct: number) => void
+    onProgress?: (pct: number) => void,
+    method: 'POST' | 'PUT' = 'POST'
   ): Promise<{ success: boolean; status: number; data?: unknown; error?: string }> {
     try {
       const fileContent = fs.readFileSync(zipPath)
@@ -227,7 +228,7 @@ export function registerSystemHandlers(services: Services): void {
       onProgress?.(0)
 
       const response = await fetch(url, {
-        method: 'POST',
+        method,
         headers: { ...headers, 'Content-Type': `multipart/form-data; boundary=${boundary}` },
         body: bodyBuffer as unknown as BodyInit,
         signal: AbortSignal.timeout(5 * 60 * 1000)
@@ -243,12 +244,14 @@ export function registerSystemHandlers(services: Services): void {
   }
 
   // HTTP 通道（无进度事件）
+  // arg 4: optional HTTP method — 'POST' (default, new script) or 'PUT' (script update with ZIP)
   handlerMap.set('server:upload', async (...args: unknown[]) => {
     const url = args[0] as string
     const zipPath = args[1] as string
     const headers = args[2] as Record<string, string>
     const formFields = (args[3] as Record<string, string>) || {}
-    return uploadMultipart(url, zipPath, headers, formFields)
+    const method = (args[4] as 'POST' | 'PUT' | undefined) ?? 'POST'
+    return uploadMultipart(url, zipPath, headers, formFields, undefined, method)
   })
   // IPC 通道（带 upload:progress 事件）
   ipcMain.handle('server:upload', async (event, ...args: unknown[]) => {
@@ -256,9 +259,10 @@ export function registerSystemHandlers(services: Services): void {
     const zipPath = args[1] as string
     const headers = args[2] as Record<string, string>
     const formFields = (args[3] as Record<string, string>) || {}
+    const method = (args[4] as 'POST' | 'PUT' | undefined) ?? 'POST'
     return uploadMultipart(url, zipPath, headers, formFields, (pct: number) => {
       try { event.sender.send('upload:progress', pct) } catch {}
-    })
+    }, method)
   })
 
   /* ────────── 窗口 ────────── */
