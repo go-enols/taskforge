@@ -19,13 +19,13 @@ import {
   RotateCcw,
   Loader2,
   Edit3,
-  Trash2
+  Trash2,
+  Check
 } from 'lucide-react'
-import { marketplaceApi, getMarketplaceUrl, getMarketplaceHeaders } from '../api'
+import { getMarketplaceUrl, getMarketplaceHeaders } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../utils/toast'
 import { ConfirmDialog } from '../components/common'
-import type { RemoteScript, RemoteTemplate } from '../types'
 
 /* ── Tab type ── */
 
@@ -79,15 +79,6 @@ export default function AdminCenter() {
   /* ── Tab ── */
   const [activeTab, setActiveTab] = useState<AdminTab>('users')
 
-  /* ── Review state (shared between scripts & templates tabs) ── */
-  const [scripts, setScripts] = useState<RemoteScript[]>([])
-  const [templates, setTemplates] = useState<RemoteTemplate[]>([])
-  const [reviewLoading, setReviewLoading] = useState(true)
-  /** 每个待审核项独立的评论输入框（key = item.id）*/
-  const [reviewComments, setReviewComments] = useState<Record<string, string>>({})
-  const [reviewingId, setReviewingId] = useState<string | null>(null)
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
-
   /* ── User Management state ── */
   const [users, setUsers] = useState<User[]>([])
   const [usersLoading, setUsersLoading] = useState(true)
@@ -108,82 +99,6 @@ export default function AdminCenter() {
   const [regenerateTarget, setRegenerateTarget] = useState<User | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
-
-/* ── Review logic ── */
-
-  const toggleExpanded = (id: string) => {
-    setExpandedItems((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const fetchPending = useCallback(async () => {
-    setReviewLoading(true)
-    try {
-      const [scriptsRes, templatesRes] = await Promise.all([
-        marketplaceApi.getPendingScripts(),
-        marketplaceApi.getPendingTemplates()
-      ])
-      setScripts(scriptsRes.data?.items || [])
-      setTemplates(templatesRes.data?.items || [])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '获取待审核项目失败')
-    } finally {
-      setReviewLoading(false)
-    }
-  }, [])
-
-  const [fetchedPending, setFetchedPending] = useState(false)
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!fetchedPending) {
-      setFetchedPending(true)
-      fetchPending()
-    }
-  }, [fetchedPending, fetchPending])
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const handleReview = async (
-    type: 'script' | 'template',
-    id: string,
-    action: 'approve' | 'reject'
-  ) => {
-    setReviewingId(id)
-    const comment = reviewComments[id] ?? ''
-    try {
-      if (type === 'script') {
-        await marketplaceApi.reviewScript(id, action, comment)
-      } else {
-        await marketplaceApi.reviewTemplate(id, action, comment)
-      }
-      toast.success(action === 'approve' ? '已批准' : '已拒绝')
-      // 清理已审核项的评论输入
-      setReviewComments((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        return next
-      })
-      fetchPending()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '审核失败')
-    } finally {
-      setReviewingId(null)
-    }
-  }
-
-  const downloadScript = async (item: RemoteScript) => {
-    try {
-      const base = await getMarketplaceUrl()
-      const url = `${base}${item.downloadUrl}`
-      window.open(url, '_blank')
-    } catch {
-      toast.error('获取下载链接失败')
-    }
-  }
 
 /* ── User Management logic ── */
 

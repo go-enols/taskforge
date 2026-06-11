@@ -103,7 +103,6 @@ const Tasks: React.FC = () => {
   const [downloadingScriptId, setDownloadingScriptId] = useState<string | null>(null)
   const [logFilter, setLogFilter] = useState<string>('all')
   const logEndRef = useRef<HTMLDivElement | null>(null)
-  const [requiredTemplates, setRequiredTemplates] = useState<string[]>([])
   const [dataRequirements, setDataRequirements] = useState<DataRequirement[]>([])
   const [dataMap, setDataMap] = useState<Map<string, DataForRequirement>>(new Map())
   const [selections, setSelections] = useState<Map<string, RequirementSelection>>(new Map())
@@ -300,8 +299,8 @@ const Tasks: React.FC = () => {
       setNewScriptFolder(script.installPath)
       try {
         // 优先使用 InstalledScript.schema
-        let schemaSource = script.schema
-        // schema 可能是 JSON 字符串（从服务端 API 返回的），需要解析
+        let schemaSource: unknown = script.schema
+
         if (typeof schemaSource === 'string') {
           try { schemaSource = JSON.parse(schemaSource) } catch { schemaSource = null }
         }
@@ -343,7 +342,6 @@ const Tasks: React.FC = () => {
       setFormFields([])
       setFormValues({})
       setNewScriptFolder('')
-      setRequiredTemplates([])
       setDataRequirements([])
       setDataMap(new Map())
       setSelections(new Map())
@@ -519,7 +517,6 @@ const Tasks: React.FC = () => {
     }
 
     // 笛卡尔积展开
-    type Combo = Array<{ key: string; id: string }>
     const combinations = cartesianProduct(selectedByReq)
 
     let created = 0
@@ -614,7 +611,6 @@ const Tasks: React.FC = () => {
     setSelectedScript(null)
     setFormFields([])
     setFormValues({})
-    setRequiredTemplates([])
     setDataRequirements([])
     setDataMap(new Map())
     setSelections(new Map())

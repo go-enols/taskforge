@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Loader2, Lock, Unlock, Eye } from 'lucide-react'
+import { X, Loader2, Unlock, Eye } from 'lucide-react'
 import {
   emptyForm,
   validateBasic,
