@@ -234,12 +234,12 @@ export class AirdropProjectRepository extends BaseRepository<AirdropProject> {
 
     const totalAirdrops = (counts.ongoing + counts.completed + counts.cancelled + counts.claimed)
     const allRows = this.db
-      .prepare('SELECT earnings, tasks FROM airdrop_projects')
-      .all() as Array<{ earnings: string | null; tasks: string | null }>
+      .prepare('SELECT id, name, earnings, tasks FROM airdrop_projects')
+      .all() as Array<{ id: string; name: string; earnings: string | null; tasks: string | null }>
 
     let totalEarningsValueUsd = 0
     const tokenMap = new Map<string, { amount: number; valueUsd: number }>()
-    const deadlineEntries: Array<{ label: string; deadline: string }> = []
+    const deadlineEntries: Array<{ taskId: string; projectName: string; taskTitle: string; deadline: string }> = []
 
     for (const row of allRows) {
       const earnings = this.fromJsonArray<Earning>(row.earnings)
@@ -259,7 +259,12 @@ export class AirdropProjectRepository extends BaseRepository<AirdropProject> {
       const tasks = this.fromJsonArray<AirdropTaskItem>(row.tasks)
       for (const t of tasks) {
         if (t.deadline && t.deadline.trim()) {
-          deadlineEntries.push({ label: t.name || t.description || '', deadline: t.deadline })
+          deadlineEntries.push({
+            taskId: t.id,
+            projectName: row.name,
+            taskTitle: t.title || t.description || '',
+            deadline: t.deadline
+          })
         }
       }
     }

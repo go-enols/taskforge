@@ -7,7 +7,6 @@
  */
 
 import Database from 'better-sqlite3'
-import { v4 as uuidv4 } from 'uuid'
 import type {
   Wallet,
   ScriptParam,
@@ -19,8 +18,6 @@ import type {
   ScheduledTask,
   AirdropProject,
   AirdropAnalytics,
-  TokenEarnings,
-  UpcomingDeadline,
   CaptchaKey,
   ProxyProvider,
   AppLog,
@@ -32,8 +29,7 @@ import type {
   TemplateUsage,
   TemplateRanking,
   WeeklyTrend,
-  ProjectTemplate,
-  ProjectTemplateField
+  ProjectTemplate
 } from '../../shared/types'
 import {
   WalletRepository,
@@ -82,34 +78,6 @@ type JsonField = string | null
 function toJson(val: unknown): JsonField {
   if (val === undefined || val === null) return null
   return JSON.stringify(val)
-}
-
-/**
- * 内部辅助：从 JSON 字符串解析为对象
- * - 解析失败时返回 null（不抛错，容错处理）
- */
-function fromJson<T>(val: JsonField): T | null {
-  if (val === null) return null
-  try {
-    return JSON.parse(val) as T
-  } catch (err) {
-    console.error('[StoreService.fromJson] JSON parse failed:', String(err).slice(0, 200))
-    return null
-  }
-}
-
-/**
- * 内部辅助：从 JSON 字符串解析为数组
- * - 解析失败或 null 时返回空数组（不抛错）
- */
-function fromJsonArray<T>(val: JsonField): T[] {
-  if (val === null) return []
-  try {
-    return JSON.parse(val) as T[]
-  } catch (err) {
-    console.error('[StoreService.fromJsonArray] JSON parse failed:', String(err).slice(0, 200))
-    return []
-  }
 }
 
 /** 内部辅助：生成 ISO 8601 格式的当前时间字符串 */

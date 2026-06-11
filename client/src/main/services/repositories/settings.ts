@@ -5,7 +5,6 @@
  * @module main/services/repositories
  */
 import Database from 'better-sqlite3'
-import type { ListResponse } from '../../../shared/types'
 import { BaseRepository } from './base'
 
 /**

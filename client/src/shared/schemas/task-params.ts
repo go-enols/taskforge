@@ -230,14 +230,14 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
     meta.type = 'boolean'
   } else if (unwrapped instanceof z.ZodEnum) {
     meta.type = 'select'
-    // Zod 未提供 enum 选项值的公共 getter，需通过 _def.values 获取
-    const values = (unwrapped._def as { values: string[] }).values
+
+    // zod v4: enum values live on the public `.options` property
+    const values = (unwrapped as unknown as { options: string[] }).options
     if (values?.length) {
       meta.options = values.map((v) => ({ label: v, value: v }))
     }
   }
 
-  // 使用 instanceof 公共 API 判断是否可选（替代 _def.type）
   if (schema instanceof z.ZodOptional || schema instanceof z.ZodDefault) {
     meta.required = false
   }
@@ -259,21 +259,15 @@ function parseZodField(name: string, schema: z.ZodTypeAny): FieldMeta {
  * 使用 Zod 公共 API: .unwrap() 和 .removeDefault()（替代 _def.innerType）
  */
 function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
+  // zod v4: instance types are typed as $ZodType at runtime; the cast
+  // bridges the public ZodTypeAny nominal to the internal $ZodType shape.
   if (schema instanceof z.ZodOptional) {
-    return unwrapSchema(schema.unwrap())
+    return unwrapSchema((schema as unknown as { unwrap(): z.ZodTypeAny }).unwrap())
   }
   if (schema instanceof z.ZodDefault) {
-    return unwrapSchema(schema.removeDefault())
+    return unwrapSchema((schema as unknown as { removeDefault(): z.ZodTypeAny }).removeDefault())
   }
   return schema
-}
-
-/**
- * 判断 Zod Schema 是否为可选类型。
- * 使用 Zod 公共 API instanceof 检查（替代 _def.type 字符串比较）
- */
-function isOptionalSchema(schema: z.ZodTypeAny): boolean {
-  return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault
 }
 
 /**
