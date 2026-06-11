@@ -54,7 +54,6 @@ const ScriptParams: React.FC = () => {
   const [editingItem, setEditingItem] = useState<ScriptParam | null>(null)
   const [editForm, setEditForm] = useState({ pool: '', notes: '', labels: '', data: '{}' })
   const [editDynamicFormValues, setEditDynamicFormValues] = useState<Record<string, unknown>>({})
-  const [dataTab, setDataTab] = useState<'form' | 'json'>('form')
   const [editDataTab, setEditDataTab] = useState<'form' | 'json'>('json')
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
@@ -203,7 +202,8 @@ const ScriptParams: React.FC = () => {
     const selectedTemplate = templates.find((t) => t.id === form.templateId)
     let parsedData: Record<string, unknown> = {}
     const createHasSchema = selectedTemplate?.schema && Object.keys(selectedTemplate.schema).length > 0
-    if (createHasSchema && dataTab === 'form') {
+    const createHasFields = createHasSchema && jsonSchemaToFieldMeta(selectedTemplate!.schema).length > 0
+    if (createHasFields) {
       parsedData = { ...form.dynamicFormValues }
     } else {
       try {
@@ -226,7 +226,7 @@ const ScriptParams: React.FC = () => {
       console.warn('Pool check failed, proceeding anyway')
     }
     doCreateScriptParam(parsedData)
-  }, [form, dataTab, t, templates, doCreateScriptParam])
+  }, [form, t, templates, doCreateScriptParam])
 
   const handlePoolConfirm = useCallback(async () => {
     setShowPoolConfirm(false)
@@ -477,7 +477,6 @@ const ScriptParams: React.FC = () => {
                 const tid = e.target.value
                 const tpl = templates.find((t) => t.id === tid)
                 const hasSchema = tpl?.schema && Object.keys(tpl.schema).length > 0
-                setDataTab(hasSchema ? 'form' : 'json')
                 setForm((f) => ({ ...f, templateId: tid, dynamicFormValues: {}, data: '{}' }))
               }}
               className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
@@ -528,63 +527,64 @@ const ScriptParams: React.FC = () => {
             const selectedTpl = templates.find((t) => t.id === form.templateId)
             const hasSchema = selectedTpl?.schema && Object.keys(selectedTpl.schema).length > 0
             const fields = hasSchema ? jsonSchemaToFieldMeta(selectedTpl!.schema) : []
-            const currentTab = hasSchema ? dataTab : 'json'
+            const showForm = hasSchema && fields.length > 0
             return (
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">
                   {t('scriptParams.data')}
                 </label>
-                {hasSchema && (
-                  <div className="flex gap-1 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Sync form → JSON when switching to json tab
-                        if (dataTab === 'form') {
-                          setForm((f) => ({
-                            ...f,
-                            data: JSON.stringify(f.dynamicFormValues, null, 2)
-                          }))
-                        }
-                        setDataTab('json')
-                      }}
-                      className={`px-3 py-1 text-xs rounded-md transition-colors ${currentTab === 'json' ? 'bg-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-card-hover'}`}
-                    >
-                      {t('scriptParams.jsonTab')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Sync JSON → form when switching to form tab
-                        if (dataTab === 'json') {
-                          try {
-                            const parsed = JSON.parse(form.data || '{}')
-                            setForm((f) => ({ ...f, dynamicFormValues: parsed }))
-                          } catch { /* keep existing */ }
-                        }
-                        setDataTab('form')
-                      }}
-                      className={`px-3 py-1 text-xs rounded-md transition-colors ${currentTab === 'form' ? 'bg-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-card-hover'}`}
-                    >
-                      {t('scriptParams.formTab')}
-                    </button>
-                  </div>
-                )}
-                {currentTab === 'form' && fields.length > 0 ? (
-                  <DynamicForm
-                    fields={fields}
-                    defaultValues={form.dynamicFormValues}
-                    onSubmit={(values) => setForm((f) => ({ ...f, dynamicFormValues: values }))}
-                    submitLabel={t('common.save')}
-                  />
-                ) : (
-                  <textarea
-                    value={form.data}
-                    onChange={(e) => setForm((f) => ({ ...f, data: e.target.value }))}
-                    rows={4}
-                    className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono resize-none"
-                  />
-                )}
+                <div className="space-y-2">
+                  {showForm ? (
+                    <>
+                      <div className="border border-border-light rounded-lg p-4 bg-bg-card">
+                        <DynamicForm
+                          fields={fields}
+                          defaultValues={form.dynamicFormValues}
+                          onValuesChange={(values) => {
+                            setForm((f) => ({
+                              ...f,
+                              dynamicFormValues: values,
+                              data: JSON.stringify(values, null, 2)
+                            }))
+                          }}
+                          submitLabel=""
+                        />
+                      </div>
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-text-muted hover:text-text-secondary select-none py-1">
+                          {t('scriptParams.advancedJsonView')}
+                        </summary>
+                        <textarea
+                          value={form.data}
+                          onChange={(e) => {
+                            const newData = e.target.value
+                            setForm((f) => ({ ...f, data: newData }))
+                            try {
+                              const parsed = JSON.parse(newData || '{}')
+                              setForm((f) => ({ ...f, dynamicFormValues: parsed }))
+                            } catch { /* invalid JSON, keep form values */ }
+                          }}
+                          rows={6}
+                          className="mt-1 w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono resize-y"
+                        />
+                      </details>
+                    </>
+                  ) : (
+                    <>
+                      {hasSchema && fields.length === 0 && (
+                        <p className="text-xs text-warning">
+                          {t('scriptParams.emptySchemaHint')}
+                        </p>
+                      )}
+                      <textarea
+                        value={form.data}
+                        onChange={(e) => setForm((f) => ({ ...f, data: e.target.value }))}
+                        rows={10}
+                        className="w-full px-3 py-2 text-sm border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono resize-y"
+                      />
+                    </>
+                  )}
+                </div>
               </div>
             )
           })()}
