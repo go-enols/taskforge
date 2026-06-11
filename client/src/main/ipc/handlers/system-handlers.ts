@@ -178,14 +178,27 @@ export function registerSystemHandlers(services: Services): void {
   })
 
   register('zip:extractManifest', async (...args: unknown[]) => {
-    const zipPath = args[0] as string
+    const sourcePath = args[0] as string
     try {
-      const resolvedZip = path.resolve(zipPath)
-      if (!/^[^;|&`$\n\r]+$/.test(resolvedZip)) {
+      const resolved = path.resolve(sourcePath)
+      if (!/^[^;|&`$\n\r]+$/.test(resolved)) {
         return { success: false, manifest: null, error: 'Invalid characters in path' }
       }
 
-      const output = readZipEntry(resolvedZip, 'manifest.json')
+      // Branch on directory vs file: folder = read manifest.json directly,
+      // zip = extract entry. Without this branch, AdmZip on a directory
+      // throws EISDIR (illegal operation on a directory, read).
+      if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+        const manifestPath = path.join(resolved, 'manifest.json')
+        if (!fs.existsSync(manifestPath)) {
+          return { success: false, manifest: null, error: 'manifest.json not found in directory' }
+        }
+        const content = fs.readFileSync(manifestPath, 'utf-8')
+        const manifest = JSON5.parse(content) as Record<string, unknown>
+        return { success: true, manifest }
+      }
+
+      const output = readZipEntry(resolved, 'manifest.json')
       if (output === null) {
         return { success: false, manifest: null, error: 'manifest.json not found in archive' }
       }
