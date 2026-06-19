@@ -1,6 +1,5 @@
 export type TransportType = 'ipc' | 'http'
 
-const TRANSPORT_KEY = 'app-transport'
 const HEALTH_TIMEOUT = 3000
 const HTTP_PORT_RANGE = { from: 34116, to: 34126 }
 
@@ -150,6 +149,7 @@ async function tryHttpPort<T>(port: number, channel: string, args: unknown[]): P
     // Handler-level error (server responded but handler returned error) → propagate
     throw err
   } finally {
+    clearTimeout(timer)
   }
 }
 
