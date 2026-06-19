@@ -254,17 +254,6 @@ const DataRequirementPanel: React.FC<DataRequirementPanelProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
-  const toggleCollapse = (key: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
-  if (!requirements || requirements.length === 0) return null
-
   const poolsByKey = useMemo(() => {
     const result = new Map<string, string[]>()
     for (const req of requirements) {
@@ -276,6 +265,18 @@ const DataRequirementPanel: React.FC<DataRequirementPanelProps> = ({
     }
     return result
   }, [requirements, dataMap])
+
+  const toggleCollapse = (key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  if (!requirements || requirements.length === 0) return null
+
 
   return (
     <div className="space-y-2">

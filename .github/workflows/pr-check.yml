@@ -36,6 +36,15 @@ jobs:
         working-directory: ./client
         run: npm run i18n:check
 
+      - name: Rebuild native modules (node, for tests)
+        working-directory: ./client
+        run: npm rebuild better-sqlite3 bufferutil utf-8-validate
+
+      - name: Test (client)
+        working-directory: ./client
+        continue-on-error: true # 预存测试失败（store.test 建表问题），非阻塞直到修复
+        run: npx vitest run
+
       - name: Setup Node.js (server)
         uses: actions/setup-node@v4
         with:

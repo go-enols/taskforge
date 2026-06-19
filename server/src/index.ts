@@ -14,7 +14,7 @@ import scriptsRouter from "./routes/scripts";
 import templatesRouter from "./routes/templates";
 import usersRouter from "./routes/users";
 import projectTemplatesRouter from "./routes/project-templates";
-import { stmts } from "./db";
+import { db, stmts } from "./db";
 
 // Ensure keys are generated and loaded
 /** 确保 JWT 和 API 密钥存在，注入环境变量 */
@@ -29,8 +29,32 @@ const PORT = parseInt(process.env.PORT || "3400", 10);
 /** 监听地址，默认 127.0.0.1，可通过 HOST 环境变量覆盖 */
 const HOST = process.env.HOST || "127.0.0.1";
 
-/** 启用 CORS 跨域支持 */
-app.use(cors());
+/**
+ * CORS origin 白名单。
+ * 允许 Electron 客户端本地通信（IPC 降级用的 34116-34126 端口）与开发态 vite dev server。
+ * 生产部署若需远程访问，通过 CORS_ORIGINS 环境变量追加逗号分隔的来源。
+ */
+const corsWhitelist: string[] = [
+  "http://127.0.0.1:34116",
+  "http://localhost:34116",
+  "http://127.0.0.1:5173",
+  "http://localhost:5173",
+  ...(process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+    : []),
+];
+app.use(
+  cors({
+    origin(origin, cb) {
+      // 允许同源请求（origin 为 undefined，如 curl/服务端到服务端）与白名单来源
+      if (!origin || corsWhitelist.includes(origin)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`CORS blocked: ${origin}`));
+      }
+    },
+  }),
+);
 /** 解析 JSON 请求体 */
 app.use(express.json());
 
@@ -64,14 +88,23 @@ const apiLimiter = rateLimit({
 });
 
 // Health check (no rate limit)
-/** 健康检查端点：返回服务状态、时间戳和是否需要初始化 */
+/** 健康检查端点：探活数据库连接，返回服务状态、时间戳和是否需要初始化 */
 app.get("/api/health", (_req, res) => {
-  const count = stmts.userCount.get() as { count: number }
+  let dbStatus: "connected" | "disconnected" = "connected";
+  let needsSetup = false;
+  try {
+    db.prepare("SELECT 1").get();
+    const count = stmts.userCount.get() as { count: number };
+    needsSetup = count.count === 0;
+  } catch {
+    dbStatus = "disconnected";
+  }
   res.json({
-    status: "ok",
+    status: dbStatus === "connected" ? "ok" : "degraded",
+    db: dbStatus,
     timestamp: new Date().toISOString(),
-    needsSetup: count.count === 0
-  })
+    needsSetup,
+  });
 })
 
 // Auth routes — stricter rate limit, no auth middleware required

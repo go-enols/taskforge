@@ -1,7 +1,8 @@
 /**
  * @file 数据库初始化与预编译语句
- * @description 创建/迁移 SQLite 数据库（marketplace.db），定义所有预编译 SQL 语句。
- *              自动处理列迁移（visible、created_by、review_status 等字段的追加）。
+ * @description SQLite 数据库连接、显式迁移框架（版本表 + 顺序脚本）与预编译语句。
+ *              所有 schema 变更必须以独立 migration 函数形式追加到 MIGRATIONS 数组，
+ *              通过 _migrations 版本表追踪执行状态，确保可追溯、可回放、幂等。
  * @module server/db
  */
 import Database from 'better-sqlite3'
@@ -25,213 +26,281 @@ db.pragma('journal_mode = WAL')
 /** 启用外键约束 */
 db.pragma('foreign_keys = ON')
 
-// ── Migration: add `visible` column to existing tables ──
-/** 迁移：为 scripts 表添加 visible 列（可见性控制） */
-try {
-  const cols = db.pragma('table_info(scripts)') as Array<{ name: string }>
-  if (!cols.some((c) => c.name === 'visible')) {
-    db.exec('ALTER TABLE scripts ADD COLUMN visible INTEGER NOT NULL DEFAULT 1')
-    console.log('[db] migrated: scripts.visible column added')
-  }
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
-    console.error('[db] Migration error:', msg)
-  }
-}
-/** 迁移：为 templates 表添加 visible 列 */
-try {
-  const cols = db.pragma('table_info(templates)') as Array<{ name: string }>
-  if (!cols.some((c) => c.name === 'visible')) {
-    db.exec('ALTER TABLE templates ADD COLUMN visible INTEGER NOT NULL DEFAULT 1')
-    console.log('[db] migrated: templates.visible column added')
-  }
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
-    console.error('[db] Migration error:', msg)
-  }
+// ───────────────────────────────────────────────────────────────────────────
+// 迁移框架：版本表 + 顺序脚本
+// ───────────────────────────────────────────────────────────────────────────
+// 每个 migration 是一个命名函数，执行幂等的 schema 变更。
+// 框架在事务中按序执行，已记录版本号的跳过，失败则回滚并抛出（阻断启动）。
+
+/** 迁移记录：{ name, sql|null }，name 唯一标识，sql 为空表示用 fn 执行复杂逻辑 */
+interface Migration {
+  /** 迁移唯一标识（写入 _migrations.name） */
+  name: string
+  /** 迁移描述（仅文档用途） */
+  description: string
+  /** 执行函数，必须幂等（可重复执行不出错） */
+  up: () => void
 }
 
-/** 迁移：为 scripts 表添加 created_by 列（记录创建者） */
-try {
-  const cols = db.pragma('table_info(scripts)') as Array<{ name: string }>
-  if (!cols.some((c) => c.name === 'created_by')) {
-    db.exec('ALTER TABLE scripts ADD COLUMN created_by TEXT')
-    console.log('[db] migrated: scripts.created_by column added')
-  }
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
-    console.error('[db] Migration error:', msg)
-  }
-}
-/** 迁移：为 templates 表添加 created_by 列 */
-try {
-  const cols = db.pragma('table_info(templates)') as Array<{ name: string }>
-  if (!cols.some((c) => c.name === 'created_by')) {
-    db.exec('ALTER TABLE templates ADD COLUMN created_by TEXT')
-    console.log('[db] migrated: templates.created_by column added')
-  }
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
-    console.error('[db] Migration error:', msg)
-  }
-}
-
-/** 迁移：为 scripts 表添加 review_status/review_comment 列（审核功能） */
-try {
-  const cols = db.pragma('table_info(scripts)') as Array<{ name: string }>
-  if (!cols.some((c) => c.name === 'review_status')) {
-    db.exec("ALTER TABLE scripts ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'")
-    db.exec("ALTER TABLE scripts ADD COLUMN review_comment TEXT DEFAULT ''")
-    console.log('[db] migrated: scripts.review_status/review_comment columns added')
-  }
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
-    console.error('[db] Migration error:', msg)
-  }
-}
-/** 迁移：为 templates 表添加 review_status/review_comment 列 */
-try {
-  const cols = db.pragma('table_info(templates)') as Array<{ name: string }>
-  if (!cols.some((c) => c.name === 'review_status')) {
-    db.exec("ALTER TABLE templates ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'")
-    db.exec("ALTER TABLE templates ADD COLUMN review_comment TEXT DEFAULT ''")
-    console.log('[db] migrated: templates.review_status/review_comment columns added')
-  }
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
-    console.error('[db] Migration error:', msg)
-  }
-}
-
-/** 迁移：为 scripts 表添加 avg_rating/review_count 列（评分聚合） */
-try {
-  const cols = db.pragma('table_info(scripts)') as Array<{ name: string }>
-  if (!cols.some((c) => c.name === 'avg_rating')) {
-    db.exec('ALTER TABLE scripts ADD COLUMN avg_rating REAL NOT NULL DEFAULT 0')
-    db.exec('ALTER TABLE scripts ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0')
-    console.log('[db] migrated: scripts.avg_rating/review_count columns added')
-  }
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
-    console.error('[db] Migration error:', msg)
-  }
-}
-
-/** 迁移：创建 script_versions 表（版本历史） */
-try {
-  const versionTable = db.pragma('table_info(script_versions)') as Array<{ name: string }>
-  if (!versionTable || versionTable.length === 0) {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS script_versions (
-        id TEXT PRIMARY KEY,
-        script_id TEXT NOT NULL,
-        version TEXT NOT NULL,
-        changelog TEXT NOT NULL DEFAULT '',
-        checksum TEXT NOT NULL,
-        file_path TEXT NOT NULL,
-        schema TEXT NOT NULL DEFAULT '{}',
-        created_by TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_script_versions_script_id ON script_versions(script_id);
-    `)
-    console.log('[db] migrated: script_versions table created')
-  }
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (!msg.includes('already exists')) {
-    console.error('[db] Version table migration error:', msg)
-  }
-}
-
-/** 建表语句：scripts（脚本）、templates（模板）、users（用户）、script_reviews（评分/评论） */
+/**
+ * 初始化迁移版本表。首次启动时创建，记录已执行的迁移名称。
+ */
 db.exec(`
-  CREATE TABLE IF NOT EXISTS scripts (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    version TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    schema TEXT NOT NULL DEFAULT '{}',
-    entry_point TEXT NOT NULL DEFAULT '',
-    checksum TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    tags TEXT NOT NULL DEFAULT '[]',
-    changelog TEXT NOT NULL DEFAULT '',
-    downloads INTEGER NOT NULL DEFAULT 0,
-    visible INTEGER NOT NULL DEFAULT 1,
-    created_by TEXT,
-    review_status TEXT NOT NULL DEFAULT 'pending',
-    review_comment TEXT DEFAULT '',
-    avg_rating REAL NOT NULL DEFAULT 0,
-    review_count INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS templates (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    type TEXT NOT NULL,
-    version TEXT NOT NULL DEFAULT '1.0.0',
-    description TEXT NOT NULL DEFAULT '',
-    schema TEXT NOT NULL DEFAULT '{}',
-    checksum TEXT NOT NULL DEFAULT '',
-    downloads INTEGER NOT NULL DEFAULT 0,
-    visible INTEGER NOT NULL DEFAULT 1,
-    created_by TEXT,
-    review_status TEXT NOT NULL DEFAULT 'pending',
-    review_comment TEXT DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS project_templates (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    icon TEXT NOT NULL DEFAULT 'Folder',
-    fields TEXT NOT NULL DEFAULT '[]',
-    visible INTEGER NOT NULL DEFAULT 1,
-    created_by TEXT,
-    review_status TEXT NOT NULL DEFAULT 'pending',
-    review_comment TEXT DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    display_name TEXT NOT NULL DEFAULT '',
-    role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'developer', 'user')),
-    api_key TEXT UNIQUE NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS script_reviews (
-    id TEXT PRIMARY KEY,
-    script_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
-    comment TEXT DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE(script_id, user_id)
-  );
+  CREATE TABLE IF NOT EXISTS _migrations (
+    name TEXT PRIMARY KEY,
+    executed_at TEXT NOT NULL
+  )
 `)
 
-/** 创建索引：加速按脚本 ID 查询评分 */
-db.exec('CREATE INDEX IF NOT EXISTS idx_script_reviews_script_id ON script_reviews(script_id)')
+/**
+ * 检查迁移是否已执行
+ */
+function isMigrationApplied(name: string): boolean {
+  const row = db.prepare('SELECT 1 FROM _migrations WHERE name = ?').get(name)
+  return !!row
+}
+
+/**
+ * 记录迁移已执行
+ */
+function markMigrationApplied(name: string): void {
+  db
+    .prepare('INSERT INTO _migrations (name, executed_at) VALUES (?, ?)')
+    .run(name, new Date().toISOString())
+}
+
+// ── 迁移脚本集合（按时间顺序追加，不得修改已发布的迁移） ──
+
+/**
+ * v001: 基础建表。scripts / templates / project_templates / users / script_reviews
+ *       及 script_versions 表、索引。
+ *       幂等：全部使用 CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS。
+ */
+function migrationV001InitialSchema(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scripts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      version TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      schema TEXT NOT NULL DEFAULT '{}',
+      entry_point TEXT NOT NULL DEFAULT '',
+      checksum TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      tags TEXT NOT NULL DEFAULT '[]',
+      changelog TEXT NOT NULL DEFAULT '',
+      downloads INTEGER NOT NULL DEFAULT 0,
+      visible INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT,
+      review_status TEXT NOT NULL DEFAULT 'pending',
+      review_comment TEXT DEFAULT '',
+      avg_rating REAL NOT NULL DEFAULT 0,
+      review_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      version TEXT NOT NULL DEFAULT '1.0.0',
+      description TEXT NOT NULL DEFAULT '',
+      schema TEXT NOT NULL DEFAULT '{}',
+      checksum TEXT NOT NULL DEFAULT '',
+      downloads INTEGER NOT NULL DEFAULT 0,
+      visible INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT,
+      review_status TEXT NOT NULL DEFAULT 'pending',
+      review_comment TEXT DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS project_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      icon TEXT NOT NULL DEFAULT 'Folder',
+      fields TEXT NOT NULL DEFAULT '[]',
+      visible INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT,
+      review_status TEXT NOT NULL DEFAULT 'pending',
+      review_comment TEXT DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
+      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'developer', 'user')),
+      api_key TEXT UNIQUE NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS script_reviews (
+      id TEXT PRIMARY KEY,
+      script_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+      comment TEXT DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(script_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS script_versions (
+      id TEXT PRIMARY KEY,
+      script_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      changelog TEXT NOT NULL DEFAULT '',
+      checksum TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      schema TEXT NOT NULL DEFAULT '{}',
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_script_reviews_script_id ON script_reviews(script_id);
+  `)
+}
+
+/**
+ * 安全添加列：若列已存在则跳过。比 try/catch ALTER 更可读且不吞其他错误。
+ * @param table 目标表名
+ * @param column 新列名
+ * @param definition 列定义（如 `INTEGER NOT NULL DEFAULT 1`）
+ */
+function addColumnIfMissing(table: string, column: string, definition: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+  if (cols.some((c) => c.name === column)) return
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+}
+
+/**
+ * v002: 为 scripts/templates 补 visible 列（兼容历史库）。
+ */
+function migrationV002AddVisible(): void {
+  addColumnIfMissing('scripts', 'visible', 'INTEGER NOT NULL DEFAULT 1')
+  addColumnIfMissing('templates', 'visible', 'INTEGER NOT NULL DEFAULT 1')
+}
+
+/**
+ * v003: 为 scripts/templates 补 created_by 列。
+ */
+function migrationV003AddCreatedBy(): void {
+  addColumnIfMissing('scripts', 'created_by', 'TEXT')
+  addColumnIfMissing('templates', 'created_by', 'TEXT')
+}
+
+/**
+ * v004: 为 scripts/templates 补 review_status / review_comment 列。
+ */
+function migrationV004AddReviewColumns(): void {
+  addColumnIfMissing('scripts', 'review_status', "TEXT NOT NULL DEFAULT 'pending'")
+  addColumnIfMissing('scripts', 'review_comment', "TEXT DEFAULT ''")
+  addColumnIfMissing('templates', 'review_status', "TEXT NOT NULL DEFAULT 'pending'")
+  addColumnIfMissing('templates', 'review_comment', "TEXT DEFAULT ''")
+}
+
+/**
+ * v005: 为 scripts 补 avg_rating / review_count 列。
+ */
+function migrationV005AddRatingAgg(): void {
+  addColumnIfMissing('scripts', 'avg_rating', 'REAL NOT NULL DEFAULT 0')
+  addColumnIfMissing('scripts', 'review_count', 'INTEGER NOT NULL DEFAULT 0')
+}
+
+/**
+ * v006: 创建 script_versions 表（兼容历史库，若已存在则跳过）。
+ */
+function migrationV006ScriptVersionsTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS script_versions (
+      id TEXT PRIMARY KEY,
+      script_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      changelog TEXT NOT NULL DEFAULT '',
+      checksum TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      schema TEXT NOT NULL DEFAULT '{}',
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+  `)
+}
+
+/**
+ * v007: 为 users 补 api_key_hash 列（API Key 渐进迁移到哈希存储）。
+ *       保留原 api_key 列做兼容；认证时优先校验 hash，命中旧明文则自动迁移。
+ */
+function migrationV007AddApiKeyHash(): void {
+  addColumnIfMissing('users', 'api_key_hash', 'TEXT')
+}
+
+/** 迁移列表：按顺序追加，不可修改已发布的项 */
+const MIGRATIONS: Migration[] = [
+  {
+    name: 'v001_initial_schema',
+    description: '基础建表：scripts/templates/project_templates/users/script_reviews/script_versions',
+    up: migrationV001InitialSchema
+  },
+  {
+    name: 'v002_add_visible',
+    description: '为 scripts/templates 补 visible 列',
+    up: migrationV002AddVisible
+  },
+  {
+    name: 'v003_add_created_by',
+    description: '为 scripts/templates 补 created_by 列',
+    up: migrationV003AddCreatedBy
+  },
+  {
+    name: 'v004_add_review_columns',
+    description: '为 scripts/templates 补审核状态列',
+    up: migrationV004AddReviewColumns
+  },
+  {
+    name: 'v005_add_rating_agg',
+    description: '为 scripts 补评分聚合列',
+    up: migrationV005AddRatingAgg
+  },
+  {
+    name: 'v006_script_versions_table',
+    description: '创建 script_versions 表',
+    up: migrationV006ScriptVersionsTable
+  },
+  {
+    name: 'v007_add_api_key_hash',
+    description: '为 users 补 api_key_hash 列（API Key 哈希化渐进迁移）',
+    up: migrationV007AddApiKeyHash
+  }
+]
+
+/**
+ * 执行所有未应用的迁移。每个迁移在独立事务中执行，失败则抛出阻断启动。
+ */
+function runMigrations(): void {
+  for (const m of MIGRATIONS) {
+    if (isMigrationApplied(m.name)) continue
+    const tx = db.transaction(() => {
+      m.up()
+      markMigrationApplied(m.name)
+    })
+    try {
+      tx()
+    } catch (err) {
+      console.error(`[db] Migration ${m.name} failed:`, err)
+      throw err
+    }
+  }
+}
+
+runMigrations()
 
 /** 预编译 SQL 语句集合 */
 const stmts = {
@@ -375,12 +444,16 @@ const stmts = {
   /** 删除 */
   projectTemplateDelete: db.prepare('DELETE FROM project_templates WHERE id = ?'),
 
-  /** 插入新用户 */
-  userInsert: db.prepare('INSERT INTO users (id, username, password_hash, display_name, role, api_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+  /** 插入新用户（含 api_key_hash，向后兼容旧 api_key 列） */
+  userInsert: db.prepare(
+    'INSERT INTO users (id, username, password_hash, display_name, role, api_key, api_key_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ),
   /** 按用户名查询用户 */
   userGetByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
-  /** 按 API Key 查询用户 */
+  /** 按 API Key 明文查询用户（兼容旧数据；命中后应迁移到 hash） */
   userGetByApiKey: db.prepare('SELECT * FROM users WHERE api_key = ?'),
+  /** 按 API Key 哈希查询用户（优先路径） */
+  userGetByApiKeyHash: db.prepare('SELECT * FROM users WHERE api_key_hash = ?'),
   /** 按 ID 查询用户 */
   userGetById: db.prepare('SELECT * FROM users WHERE id = ?'),
   /** 查询所有用户（按创建时间降序） */
@@ -389,8 +462,10 @@ const stmts = {
   userDelete: db.prepare('DELETE FROM users WHERE id = ?'),
   /** 更新用户显示名称和角色 */
   userUpdate: db.prepare('UPDATE users SET display_name=?, role=?, updated_at=? WHERE id=?'),
-  /** 更新用户 API Key */
-  userUpdateApiKey: db.prepare('UPDATE users SET api_key=?, updated_at=? WHERE id=?'),
+  /** 更新用户 API Key（明文列 + 哈希列同步设置） */
+  userUpdateApiKey: db.prepare('UPDATE users SET api_key=?, api_key_hash=?, updated_at=? WHERE id=?'),
+  /** 将用户 api_key_hash 置空（配合渐进迁移：旧明文命中后写入 hash） */
+  userSetApiKeyHash: db.prepare('UPDATE users SET api_key_hash=?, updated_at=? WHERE id=?'),
   /** 统计用户总数 */
   userCount: db.prepare('SELECT COUNT(*) as count FROM users'),
 }
@@ -408,5 +483,3 @@ export function getScriptsDir(): string {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   return dir
 }
-
-// getTemplatesDir was removed — unused (no callers)

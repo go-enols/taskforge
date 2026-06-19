@@ -6,19 +6,25 @@
 import { Router, Response } from 'express'
 import bcrypt from 'bcrypt'
 import { v4 as uuidv4 } from 'uuid'
-import { randomBytes } from 'crypto'
 import { db, stmts } from '../db'
 import { AuthenticatedRequest, UserRecord } from '../types'
 import { requireRole } from '../middleware/auth'
+import { generateApiKey, hashApiKey } from '../utils/keys'
+import { validateBody } from '../middleware/validate'
+import { updateMeSchema, createUserSchema, updateUserSchema } from '../schemas/auth-user'
+import { createLogger } from '../utils/logger'
+
+const log = createLogger('users')
 
 /** 用户路由实例 */
 const router = Router()
 
+/** BCRYPT 密码哈希成本（注册/重置统一使用） */
+const BCRYPT_COST = 12
+
 /**
- * 脱敏用户数据：移除 password_hash，转换为驼峰命名的安全输出格式
- *
- * @param row - 数据库用户记录
- * @returns 脱敏后的用户对象（不含密码）
+ * 脱敏用户数据：移除 password_hash 与 api_key 明文，转换为驼峰命名的安全输出格式。
+ * apiKey 字段仅返回布尔值，表示是否已设置（不回传明文）。
  */
 function sanitizeUser(row: UserRecord) {
   return {
@@ -26,15 +32,10 @@ function sanitizeUser(row: UserRecord) {
     username: row.username,
     displayName: row.display_name,
     role: row.role,
-    apiKey: row.api_key,
+    apiKeySet: Boolean(row.api_key_hash || row.api_key),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
-}
-
-/** 统一错误日志记录工具 */
-function logError(tag: string, err: unknown): void {
-  console.error(`[users] ${tag}:`, err instanceof Error ? err.message : String(err))
 }
 
 // GET /api/users/me — current user info
@@ -54,7 +55,7 @@ router.get('/me', (req: AuthenticatedRequest, res: Response) => {
 
 // PATCH /api/users/me — self-update (displayName, password)
 /** 更新当前用户信息：支持修改 displayName 和密码（需提供当前密码验证） */
-router.patch('/me', async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/me', validateBody(updateMeSchema), async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     res.status(401).json({ error: { message: '未认证', code: 'UNAUTHORIZED' } })
     return
@@ -89,13 +90,7 @@ router.patch('/me', async (req: AuthenticatedRequest, res: Response) => {
         })
         return
       }
-      if (newPassword.length < 4) {
-        res.status(400).json({
-          error: { message: '新密码至少需要 4 个字符', code: 'VALIDATION_ERROR' }
-        })
-        return
-      }
-      const newHash = await bcrypt.hash(newPassword, 10)
+      const newHash = await bcrypt.hash(newPassword, BCRYPT_COST)
       db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id)
       updates.push('password')
     }
@@ -111,7 +106,7 @@ router.patch('/me', async (req: AuthenticatedRequest, res: Response) => {
     const updated = stmts.userGetById.get(req.user.id) as UserRecord
     res.json({ data: sanitizeUser(updated), updated: updates })
   } catch (err) {
-    logError('self-update failed', err)
+    log.error('self-update failed', { err: err instanceof Error ? err.message : String(err) })
     res.status(500).json({
       error: {
         message: `更新失败: ${err instanceof Error ? err.message : '内部错误'}`,
@@ -122,7 +117,7 @@ router.patch('/me', async (req: AuthenticatedRequest, res: Response) => {
 })
 
 // POST /api/users/me/regenerate-key — regenerate own API key
-/** 重新生成当前用户的 API Key */
+/** 重新生成当前用户的 API Key（明文仅本次返回，服务端只存哈希） */
 router.post('/me/regenerate-key', (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     res.status(401).json({ error: { message: '未认证', code: 'UNAUTHORIZED' } })
@@ -134,13 +129,16 @@ router.post('/me/regenerate-key', (req: AuthenticatedRequest, res: Response) => 
       res.status(404).json({ error: { message: '用户不存在', code: 'NOT_FOUND' } })
       return
     }
-    const newKey = randomBytes(32).toString('hex')
+    const newKey = generateApiKey()
+    const hashed = hashApiKey(newKey)
     const now = new Date().toISOString()
-    stmts.userUpdateApiKey.run(newKey, now, req.user.id)
+    // 明文列置空，仅存哈希
+    stmts.userUpdateApiKey.run('', hashed, now, req.user.id)
     const updated = stmts.userGetById.get(req.user.id) as UserRecord
-    res.json({ data: sanitizeUser(updated) })
+    // 明文仅本次返回，后续 sanitizeUser 不再回传
+    res.json({ data: { ...sanitizeUser(updated), apiKey: newKey } })
   } catch (err) {
-    logError('self-regenerate-key failed', err)
+    log.error('self-regenerate-key failed', { err: err instanceof Error ? err.message : String(err) })
     res.status(500).json({
       error: {
         message: `重生成 API Key 失败: ${err instanceof Error ? err.message : '内部错误'}`,
@@ -157,7 +155,7 @@ router.get('/', requireRole('admin'), (_req: AuthenticatedRequest, res: Response
     const rows = stmts.userGetAll.all() as UserRecord[]
     res.json({ data: { items: rows.map(sanitizeUser), total: rows.length } })
   } catch (err) {
-    logError('list users failed', err)
+    log.error('list users failed', { err: err instanceof Error ? err.message : String(err) })
     res.status(500).json({
       error: { message: '获取用户列表失败', code: 'INTERNAL_ERROR' }
     })
@@ -166,22 +164,13 @@ router.get('/', requireRole('admin'), (_req: AuthenticatedRequest, res: Response
 
 // POST /api/users — create user (admin only)
 /** 创建新用户（管理员专用） */
-router.post('/', requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
-  const { username, password, displayName, role } = req.body
-
-  if (!username || !password) {
-    res.status(400).json({
-      error: { message: '请输入用户名和密码', code: 'VALIDATION_ERROR' }
-    })
-    return
-  }
-
-  if (password.length < 4) {
-    res.status(400).json({
-      error: { message: '密码至少需要 4 个字符', code: 'VALIDATION_ERROR' }
-    })
-    return
-  }
+router.post('/', requireRole('admin'), validateBody(createUserSchema), async (req: AuthenticatedRequest, res: Response) => {
+  const { username, password, displayName, role } = req.body as {
+    username: string;
+    password: string;
+    displayName?: string;
+    role?: 'admin' | 'developer' | 'user';
+  };
 
   const existing = stmts.userGetByUsername.get(username) as UserRecord | undefined
   if (existing) {
@@ -191,18 +180,19 @@ router.post('/', requireRole('admin'), async (req: AuthenticatedRequest, res: Re
 
   try {
     const id = uuidv4()
-    const passwordHash = await bcrypt.hash(password, 10)
-    const apiKey = randomBytes(32).toString('hex')
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
+    const apiKey = generateApiKey()
+    const apiKeyHash = hashApiKey(apiKey)
     const now = new Date().toISOString()
 
     stmts.userInsert.run(
-      id, username, passwordHash, displayName || username, role || 'user', apiKey, now, now
+      id, username, passwordHash, displayName || username, role || 'user', '', apiKeyHash, now, now
     )
 
     const created = stmts.userGetById.get(id) as UserRecord
-    res.status(201).json({ data: sanitizeUser(created) })
+    res.status(201).json({ data: { ...sanitizeUser(created), apiKey } })
   } catch (err) {
-    logError('create user failed', err)
+    log.error('create user failed', { err: err instanceof Error ? err.message : String(err) })
     res.status(500).json({
       error: {
         message: `创建用户失败: ${err instanceof Error ? err.message : '内部错误'}`,
@@ -214,19 +204,22 @@ router.post('/', requireRole('admin'), async (req: AuthenticatedRequest, res: Re
 
 // PATCH /api/users/:id — update user (admin only)
 /** 更新指定用户信息（管理员专用）：支持修改 displayName、role 和密码 */
-router.patch('/:id', requireRole('admin'), async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id', requireRole('admin'), validateBody(updateUserSchema), async (req: AuthenticatedRequest, res: Response) => {
   const existing = stmts.userGetById.get(req.params.id) as UserRecord | undefined
   if (!existing) {
     res.status(404).json({ error: { message: '用户不存在', code: 'NOT_FOUND' } })
     return
   }
 
-  const { displayName, role, password } = req.body
+  const { displayName, role, password } = req.body as {
+    displayName?: string;
+    role?: 'admin' | 'developer' | 'user';
+    password?: string;
+  };
   const now = new Date().toISOString()
-
   try {
     if (password) {
-      const newHash = await bcrypt.hash(password, 10)
+      const newHash = await bcrypt.hash(password, BCRYPT_COST)
       stmts.userUpdate.run(displayName ?? existing.display_name, role ?? existing.role, now, req.params.id)
       db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.params.id)
     } else {
@@ -236,7 +229,7 @@ router.patch('/:id', requireRole('admin'), async (req: AuthenticatedRequest, res
     const updated = stmts.userGetById.get(req.params.id) as UserRecord
     res.json({ data: sanitizeUser(updated) })
   } catch (err) {
-    logError('update user failed', err)
+    log.error('update user failed', { err: err instanceof Error ? err.message : String(err) })
     res.status(500).json({
       error: { message: `更新用户失败: ${err instanceof Error ? err.message : '内部错误'}`, code: 'INTERNAL_ERROR' }
     })
@@ -255,7 +248,7 @@ router.delete('/:id', requireRole('admin'), (req: AuthenticatedRequest, res: Res
     stmts.userDelete.run(req.params.id)
     res.json({ data: { deleted: true } })
   } catch (err) {
-    logError('delete user failed', err)
+    log.error('delete user failed', { err: err instanceof Error ? err.message : String(err) })
     res.status(500).json({
       error: { message: `删除用户失败: ${err instanceof Error ? err.message : '内部错误'}`, code: 'INTERNAL_ERROR' }
     })
@@ -272,14 +265,15 @@ router.post('/:id/regenerate-key', requireRole('admin'), (req: AuthenticatedRequ
       return
     }
 
-    const newKey = randomBytes(32).toString('hex')
+    const newKey = generateApiKey()
+    const hashed = hashApiKey(newKey)
     const now = new Date().toISOString()
-    stmts.userUpdateApiKey.run(newKey, now, req.params.id)
+    stmts.userUpdateApiKey.run('', hashed, now, req.params.id)
 
     const updated = stmts.userGetById.get(req.params.id) as UserRecord
-    res.json({ data: sanitizeUser(updated) })
+    res.json({ data: { ...sanitizeUser(updated), apiKey: newKey } })
   } catch (err) {
-    logError('regenerate key failed', err)
+    log.error('regenerate key failed', { err: err instanceof Error ? err.message : String(err) })
     res.status(500).json({
       error: { message: `重新生成 API Key 失败: ${err instanceof Error ? err.message : '内部错误'}`, code: 'INTERNAL_ERROR' }
     })

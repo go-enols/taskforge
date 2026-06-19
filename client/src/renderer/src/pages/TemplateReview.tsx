@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file TemplateReview — 模板审核页面
  * @description 管理员审核数据模板（Account templates）并管理项目模板（Project templates）可见性。
  *              Tab 1: 数据模板审核
@@ -166,7 +166,7 @@ export default function TemplateReview(): React.JSX.Element {
    Data template review sub-component
    ═══════════════════════════════════════════ */
 
-function DataTemplateReview<T extends { id: string; name: string; description?: string; updatedAt?: string; createdAt?: string }>(props: {
+function DataTemplateReview<T extends { id: string; name: string; description?: string; version?: string; type?: string; updatedAt?: string; createdAt?: string }>(props: {
   templates: T[]
   loading: boolean
   reviewComments: Record<string, string>
@@ -219,14 +219,14 @@ function DataTemplateReview<T extends { id: string; name: string; description?: 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-medium text-text-primary">{item.name}</h3>
-                    {(item as any).version && (
+                    {item.version && (
                       <span className="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted font-mono">
-                        v{(item as any).version}
+                        v{item.version}
                       </span>
                     )}
-                    {(item as any).type && (
+                    {item.type && (
                       <span className="text-xs px-2 py-0.5 rounded bg-bg-tertiary text-text-muted font-mono">
-                        {(item as any).type}
+                        {item.type}
                       </span>
                     )}
                     {getMeta && (
@@ -240,18 +240,13 @@ function DataTemplateReview<T extends { id: string; name: string; description?: 
                     </span>
                   </div>
                   <p className="text-xs text-text-muted font-mono mt-1">ID: {item.id}</p>
-                  {'updatedAt' in item && (item as any).updatedAt && (
-                    <p className="text-xs text-text-muted mt-1">
-                      {t('developerPending.submitted')}: {new Date((item as any).updatedAt).toLocaleString()}
-                    </p>
-                  )}
-                  {'createdAt' in item && !('updatedAt' in item) && (item as any).createdAt && (
-                    <p className="text-xs text-text-muted mt-1">
-                      {t('developerPending.submitted')}: {new Date((item as any).createdAt).toLocaleString()}
-                    </p>
-                  )}
                 </div>
               </div>
+              {item.updatedAt && (
+                <p className="text-xs text-text-muted mt-1">
+                  {t('developerPending.submitted')}: {new Date(item.updatedAt).toLocaleString()}
+                </p>
+              )}
 
               {item.description && (
                 <p className="text-sm text-text-secondary mb-3">{item.description}</p>

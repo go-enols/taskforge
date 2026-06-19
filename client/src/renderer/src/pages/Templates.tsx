@@ -88,11 +88,11 @@ const Templates: React.FC = () => {
         const [tplRes, scriptRes, projRes] = await Promise.all([
           marketplaceApi.listTemplates(baseUrl),
           marketplaceApi.listScripts(baseUrl),
-          marketplaceApi.listProjectTemplates(baseUrl).catch(() => ({ items: [] } as any))
+          marketplaceApi.listProjectTemplates(baseUrl).catch(() => [] as RemoteProjectTemplate[])
         ])
         setScriptParamTemplates(tplRes.items || [])
         setTaskScripts(scriptRes.items || [])
-        setProjectTemplates((projRes as any).items ?? projRes ?? [])
+        setProjectTemplates(projRes ?? [])
       } catch (e: unknown) {
         if (!silent) setError(e instanceof Error ? e.message : t('common.error'))
       } finally {

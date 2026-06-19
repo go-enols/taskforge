@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -11,6 +11,22 @@ interface KeyConfig {
 
 function generateKey(): string {
   return randomBytes(32).toString("hex");
+}
+
+/**
+ * 生成新的 API Key 明文（64 位 hex）。
+ * 仅在生成时返回一次给用户，存储时只保存哈希。
+ */
+export function generateApiKey(): string {
+  return randomBytes(32).toString("hex");
+}
+
+/**
+ * 计算 API Key 的 SHA-256 哈希（hex）。用于存储与校验，明文不落库。
+ * 选择 SHA-256 而非 bcrypt：API Key 是高熵随机串（256-bit），无需慢哈希抗暴力。
+ */
+export function hashApiKey(plaintext: string): string {
+  return createHash("sha256").update(plaintext).digest("hex");
 }
 
 function parseEnvFile(content: string): Record<string, string> {

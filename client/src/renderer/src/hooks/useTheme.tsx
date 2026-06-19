@@ -57,13 +57,18 @@ export function applyTheme(pref: ThemePref): ResolvedTheme {
   root.classList.remove('dark', 'light')
   root.classList.add(resolved)
 
+  // color-scheme meta 声明页面支持的配色方案，用于原生 UI（滚动条等）渲染。
+  // 必须设为 'light dark'（两者都支持）而非 resolved 单值——
+  // 若锁定为 'dark'，Chromium 会令 prefers-color-scheme: dark 媒体查询持续匹配，
+  // 导致系统主题切换时 matchMedia change 事件不再触发（第一次能切、之后失效）。
+  // 实际主题由 <html> class（.dark/.light）驱动 CSS 变量，meta 仅作原生控件提示。
   let meta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')
   if (!meta) {
     meta = document.createElement('meta')
     meta.name = 'color-scheme'
     document.head.appendChild(meta)
   }
-  meta.content = resolved
+  meta.content = 'light dark'
   return resolved
 }
 

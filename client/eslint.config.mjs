@@ -40,10 +40,10 @@ export default defineConfig(
       '@typescript-eslint/explicit-function-return-type': 'off',
       'react/prop-types': 'off',
       'no-empty': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'error',
       'react/no-unescaped-entities': 'off',
       'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/rules-of-hooks': 'off',
+      'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }

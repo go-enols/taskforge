@@ -619,6 +619,8 @@ export interface AppInfo {
   proxyCount: number
   /** 任务数量 */
   taskCount: number
+  /** 运行中任务数 */
+  runningTaskCount: number
   /** 总日志数 */
   totalLogs: number
 }
@@ -660,42 +662,6 @@ export interface ApiResult<T = unknown> {
   /** 响应数据（成功时存在） */
   data?: T
   /** 错误信息（失败时存在） */
-  error?: ApiError
-}
-
-export interface AppInfo {
-  version: string
-  dataDir: string
-  dbConnected: boolean
-  dbError: string | null
-  walletCount: number
-  scriptParamCount: number
-  proxyCount: number
-  taskCount: number
-  runningTaskCount: number
-}
-
-export interface BackupInfo {
-  filename: string
-  size: number
-  createdAt: string
-}
-
-export interface UpdateInfo {
-  version: string
-  notes: string
-  pub_date: string
-  target: string
-}
-
-export interface ApiError {
-  message: string
-  code?: string
-  category?: string
-}
-
-export interface ApiResult<T = unknown> {
-  data?: T
   error?: ApiError
 }
 

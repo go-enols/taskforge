@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { stmts } from "../db";
 import { AuthenticatedRequest, AuthenticatedUser, UserRecord } from "../types";
+import { hashApiKey } from "../utils/keys";
 
 function getJwtSecret(): string {
   return process.env.JWT_SECRET || "";
@@ -9,6 +10,16 @@ function getJwtSecret(): string {
 
 function getApiKey(): string | undefined {
   return process.env.MARKETPLACE_API_KEY;
+}
+
+/** 从 UserRecord 提取已认证用户视图（不含敏感字段） */
+function toAuthenticatedUser(user: UserRecord): AuthenticatedUser {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.display_name,
+    role: user.role,
+  };
 }
 
 export function extractUser(
@@ -20,6 +31,7 @@ export function extractUser(
   if (auth.startsWith("Bearer ")) {
     const token = auth.slice(7);
 
+    // 1) JWT 优先
     const jwtSecret = getJwtSecret();
     if (jwtSecret) {
       try {
@@ -39,16 +51,25 @@ export function extractUser(
       }
     }
 
-    const user = stmts.userGetByApiKey.get(token) as UserRecord | undefined;
-    if (user) {
-      return {
-        id: user.id,
-        username: user.username,
-        displayName: user.display_name,
-        role: user.role,
-      };
+    // 2) API Key 哈希路径（新数据）：SHA-256(token) 查 api_key_hash
+    const hashed = hashApiKey(token);
+    const byHash = stmts.userGetByApiKeyHash.get(hashed) as UserRecord | undefined;
+    if (byHash) {
+      return toAuthenticatedUser(byHash);
     }
 
+    // 3) API Key 明文路径（旧数据兼容）：命中后自动迁移到 hash，清空明文
+    const byPlaintext = stmts.userGetByApiKey.get(token) as UserRecord | undefined;
+    if (byPlaintext) {
+      try {
+        stmts.userSetApiKeyHash.run(hashed, new Date().toISOString(), byPlaintext.id);
+      } catch {
+        // 迁移失败不阻断认证；下次仍可命中明文路径重试
+      }
+      return toAuthenticatedUser(byPlaintext);
+    }
+
+    // 4) Legacy 全局 MARKETPLACE_API_KEY（环境变量配置的管理员 key）
     const apiKey = getApiKey();
     if (apiKey && token === apiKey) {
       return {

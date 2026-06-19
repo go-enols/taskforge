@@ -5,7 +5,6 @@
  */
 import { Request } from 'express'
 
-/** 用户记录 — 对应 users 表的数据库行记录 */
 /** 用户数据库记录 — 对应 users 表的完整行数据 */
 export interface UserRecord {
   /** 用户 UUID */
@@ -18,8 +17,10 @@ export interface UserRecord {
   display_name: string
   /** 角色：admin（管理员）/ developer（开发者）/ user（普通用户） */
   role: 'admin' | 'developer' | 'user'
-  /** API 密钥（用于 Bearer Token 认证） */
+  /** API 密钥明文（向后兼容；新用户为空，旧用户保留直到迁移完成） */
   api_key: string
+  /** API 密钥哈希（SHA-256 hex；新认证路径优先校验此字段） */
+  api_key_hash: string | null
   /** ISO 8601 创建时间 */
   created_at: string
   /** ISO 8601 更新时间 */
