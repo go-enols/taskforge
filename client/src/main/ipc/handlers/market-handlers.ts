@@ -161,8 +161,8 @@ export function registerMarketHandlers(services: Services): void {
     return data.data
   })
 
-  register('market:testConnection', async (url?: string) => {
-    const serverUrl = (url || store.getSetting('marketplace_server_url') || 'http://localhost:3400').replace(/\/+$/, '')
+  register('market:testConnection', async (url?) => {
+    const serverUrl = ((url as string | undefined) || store.getSetting('marketplace_server_url') || 'http://localhost:3400').replace(/\/+$/, '')
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
     try {
