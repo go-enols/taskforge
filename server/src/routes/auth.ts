@@ -95,7 +95,8 @@ router.post("/register", validateBody(registerSchema), async (req: Authenticated
   const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
   const apiKey = generateApiKey();
   const apiKeyHash = hashApiKey(apiKey);
-  const now = new Date().toISOString();
+  const apiKeyPlaceholder = uuidv4()
+  const now = new Date().toISOString()
 
   stmts.userInsert.run(
     id,
@@ -103,7 +104,7 @@ router.post("/register", validateBody(registerSchema), async (req: Authenticated
     passwordHash,
     displayName || username,
     "user",
-    "",
+    apiKeyPlaceholder,
     apiKeyHash,
     now,
     now,
@@ -155,6 +156,7 @@ router.post("/setup", validateBody(setupSchema), async (req: AuthenticatedReques
   const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
   const apiKey = generateApiKey()
   const apiKeyHash = hashApiKey(apiKey)
+  const apiKeyPlaceholder = uuidv4()
   const now = new Date().toISOString()
 
   stmts.userInsert.run(
@@ -163,7 +165,7 @@ router.post("/setup", validateBody(setupSchema), async (req: AuthenticatedReques
     passwordHash,
     displayName || username,
     "admin",
-    "",
+    apiKeyPlaceholder,
     apiKeyHash,
     now,
     now,

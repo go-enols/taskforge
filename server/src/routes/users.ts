@@ -183,10 +183,11 @@ router.post('/', requireRole('admin'), validateBody(createUserSchema), async (re
     const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
     const apiKey = generateApiKey()
     const apiKeyHash = hashApiKey(apiKey)
+    const apiKeyPlaceholder = uuidv4()
     const now = new Date().toISOString()
 
     stmts.userInsert.run(
-      id, username, passwordHash, displayName || username, role || 'user', '', apiKeyHash, now, now
+      id, username, passwordHash, displayName || username, role || 'user', apiKeyPlaceholder, apiKeyHash, now, now
     )
 
     const created = stmts.userGetById.get(id) as UserRecord
