@@ -27,6 +27,7 @@ export type SectionId =
   | 'data'
   | 'advanced'
   | 'about'
+  | 'developer'
 
 export interface SectionDef {
   id: SectionId
@@ -76,6 +77,14 @@ export const SECTIONS: SectionDef[] = [
     descriptionKey: 'settings.descriptions.about',
     scope: 'personal',
     roles: ['admin', 'developer', 'user']
+  },
+  {
+    id: 'developer',
+    icon: Zap,
+    labelKey: 'settings.sections.developer',
+    descriptionKey: 'settings.descriptions.developer',
+    scope: 'computer',
+    roles: ['admin', 'developer']
   },
   {
     id: 'taskDefaults',

@@ -672,6 +672,7 @@
     "sections": {
       "profile": "个人资料",
       "appearance": "外观",
+      "developer": "开发者工具",
       "taskDefaults": "任务默认",
       "updates": "软件更新",
       "marketplace": "脚本/模板市场",
@@ -684,6 +685,7 @@
     "descriptions": {
       "profile": "在此电脑上显示的用户名与密码。",
       "appearance": "主题外观偏好（自动/浅色/深色）。",
+      "developer": "开发者控制台与调试选项。",
       "data": "数据目录、导出、清除日志与备份。",
       "about": "应用版本与技术栈信息。",
       "taskDefaults": "创建新任务时使用的默认值，可在创建任务时单独调整。",
@@ -777,6 +779,10 @@
       "openDataFolder": "打开数据目录",
       "exportSuccess": "导出成功",
       "exportFailed": "导出失败：{{error}}"
+    },
+    "developer": {
+      "devtools": "开发者控制台",
+      "devtoolsHint": "开启后重启应用自动打开 DevTools，也可即时切换当前窗口。"
     },
     "advanced": {
       "subtitle": "高级选项与自定义设置。",

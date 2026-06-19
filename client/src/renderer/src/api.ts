@@ -208,7 +208,8 @@ export const windowApi = {
   toggleMaximize: () => call<void>('window:maximize'),
   close: () => call<void>('window:close'),
   isMaximized: () => call<boolean>('window:isMaximized'),
-  platform: () => call<string>('window:platform')
+  platform: () => call<string>('window:platform'),
+  toggleDevTools: (enabled: boolean) => call<void>('devtools:toggle', [enabled])
 }
 
 export const shellApi = {

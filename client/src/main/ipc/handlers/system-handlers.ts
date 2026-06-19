@@ -15,7 +15,7 @@ import { createLogger } from '../../utils/logger'
 const logger = createLogger('ipc')
 
 export function registerSystemHandlers(services: Services): void {
-  void services  // 注册到 handlerMap 时由调用方注入；本模块暂未直接使用 services 字段
+  const { store } = services
   /* ────────── 更新 ────────── */
 
   /**
@@ -313,5 +313,20 @@ export function registerSystemHandlers(services: Services): void {
     } catch (err) {
       return { success: false, error: (err as Error).message }
     }
+  })
+
+  /* ────────── 开发者工具 ────────── */
+
+  register('devtools:toggle', (enabled?: unknown) => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return null
+    const on = enabled ? true : false
+    if (on) {
+      win.webContents.openDevTools()
+    } else {
+      win.webContents.closeDevTools()
+    }
+    store.setSetting('devtools_enabled', on ? 'true' : 'false')
+    return null
   })
 }

@@ -237,6 +237,8 @@ function SectionContent({
       return <AdvancedSection />
     case 'about':
       return <AboutSection onLogout={onLogout} />
+    case 'developer':
+      return <DeveloperSection />
     default:
       return null
   }
@@ -469,6 +471,42 @@ const AppearanceSection: React.FC = () => {
           <ThemeToggle />
         </div>
       </Field>
+    </>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════
+   DEVELOPER — admin + developer
+   ════════════════════════════════════════════════════════════ */
+
+const DeveloperSection: React.FC = () => {
+  const { t } = useTranslation()
+  const [devtoolsEnabled, setDevtoolsEnabled] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    settingApi.get('devtools_enabled').then((val) => {
+      setDevtoolsEnabled(val === 'true')
+      setLoaded(true)
+    })
+  }, [])
+
+  const toggle = async (on: boolean): Promise<void> => {
+    setDevtoolsEnabled(on)
+    await windowApi.toggleDevTools(on)
+  }
+
+  if (!loaded) return null
+
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm text-text-primary">{t('settings.developer.devtools')}</div>
+          <div className="text-xs text-text-muted mt-0.5">{t('settings.developer.devtoolsHint')}</div>
+        </div>
+        <ToggleSwitch checked={devtoolsEnabled} onChange={toggle} />
+      </div>
     </>
   )
 }
