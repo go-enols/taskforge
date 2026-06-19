@@ -132,8 +132,8 @@ router.post('/me/regenerate-key', (req: AuthenticatedRequest, res: Response) => 
     const newKey = generateApiKey()
     const hashed = hashApiKey(newKey)
     const now = new Date().toISOString()
-    // 明文列置空，仅存哈希
-    stmts.userUpdateApiKey.run('', hashed, now, req.user.id)
+    // 明文列置为唯一值，仅存哈希
+    stmts.userUpdateApiKey.run(uuidv4(), hashed, now, req.user.id)
     const updated = stmts.userGetById.get(req.user.id) as UserRecord
     // 明文仅本次返回，后续 sanitizeUser 不再回传
     res.json({ data: { ...sanitizeUser(updated), apiKey: newKey } })
@@ -269,7 +269,7 @@ router.post('/:id/regenerate-key', requireRole('admin'), (req: AuthenticatedRequ
     const newKey = generateApiKey()
     const hashed = hashApiKey(newKey)
     const now = new Date().toISOString()
-    stmts.userUpdateApiKey.run('', hashed, now, req.params.id)
+    stmts.userUpdateApiKey.run(uuidv4(), hashed, now, req.params.id)
 
     const updated = stmts.userGetById.get(req.params.id) as UserRecord
     res.json({ data: { ...sanitizeUser(updated), apiKey: newKey } })
