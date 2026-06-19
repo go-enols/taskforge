@@ -114,7 +114,7 @@ export const SECTIONS: SectionDef[] = [
     labelKey: 'settings.sections.marketplace',
     descriptionKey: 'settings.descriptions.marketplace',
     scope: 'computer',
-    roles: ['admin']
+    roles: ['admin', 'developer', 'user']
   },
   {
     id: 'security',
