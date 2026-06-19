@@ -33,4 +33,4 @@ client/.vscode/
 devtools/
 
 # Local scratch (sample scripts created during dev/test)
-example/
+example/.reasonix/
