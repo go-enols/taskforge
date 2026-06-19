@@ -68,11 +68,6 @@ export function getActiveTransport(): TransportType | null {
 
 export function setActiveTransport(t: TransportType): void {
   activeTransport = t
-  try {
-    localStorage.setItem(TRANSPORT_KEY, t)
-  } catch {
-    // Ignore storage errors
-  }
 }
 
 function getForcedTransport(): TransportType | null {
@@ -80,8 +75,6 @@ function getForcedTransport(): TransportType | null {
     const params = new URLSearchParams(window.location.search)
     const forced = params.get('transport')
     if (forced === 'ipc' || forced === 'http') return forced
-    const stored = localStorage.getItem(TRANSPORT_KEY)
-    if (stored === 'ipc' || stored === 'http') return stored
   } catch {
     // Ignore access errors
   }
@@ -117,7 +110,7 @@ function getHttpToken(): string {
 
 async function tryHttpPort<T>(port: number, channel: string, args: unknown[]): Promise<T | null> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 1500)
+  const timer = setTimeout(() => controller.abort(), 15000)
   try {
     const url = `http://127.0.0.1:${port}/api/call`
     const token = getHttpToken()
@@ -150,13 +143,13 @@ async function tryHttpPort<T>(port: number, channel: string, args: unknown[]): P
     }
     return result.data as T
   } catch (err) {
-    // Only log non-network errors (network errors are expected when port is down)
-    if (err instanceof TypeError === false && !(err instanceof Error && err.name === 'AbortError')) {
-      console.warn(`[HTTP] Error on port ${port}:`, err)
+    // Network errors (port not listening) → return null to try next port
+    if (err instanceof TypeError || (err instanceof Error && err.name === 'AbortError')) {
+      return null
     }
-    return null
+    // Handler-level error (server responded but handler returned error) → propagate
+    throw err
   } finally {
-    clearTimeout(timer)
   }
 }
 
@@ -202,8 +195,13 @@ export async function call<T>(channel: string, args: unknown[] = []): Promise<T>
   if (transport === 'http') {
     try {
       return await callHTTP<T>(channel, args)
-    } catch {
-      activeTransport = null
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('HTTP API unreachable')) {
+        activeTransport = null
+      } else {
+        throw err
+      }
     }
   }
 
@@ -214,14 +212,18 @@ export async function call<T>(channel: string, args: unknown[] = []): Promise<T>
   } catch (ipcErr) {
     try {
       const result = await callHTTP<T>(channel, args)
-      setActiveTransport('http')
+      activeTransport = 'http'
       console.warn(
         `[transport] IPC failed (${(ipcErr as Error).message}), switched to HTTP: ${channel}`
       )
       return result
     } catch (httpErr) {
+      const httpMsg = httpErr instanceof Error ? httpErr.message : String(httpErr)
+      if (!httpMsg.includes('HTTP API unreachable')) {
+        throw httpErr
+      }
       console.error(
-        `[transport] Both failed for "${channel}": IPC=${(ipcErr as Error).message}, HTTP=${(httpErr as Error).message}`
+        `[transport] Both failed for "${channel}": IPC=${(ipcErr as Error).message}, HTTP=${httpMsg}`
       )
       throw ipcErr
     }

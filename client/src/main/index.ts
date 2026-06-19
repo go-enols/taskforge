@@ -65,6 +65,7 @@ function createWindow(httpPort: number, httpApiToken: string): void {
       additionalArguments: [`--http-port=${httpPort}`, `--http-token=${httpApiToken}`]
     }
   })
+  mainWindow.webContents.openDevTools()
 
   /** 拦截外部链接打开请求，使用系统默认浏览器打开 */
   mainWindow.webContents.setWindowOpenHandler((details) => {

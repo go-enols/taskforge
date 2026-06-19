@@ -11,7 +11,7 @@ export function registerMarketHandlers(services: Services): void {
   const { store } = services
 
   register('market:login', async (username, password) => {
-    const serverUrl = store.getSetting('marketplace_server_url') || 'http://localhost:3400'
+    const serverUrl = (store.getSetting('marketplace_server_url') || 'http://localhost:3400').replace(/\/+$/, '')
     const apiKey = store.getSetting('marketplace_api_key')
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 3000)
@@ -82,12 +82,26 @@ export function registerMarketHandlers(services: Services): void {
   })
 
   register('market:register', async (username, password, displayName) => {
-    const serverUrl = store.getSetting('marketplace_server_url') || 'http://localhost:3400'
-    const resp = await fetch(`${serverUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, displayName })
-    })
+    const serverUrl = (store.getSetting('marketplace_server_url') || 'http://localhost:3400').replace(/\/+$/, '')
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+    let resp: Response
+    try {
+      resp = await fetch(`${serverUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, displayName }),
+        signal: controller.signal
+      })
+    } catch (err) {
+      clearTimeout(timeoutId)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('aborted') || msg.includes('AbortError')) {
+        throw new Error(`注册超时（5s）：无法连接 ${serverUrl}`)
+      }
+      throw new Error(`无法连接服务器 ${serverUrl}: ${msg}`)
+    }
+    clearTimeout(timeoutId)
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}))
       throw new Error(
@@ -108,12 +122,26 @@ export function registerMarketHandlers(services: Services): void {
   })
 
   register('market:setup', async (username, password, displayName) => {
-    const serverUrl = store.getSetting('marketplace_server_url') || 'http://localhost:3400'
-    const resp = await fetch(`${serverUrl}/api/auth/setup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, displayName })
-    })
+    const serverUrl = (store.getSetting('marketplace_server_url') || 'http://localhost:3400').replace(/\/+$/, '')
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+    let resp: Response
+    try {
+      resp = await fetch(`${serverUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, displayName }),
+        signal: controller.signal
+      })
+    } catch (err) {
+      clearTimeout(timeoutId)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('aborted') || msg.includes('AbortError')) {
+        throw new Error(`初始化超时（5s）：无法连接 ${serverUrl}`)
+      }
+      throw new Error(`无法连接服务器 ${serverUrl}: ${msg}`)
+    }
+    clearTimeout(timeoutId)
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}))
       throw new Error(
@@ -131,5 +159,24 @@ export function registerMarketHandlers(services: Services): void {
       store.setSetting('marketplace_user', JSON.stringify(data.data.user))
     }
     return data.data
+  })
+
+  register('market:testConnection', async (url?: string) => {
+    const serverUrl = (url || store.getSetting('marketplace_server_url') || 'http://localhost:3400').replace(/\/+$/, '')
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+    try {
+      const resp = await fetch(`${serverUrl}/api/health`, { signal: controller.signal })
+      clearTimeout(timeoutId)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      return (await resp.json()) as { status: string; needsSetup: boolean; timestamp: string }
+    } catch (err) {
+      clearTimeout(timeoutId)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('aborted') || msg.includes('AbortError')) {
+        throw new Error(`连接超时（5s）：${serverUrl}`)
+      }
+      throw new Error(`无法连接 ${serverUrl}: ${msg}`)
+    }
   })
 }

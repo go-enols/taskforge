@@ -16,7 +16,8 @@ import {
   shellApi,
   windowApi,
   updateApi,
-  getMarketplaceUrl
+  getMarketplaceUrl,
+  setMarketplaceUrl
 } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import type { AppInfo, CaptchaKey, ListResponse } from '../types'
@@ -642,7 +643,7 @@ const MarketplaceSection: React.FC = () => {
   const handleSaveUrl = async (): Promise<void> => {
     setSavingUrl(true)
     try {
-      await settingApi.set('marketplace_server_url', url)
+      await setMarketplaceUrl(url)
       toast.success(t('common.saveSuccess'))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('common.operationFailed'))

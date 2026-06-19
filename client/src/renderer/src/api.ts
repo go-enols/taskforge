@@ -285,7 +285,7 @@ export async function getMarketplaceUrl(): Promise<string> {
 }
 
 export async function setMarketplaceUrl(url: string): Promise<void> {
-  await settingApi.set(MARKETPLACE_URL_KEY, url)
+  await settingApi.set(MARKETPLACE_URL_KEY, url.replace(/\/+$/, ''))
 }
 
 export async function getMarketplaceApiKey(): Promise<string> {
@@ -436,11 +436,10 @@ export const marketplaceApi = {
   },
 
   testConnection: async (url?: string) => {
-    const base = url || (await getMarketplaceUrl())
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/health`, { headers })
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    return (await resp.json()) as { status: string; needsSetup: boolean; timestamp: string }
+    return call<{ status: string; needsSetup: boolean; timestamp: string }>(
+      'market:testConnection',
+      url ? [url] : []
+    )
   },
 
   logout: () => call<null>('market:logout'),

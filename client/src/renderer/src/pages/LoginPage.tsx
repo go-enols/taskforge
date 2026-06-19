@@ -16,7 +16,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../hooks/useTheme'
-import { getMarketplaceUrl, setMarketplaceUrl } from '../api'
+import { getMarketplaceUrl, setMarketplaceUrl, marketplaceApi } from '../api'
 import { toast } from '../utils/toast'
 import TitleBar from '../components/TitleBar'
 import { ParticlegroundBg } from '../components/ParticlegroundBg'
@@ -144,14 +144,10 @@ const LoginPage: React.FC = () => {
   const checkSetup = useCallback(async () => {
     setDetecting(true)
     try {
-      const url = await getMarketplaceUrl()
-      const resp = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(3000) })
-      if (resp.ok) {
-        const health = await resp.json().catch(() => ({}))
-        const need = Boolean(health.needsSetup)
-        setNeedsSetup(need)
-        setMode(need ? 'setup' : 'login')
-      }
+      const health = await marketplaceApi.testConnection()
+      const need = Boolean(health.needsSetup)
+      setNeedsSetup(need)
+      setMode(need ? 'setup' : 'login')
     } catch {
       setMode('login')
     } finally {
@@ -159,12 +155,10 @@ const LoginPage: React.FC = () => {
     }
   }, [])
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     getMarketplaceUrl().then((url) => setServerUrl(url))
     checkSetup()
   }, [checkSetup])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ---- 服务端地址保存 ----
   const handleSaveUrl = async (): Promise<void> => {
@@ -174,21 +168,16 @@ const LoginPage: React.FC = () => {
     }
     setServerLoading(true)
     try {
-      const resp = await fetch(`${serverUrl.trim()}/api/health`, {
-        signal: AbortSignal.timeout(5000)
-      })
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      await marketplaceApi.testConnection(serverUrl.trim())
       await setMarketplaceUrl(serverUrl.trim())
       toast.success(t('login.connectSuccess'))
       checkSetup()
-    } catch {
-      toast.error(t('login.connectFailed'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('login.connectFailed'))
     } finally {
       setServerLoading(false)
     }
   }
-
-  // ---- 提交流程（与原版完全等价）----
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     if (!username.trim()) {
