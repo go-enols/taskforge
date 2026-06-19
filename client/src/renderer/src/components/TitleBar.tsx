@@ -12,6 +12,7 @@ import { windowApi } from '../api'
 import { toastError } from '../utils/toast'
 import ThemeToggle from './ThemeToggle'
 import BrandMark from './BrandMark'
+import UpdateIndicator from './UpdateIndicator'
 
 /** 窗口可拖拽区域样式（macOS 标题栏可拖拽移动窗口） */
 const dragStyle = { WebkitAppRegion: 'drag' } as unknown as React.CSSProperties
@@ -88,7 +89,8 @@ const TitleBar: React.FC<{ dark?: boolean }> = ({ dark = false }) => {
         }`}
         style={dragStyle}
       >
-        <div style={noDragStyle}>
+        <div style={noDragStyle} className="flex items-center gap-1">
+          <UpdateIndicator />
           <ThemeToggle collapsed />
         </div>
       </header>
@@ -128,8 +130,9 @@ const TitleBar: React.FC<{ dark?: boolean }> = ({ dark = false }) => {
         <BrandMark size="sm" aria-label="TaskForge" />
       </div>
 
-      {/* 右侧：主题切换 + 窗口控制按钮 */}
+      {/* 右侧：更新指示 + 主题切换 + 窗口控制按钮 */}
       <div className="flex items-center h-full" style={noDragStyle}>
+        <UpdateIndicator />
         <div className="px-2" style={noDragStyle}>
           <ThemeToggle collapsed />
         </div>

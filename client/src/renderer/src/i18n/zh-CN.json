@@ -853,6 +853,15 @@
       "retry": "重试",
       "checkAgain": "再检查一次",
       "backgroundHint": "下载在后台进行，可关闭此弹窗"
+    },
+    "titleBar": {
+      "idle": "检查更新",
+      "checking": "正在检查更新...",
+      "available": "新版本可用",
+      "notAvailable": "已是最新版本",
+      "downloading": "正在下载更新...",
+      "downloaded": "更新就绪",
+      "error": "更新检查失败"
     }
   },
   "window": {
