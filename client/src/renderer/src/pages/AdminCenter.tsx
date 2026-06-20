@@ -42,12 +42,14 @@ interface User {
   username: string
   displayName: string
   role: 'admin' | 'developer' | 'user'
-  apiKey: string
+  apiKey?: string
+  apiKeySet?: boolean
   createdAt: string
   updatedAt: string
 }
 
-function maskKey(key: string): string {
+function maskKey(key: string | undefined): string {
+  if (!key) return '—'
   if (key.length <= 12) return key
   return `${key.slice(0, 8)}...${key.slice(-4)}`
 }
@@ -323,9 +325,10 @@ export default function AdminCenter() {
               ) : (
                 users.map((user) => {
                   const isRevealed = revealedIds.has(user.id)
-                  const displayKey = isRevealed
-                    ? user.apiKey
-                    : maskKey(user.apiKey)
+                  const hasKey = Boolean(user.apiKey)
+                  const displayKey = hasKey
+                    ? (isRevealed ? user.apiKey : maskKey(user.apiKey))
+                    : '••••••••'
 
                   return (
                     <tr key={user.id} className="hover:bg-bg-tertiary">
@@ -352,13 +355,15 @@ export default function AdminCenter() {
                           <code className="text-xs font-mono text-text-secondary">
                             {displayKey}
                           </code>
-                          <button
-                            onClick={() => toggleReveal(user.id)}
-                            className="p-1 rounded hover:bg-bg-tertiary/50 text-text-muted"
-                            title={isRevealed ? 'Hide key' : 'Show full key'}
-                          >
-                            {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
+                          {hasKey && (
+                            <button
+                              onClick={() => toggleReveal(user.id)}
+                              className="p-1 rounded hover:bg-bg-tertiary/50 text-text-muted"
+                              title={isRevealed ? 'Hide key' : 'Show full key'}
+                            >
+                              {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          )}
                           {copiedId === user.id ? (
                             <span className="text-xs text-success flex items-center gap-1">
                               <Check size={12} />
@@ -366,8 +371,9 @@ export default function AdminCenter() {
                             </span>
                           ) : (
                             <button
-                              className="p-1 rounded hover:bg-bg-tertiary/50 text-text-muted"
-                              onClick={() => handleCopy(user.apiKey, user.id)}
+                              className={`p-1 rounded hover:bg-bg-tertiary/50 text-text-muted ${!hasKey ? 'opacity-30 cursor-not-allowed' : ''}`}
+                              onClick={() => hasKey && handleCopy(user.apiKey!, user.id)}
+                              disabled={!hasKey}
                             >
                               <Copy size={14} />
                             </button>
