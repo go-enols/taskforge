@@ -355,14 +355,10 @@ const Tasks: React.FC = () => {
               if (f.defaultValue !== undefined) defaults[f.name] = f.defaultValue
             }
             setFormValues(defaults)
-          } else {
-            setFormFields([])
-            setFormValues({})
           }
-        } else {
-          setFormFields([])
-          setFormValues({})
+          // fields.length === 0: keep what handleScriptSelect set
         }
+        // mSchema.type !== 'object': keep what handleScriptSelect set
       } else {
         // No manifest schema: keep whatever handleScriptSelect set from script.schema
       }

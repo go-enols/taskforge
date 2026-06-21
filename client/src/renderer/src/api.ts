@@ -326,6 +326,18 @@ export const marketplaceApi = {
   getApiKey: getMarketplaceApiKey,
   setApiKey: setMarketplaceApiKey,
 
+  /** 解析 HTTP 错误响应体中的错误消息，抛出有意义的 Error */
+  _throwOnHttpError: async (resp: Response, fallback: string): Promise<never> => {
+    try {
+      const body = await resp.json()
+      const msg = body?.error?.message ?? body?.message ?? fallback
+      throw new Error(msg)
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error(fallback)
+      throw e
+    }
+  },
+
   login: (username: string, password: string) =>
     call<{
       token: string
@@ -353,7 +365,7 @@ export const marketplaceApi = {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/users`, { headers })
-    if (!resp.ok) throw new Error(`Failed to fetch users: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch users: ${resp.status}`)
     const json = await resp.json()
     return {
       items: (json.data?.items ?? json.data ?? []) as Array<{
@@ -372,7 +384,7 @@ export const marketplaceApi = {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/users/me`, { headers })
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `HTTP ${resp.status}`)
     const json = await resp.json()
     return json.data as {
       id: string
@@ -423,7 +435,7 @@ export const marketplaceApi = {
       method: 'POST',
       headers
     })
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `HTTP ${resp.status}`)
     const json = await resp.json()
     return json.data as {
       id: string
@@ -449,7 +461,7 @@ export const marketplaceApi = {
     const base = serverUrl || (await getMarketplaceUrl())
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/scripts`, { headers })
-    if (!resp.ok) throw new Error(`Failed to fetch scripts: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch scripts: ${resp.status}`)
     const json = await resp.json()
     const data = json.data ?? json
     return {
@@ -465,7 +477,7 @@ export const marketplaceApi = {
     const base = serverUrl || (await getMarketplaceUrl())
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/scripts?all=true`, { headers })
-    if (!resp.ok) throw new Error(`Failed to fetch scripts: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch scripts: ${resp.status}`)
     const json = await resp.json()
     const data = json.data ?? json
     return {
@@ -481,7 +493,7 @@ export const marketplaceApi = {
     const base = serverUrl || (await getMarketplaceUrl())
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/templates?all=true`, { headers })
-    if (!resp.ok) throw new Error(`Failed to fetch templates: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch templates: ${resp.status}`)
     const json = await resp.json()
     const data = json.data ?? json
     return {
@@ -523,7 +535,7 @@ export const marketplaceApi = {
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(data)
     })
-    if (!resp.ok) throw new Error(`Failed to update template: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to update template: ${resp.status}`)
     return resp.json()
   },
 
@@ -535,7 +547,7 @@ export const marketplaceApi = {
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(data)
     })
-    if (!resp.ok) throw new Error(`Failed to update script: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to update script: ${resp.status}`)
     return resp.json()
   },
 
@@ -572,14 +584,14 @@ export const marketplaceApi = {
       method: 'DELETE',
       headers
     })
-    if (!resp.ok) throw new Error(`Failed to delete script: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to delete script: ${resp.status}`)
     return resp.json()
   },
 
   getScriptVersions: async (scriptId: string) => {
     const base = await getMarketplaceUrl()
     const resp = await fetch(`${base}/api/scripts/${scriptId}/versions`)
-    if (!resp.ok) throw new Error(`Failed to fetch versions: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch versions: ${resp.status}`)
     const json = await resp.json()
     return (json.data ?? []) as ScriptVersion[]
   },
@@ -591,7 +603,7 @@ export const marketplaceApi = {
       method: 'DELETE',
       headers
     })
-    if (!resp.ok) throw new Error(`Failed to delete template: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to delete template: ${resp.status}`)
     return resp.json()
   },
 
@@ -607,7 +619,7 @@ export const marketplaceApi = {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/scripts/pending`, { headers })
-    if (!resp.ok) throw new Error(`Failed to fetch pending scripts: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch pending scripts: ${resp.status}`)
     return resp.json()
   },
 
@@ -615,7 +627,7 @@ export const marketplaceApi = {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/scripts/my-pending`, { headers })
-    if (!resp.ok) throw new Error(`Failed to fetch pending scripts: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch pending scripts: ${resp.status}`)
     return resp.json()
   },
 
@@ -627,7 +639,7 @@ export const marketplaceApi = {
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ action, comment })
     })
-    if (!resp.ok) throw new Error(`Failed to review script: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to review script: ${resp.status}`)
     return resp.json()
   },
 
@@ -635,7 +647,7 @@ export const marketplaceApi = {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/templates/pending`, { headers })
-    if (!resp.ok) throw new Error(`Failed to fetch pending templates: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch pending templates: ${resp.status}`)
     return resp.json()
   },
 
@@ -643,7 +655,7 @@ export const marketplaceApi = {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(base + '/api/project-templates/pending', { headers })
-    if (!resp.ok) throw new Error('Failed to fetch pending project templates: ' + resp.status)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, 'Failed to fetch pending project templates: ' + resp.status)
     const json = await resp.json()
     return { data: { items: json.data?.items ?? [] } }
   },
@@ -652,7 +664,7 @@ export const marketplaceApi = {
     const base = await getMarketplaceUrl()
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(`${base}/api/templates/my-pending`, { headers })
-    if (!resp.ok) throw new Error(`Failed to fetch pending templates: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch pending templates: ${resp.status}`)
     return resp.json()
   },
 
@@ -664,7 +676,7 @@ export const marketplaceApi = {
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ action, comment })
     })
-    if (!resp.ok) throw new Error(`Failed to review template: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, 'Failed to review template: ' + resp.status)
     return resp.json()
   },
 
@@ -676,7 +688,7 @@ export const marketplaceApi = {
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ action, comment })
     })
-    if (!resp.ok) throw new Error('Failed to review project template: ' + resp.status)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, 'Failed to review project template: ' + resp.status)
     return resp.json()
   },
 
@@ -685,7 +697,7 @@ export const marketplaceApi = {
     const base = serverUrl || (await getMarketplaceUrl())
     const headers = await getMarketplaceHeaders()
     const resp = await fetch(base + '/api/project-templates', { headers })
-    if (!resp.ok) throw new Error('Failed to fetch project templates: ' + resp.status)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, 'Failed to fetch project templates: ' + resp.status)
     const json = await resp.json()
     return (json.data?.items ?? json.data ?? []) as RemoteProjectTemplate[]
   },
@@ -699,7 +711,7 @@ export const marketplaceApi = {
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(data)
     })
-    if (!resp.ok) throw new Error('Failed to update project template: ' + resp.status)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, 'Failed to update project template: ' + resp.status)
     return resp.json()
   },
 
@@ -711,7 +723,7 @@ export const marketplaceApi = {
       method: 'DELETE',
       headers
     })
-    if (!resp.ok) throw new Error('Failed to delete project template: ' + resp.status)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, 'Failed to delete project template: ' + resp.status)
     return resp.json()
   },
 
@@ -767,7 +779,7 @@ export const marketplaceApi = {
     const resp = await fetch(
       `${base}/api/scripts/${scriptId}/reviews?page=${page}&pageSize=${pageSize}`
     )
-    if (!resp.ok) throw new Error(`Failed to fetch reviews: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch reviews: ${resp.status}`)
     return (await resp.json()).data as {
       items: Array<Record<string, unknown>>
       total: number
@@ -794,7 +806,7 @@ export const marketplaceApi = {
       method: 'DELETE',
       headers
     })
-    if (!resp.ok) throw new Error(`Failed to delete review: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to delete review: ${resp.status}`)
     return (await resp.json()).data
   },
 
@@ -802,7 +814,7 @@ export const marketplaceApi = {
   getRatingStats: async (scriptId: string) => {
     const base = await getMarketplaceUrl()
     const resp = await fetch(`${base}/api/scripts/${scriptId}/rating-stats`)
-    if (!resp.ok) throw new Error(`Failed to fetch rating stats: ${resp.status}`)
+    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch rating stats: ${resp.status}`)
     return (await resp.json()).data as {
       avgRating: number
       count: number

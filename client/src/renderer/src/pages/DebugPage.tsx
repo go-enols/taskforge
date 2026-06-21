@@ -23,11 +23,12 @@ import {
   TrendingUp
 } from 'lucide-react'
 import { taskApi, fileApi, scriptParamApi, dialogApi } from '../api'
-import type { TaskLog, TaskLogLevel, Task, ScriptParam, TaskOutput } from '../../../../src/shared/types'
+import type { TaskLog, Task, ScriptParam, TaskOutput } from '../../../../src/shared/types'
 import LogViewer from '../components/common/LogViewer'
 import { DynamicForm } from '../components/common'
 import { jsonSchemaToFieldMeta, type FieldMeta } from '../../../shared/schemas/task-params'
 import { toast } from '../utils/toast'
+import { useTaskState, useTaskLogBuffer } from '../utils/taskStateTracker'
 
 /** manifest.json 文件名常量 */
 const MANIFEST_FILENAME = 'manifest.json'
@@ -123,21 +124,6 @@ const DebugPage: React.FC = () => {
     setConfigValues({})
   }, [])
 
-  // Stable refs for the poller so the interval survives re-renders
-  // (refs are mirrored from state via useEffect — never assign ref.current during render)
-  const taskIdRef = useRef<string | null>(null)
-  const statusRef = useRef<Task['status']>('idle')
-  const folderPathRef = useRef<string>('')
-  useEffect(() => {
-    taskIdRef.current = taskId
-  }, [taskId])
-  useEffect(() => {
-    statusRef.current = taskStatus
-  }, [taskStatus])
-  useEffect(() => {
-    folderPathRef.current = folderPath
-  }, [folderPath])
-
   // -------- Folder selection + manifest parse --------
   const handleSelectFolder = useCallback(async () => {
     try {
@@ -198,38 +184,34 @@ const DebugPage: React.FC = () => {
     }
   }, [reset, t])
 
-  // -------- IPC push subscriptions (status, logs) --------
+  // -------- Task state from tracker (persistent across page switches) --------
+  const { statusMap, version } = useTaskState()
+  const liveLogs = useTaskLogBuffer(taskId)
+  const liveLogsLenRef = useRef(0)
+
+  // Sync tracker status → local taskStatus state
   useEffect(() => {
-    if (!window.electronAPI?.on) return
-    const unsubStatus = window.electronAPI.on('task:statusChanged', (data) => {
-      const d = data as { id: string; status: string }
-      if (d.id === taskIdRef.current) {
-        setTaskStatus(d.status as Task['status'])
-        if (['complete', 'error', 'stopped'].includes(d.status)) {
-          // Stop polling; fetch final output
-          taskApi.getOutput(d.id).then(setOutput).catch(() => undefined)
-        }
+    if (taskId && statusMap.has(taskId)) {
+      const s = statusMap.get(taskId)!
+      setTaskStatus(s)
+      if (['complete', 'error', 'stopped'].includes(s)) {
+        taskApi.getOutput(taskId).then(setOutput).catch(() => undefined)
       }
-    })
-    const unsubLog = window.electronAPI.on('task:log', (data) => {
-      const d = data as { taskId: string; logs: Array<{ id: number; level: string; message: string; timestamp: string }> }
-      if (d.taskId !== taskIdRef.current) return
-      setLogs((prev) => {
-        const next = [...prev, ...d.logs.map<TaskLog>((l) => ({
-          id: l.id,
-          taskId: d.taskId,
-          timestamp: l.timestamp,
-          level: l.level as TaskLogLevel,
-          message: l.message
-        }))]
-        return next.length > 500 ? next.slice(-500) : next
-      })
-    })
-    return () => {
-      unsubStatus()
-      unsubLog()
     }
-  }, [])
+  }, [taskId, version, statusMap])
+
+  // Append real-time logs from tracker buffer
+  useEffect(() => {
+    if (!taskId || liveLogs.length === 0) return
+    if (liveLogs.length > liveLogsLenRef.current) {
+      const newEntries = liveLogs.slice(liveLogsLenRef.current)
+      liveLogsLenRef.current = liveLogs.length
+      setLogs((prev) => {
+        const combined = [...prev, ...newEntries]
+        return combined.length > 500 ? combined.slice(-500) : combined
+      })
+    }
+  }, [taskId, liveLogs.length, liveLogs])
 
   // -------- Progress polling while running --------
   useEffect(() => {
@@ -273,6 +255,7 @@ const DebugPage: React.FC = () => {
       setLogs([])
       setOutput(null)
       setProgress(null)
+      liveLogsLenRef.current = 0
       await taskApi.start(task.id)
       toast.success(`${t('debug.runStarted')}: ${folderInfo?.name || folderPath}${useSandbox ? ' 🔒' : ''}`)
     } catch (e) {
