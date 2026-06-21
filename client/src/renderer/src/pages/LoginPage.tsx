@@ -16,7 +16,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../hooks/useTheme'
-import { getMarketplaceUrl, setMarketplaceUrl, marketplaceApi } from '../api'
+import { getMarketplaceUrl, setMarketplaceUrl, marketplaceApi, appApi } from '../api'
 import { toast } from '../utils/toast'
 import TitleBar from '../components/TitleBar'
 import { ParticlegroundBg } from '../components/ParticlegroundBg'
@@ -122,6 +122,7 @@ const LoginPage: React.FC = () => {
 
   // ---- 服务端地址（折叠在卡片底部）----
   const [serverUrl, setServerUrl] = useState('')
+  const [appVersion, setAppVersion] = useState('')
   const [serverExpanded, setServerExpanded] = useState(false)
 
   // ---- 状态机 ----
@@ -158,6 +159,7 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     getMarketplaceUrl().then((url) => setServerUrl(url))
     checkSetup()
+    appApi.getInfo().then((info) => setAppVersion(info.version)).catch(() => {})
   }, [checkSetup])
 
   // ---- 服务端地址保存 ----
@@ -378,7 +380,7 @@ const LoginPage: React.FC = () => {
         {/* 脚注 */}
         <footer className="forge-foot">
           <div className="forge-foot__left">
-            <span className="forge-foot__version">v0.2.1</span>
+            <span className="forge-foot__version">v{appVersion || '...'}</span>
             <span className="forge-foot__sep">·</span>
             <span>{t('login.welcomeBack')}</span>
           </div>
