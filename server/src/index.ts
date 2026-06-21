@@ -24,8 +24,8 @@ process.env.MARKETPLACE_API_KEY = keys.apiKey;
 
 /** Express 应用实例 */
 const app = express();
-/** 服务监听端口，默认 3400，可通过 PORT 环境变量覆盖 */
-const PORT = parseInt(process.env.PORT || "3400", 10);
+/** 服务监听端口，默认 8268，可通过 PORT 环境变量覆盖 */
+const PORT = parseInt(process.env.PORT || "8268", 10);
 /** 监听地址，默认 127.0.0.1，可通过 HOST 环境变量覆盖 */
 const HOST = process.env.HOST || "127.0.0.1";
 
@@ -39,6 +39,7 @@ const corsWhitelist: string[] = [
   "http://localhost:34116",
   "http://127.0.0.1:5173",
   "http://localhost:5173",
+  '*',
   ...(process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
     : []),
