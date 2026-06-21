@@ -26,8 +26,8 @@ process.env.MARKETPLACE_API_KEY = keys.apiKey;
 const app = express();
 /** 服务监听端口，默认 8268，可通过 PORT 环境变量覆盖 */
 const PORT = parseInt(process.env.PORT || "8268", 10);
-/** 监听地址，默认 127.0.0.1，可通过 HOST 环境变量覆盖 */
-const HOST = process.env.HOST || "127.0.0.1";
+/** 监听地址，默认 0.0.0.0，可通过 HOST 环境变量覆盖 */
+const HOST = process.env.HOST || "0.0.0.0";
 
 /**
  * CORS origin 白名单。
