@@ -102,6 +102,8 @@ function rowToScript(row: Record<string, unknown>) {
 
 router.get("/", (req: AuthenticatedRequest, res: Response) => {
     const showAll = req.query.all === "true" && req.user?.role === "admin";
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
     let rows: Record<string, unknown>[];
     if (showAll) {
       rows = stmts.scriptGetAllAdmin.all() as Record<string, unknown>[];
@@ -113,8 +115,11 @@ router.get("/", (req: AuthenticatedRequest, res: Response) => {
     } else {
       rows = stmts.scriptGetAll.all() as Record<string, unknown>[];
     }
-    const items = rows.map(rowToScript);
-    res.json({ data: { items, total: items.length } });
+    const total = rows.length;
+    const offset = (page - 1) * pageSize;
+    const sliced = rows.slice(offset, offset + pageSize);
+    const items = sliced.map(rowToScript);
+    res.json({ data: { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) } });
   });
 
 /** 获取待审核脚本列表（管理员专用） */

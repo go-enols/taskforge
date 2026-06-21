@@ -536,7 +536,7 @@ Install via TaskForge marketplace, then create a task using this script.
     if (!user) return
     setMyScriptsLoading(true)
     try {
-      const res = await marketplaceApi.listScripts()
+      const res = await marketplaceApi.listScripts(undefined, 1, 9999)
       const items = (res.items || []).filter((s) => s.createdBy === user.id)
       setMyScripts(items)
     } catch (e) {

@@ -196,7 +196,7 @@ export default function ScriptDetailPage(): React.ReactElement {
     setNotFound(false)
     try {
       const [remoteList, installedList] = await Promise.all([
-        marketplaceApi.listScripts(),
+        marketplaceApi.listScripts(undefined, 1, 9999),
         scriptApi.listInstalled()
       ])
       const found = remoteList.items.find((s) => s.id === scriptId)

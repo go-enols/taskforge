@@ -55,8 +55,9 @@ app.use(
     },
   }),
 );
-/** 解析 JSON 请求体 */
-app.use(express.json());
+/** 解析 JSON 请求体（限制 10MB 防止大 JSON 攻击） */
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Rate limiting
 /** 认证端点限流器：每分钟最多 10 次请求 */

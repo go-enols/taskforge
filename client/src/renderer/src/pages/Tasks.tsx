@@ -168,7 +168,7 @@ const Tasks: React.FC = () => {
   const loadRemoteScripts = async (): Promise<void> => {
     setLoadingScripts(true)
     try {
-      const result = await marketplaceApi.listScripts()
+      const result = await marketplaceApi.listScripts(undefined, 1, 9999)
       setRemoteScripts(result.items || [])
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : String(e))

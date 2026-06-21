@@ -35,6 +35,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import type { UserRole } from '../contexts/AuthContext'
 import TitleBar from './TitleBar'
+import { OfflineBanner } from './OfflineBanner'
 
 interface NavItem {
   /** 路由路径。父级项的 path 也是子项路径的前缀（如 /data），点击父级只切换展开状态 */
@@ -309,6 +310,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </button>
           </div>
         </aside>
+
+        {/* Marketplace 连接状态横幅 */}
+        <OfflineBanner />
 
         {/* 右侧主内容区 */}
         <main className="flex-1 overflow-auto p-6 bg-bg-page">

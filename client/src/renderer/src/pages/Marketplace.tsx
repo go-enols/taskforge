@@ -31,10 +31,10 @@ export default function MarketplacePage(): React.ReactElement {
     setError(null)
     try {
       if (mode === 'scripts') {
-        const data = await marketplaceApi.listScripts()
+        const data = await marketplaceApi.listScripts(undefined, 1, 9999)
         setItems(data.items as unknown as Record<string, unknown>[])
       } else {
-        const data = await marketplaceApi.listTemplates()
+        const data = await marketplaceApi.listTemplates(undefined, 1, 9999)
         setItems(data.items as unknown as Record<string, unknown>[])
       }
     } catch (err) {

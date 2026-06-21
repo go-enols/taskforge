@@ -320,6 +320,42 @@ export async function getMarketplaceHeaders(): Promise<Record<string, string>> {
   return key ? { Authorization: `Bearer ${key}` } : {}
 }
 
+// ── Marketplace 连接状态 ─────────────────────────────────────────
+let _marketplaceReachable = true
+let _lastCheck = 0
+const CHECK_INTERVAL = 30_000
+
+/** 检测 Marketplace 服务器是否可达（30 秒缓存） */
+export async function checkMarketplaceReachable(): Promise<boolean> {
+  if (Date.now() - _lastCheck < CHECK_INTERVAL && !_marketplaceReachable) return false
+  if (Date.now() - _lastCheck < CHECK_INTERVAL && _marketplaceReachable) return true
+  try {
+    const base = await getMarketplaceUrl()
+    const resp = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(3000) })
+    _marketplaceReachable = resp.ok
+  } catch {
+    _marketplaceReachable = false
+  }
+  _lastCheck = Date.now()
+  return _marketplaceReachable
+}
+
+/** 重置连接缓存（强制下次调用重新检测） */
+export function resetMarketplaceCheck(): void {
+  _lastCheck = 0
+}
+
+/** 带离线兜底的 fetch 包装 — 服务器不可达时返回 null */
+async function marketplaceFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response | null> {
+  if (!(await checkMarketplaceReachable())) return null
+  try {
+    return await fetch(input, init)
+  } catch {
+    _marketplaceReachable = false
+    return null
+  }
+}
+
 export const marketplaceApi = {
   getUrl: getMarketplaceUrl,
   setUrl: setMarketplaceUrl,
@@ -362,10 +398,10 @@ export const marketplaceApi = {
     ),
 
   listUsers: async () => {
-    const base = await getMarketplaceUrl()
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/users`, { headers })
-    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch users: ${resp.status}`)
+    const resp = await marketplaceFetch(`${await getMarketplaceUrl()}/api/users`, {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) return { items: [], total: 0 }
     const json = await resp.json()
     return {
       items: (json.data?.items ?? json.data ?? []) as Array<{
@@ -381,10 +417,10 @@ export const marketplaceApi = {
   },
 
   getMe: async () => {
-    const base = await getMarketplaceUrl()
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/users/me`, { headers })
-    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `HTTP ${resp.status}`)
+    const resp = await marketplaceFetch(`${await getMarketplaceUrl()}/api/users/me`, {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) return null
     const json = await resp.json()
     return json.data as {
       id: string
@@ -457,11 +493,14 @@ export const marketplaceApi = {
 
   logout: () => call<null>('market:logout'),
 
-  listScripts: async (serverUrl?: string) => {
+  listScripts: async (serverUrl?: string, page = 1, pageSize = 50) => {
     const base = serverUrl || (await getMarketplaceUrl())
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/scripts`, { headers })
-    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch scripts: ${resp.status}`)
+    const resp = await marketplaceFetch(`${base}/api/scripts?page=${page}&pageSize=${pageSize}`, {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) {
+      return { items: [], total: 0, page: 1, pageSize: 0, totalPages: 1 } as ListResponse<RemoteScript>
+    }
     const json = await resp.json()
     const data = json.data ?? json
     return {
@@ -475,9 +514,12 @@ export const marketplaceApi = {
 
   listAllScripts: async (serverUrl?: string) => {
     const base = serverUrl || (await getMarketplaceUrl())
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/scripts?all=true`, { headers })
-    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch scripts: ${resp.status}`)
+    const resp = await marketplaceFetch(`${base}/api/scripts?all=true`, {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) {
+      return { items: [], total: 0, page: 1, pageSize: 0, totalPages: 1 } as ListResponse<RemoteScript>
+    }
     const json = await resp.json()
     const data = json.data ?? json
     return {
@@ -489,11 +531,14 @@ export const marketplaceApi = {
     } as ListResponse<RemoteScript>
   },
 
-  listTemplates: async (serverUrl?: string) => {
+  listTemplates: async (serverUrl?: string, page = 1, pageSize = 50) => {
     const base = serverUrl || (await getMarketplaceUrl())
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/templates?all=true`, { headers })
-    if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch templates: ${resp.status}`)
+    const resp = await marketplaceFetch(`${base}/api/templates?all=true&page=${page}&pageSize=${pageSize}`, {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) {
+      return { items: [], total: 0, page: 1, pageSize: 0, totalPages: 1 } as ListResponse<RemoteTemplate>
+    }
     const json = await resp.json()
     const data = json.data ?? json
     return {
@@ -616,17 +661,19 @@ export const marketplaceApi = {
   },
 
   getPendingScripts: async () => {
-    const base = await getMarketplaceUrl()
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/scripts/pending`, { headers })
+    const resp = await marketplaceFetch(`${await getMarketplaceUrl()}/api/scripts/pending`, {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) return { data: { items: [], total: 0 } }
     if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch pending scripts: ${resp.status}`)
     return resp.json()
   },
 
   getMyPendingScripts: async () => {
-    const base = await getMarketplaceUrl()
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/scripts/my-pending`, { headers })
+    const resp = await marketplaceFetch(`${await getMarketplaceUrl()}/api/scripts/my-pending`, {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) return { data: { items: [], total: 0 } }
     if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch pending scripts: ${resp.status}`)
     return resp.json()
   },
@@ -661,9 +708,10 @@ export const marketplaceApi = {
   },
 
   getMyPendingTemplates: async () => {
-    const base = await getMarketplaceUrl()
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(`${base}/api/templates/my-pending`, { headers })
+    const resp = await marketplaceFetch(`${await getMarketplaceUrl()}/api/templates/my-pending`, {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) return { data: { items: [], total: 0 } }
     if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, `Failed to fetch pending templates: ${resp.status}`)
     return resp.json()
   },
@@ -695,8 +743,10 @@ export const marketplaceApi = {
   /** 列出市场的项目模板 (普通用户只看 visible, 开发者可见自己所有) */
   listProjectTemplates: async (serverUrl?: string) => {
     const base = serverUrl || (await getMarketplaceUrl())
-    const headers = await getMarketplaceHeaders()
-    const resp = await fetch(base + '/api/project-templates', { headers })
+    const resp = await marketplaceFetch(base + '/api/project-templates', {
+      headers: await getMarketplaceHeaders()
+    })
+    if (!resp) return []
     if (!resp.ok) await marketplaceApi._throwOnHttpError(resp, 'Failed to fetch project templates: ' + resp.status)
     const json = await resp.json()
     return (json.data?.items ?? json.data ?? []) as RemoteProjectTemplate[]

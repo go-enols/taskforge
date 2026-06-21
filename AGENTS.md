@@ -921,7 +921,7 @@ const { theme, pref, setPref } = useTheme()
 ## 12. 待实现功能清单（TODO）
 
 ### 任务系统
-- [ ] 脚本 SDK：stdin/stdout JSON-RPC 通信协议，提供结构化的日志、进度、账户/代理获取 API
+- [x] ~~脚本 SDK：stdin/stdout JSON-RPC 通信协议，提供结构化的日志、进度、账户/代理获取 API~~
 - [ ] `requiredAccountTemplateIds` 校验（安装脚本前检查所需账户模板）
 - [ ] 通过任务模板（而非脚本路径）选择脚本的完整流程
 
@@ -930,8 +930,20 @@ const { theme, pref, setPref } = useTheme()
 - [ ] 统一代理管理入口到 Proxies 页面（Settings 中的 proxy_providers 设为只读或移除）
 
 ### 空投管理
-- [ ] Markdown 编辑器组件集成（当前仅提示支持，无实际编辑器）
-- [ ] Markdown 渲染组件
+- [x] ~~Markdown 编辑器组件集成（当前仅提示支持，无实际编辑器）~~
+- [x] ~~Markdown 渲染组件~~
+
+### 数据与架构
+- [ ] Dashboard 数据源统一到 StatsAggregate（当前 Dashboard 自行拼数据）
+- [ ] 离线/断网优雅降级（OfflineBanner + marketplaceFetch 已有初步实现）
+- [ ] 脚本依赖声明（manifest.dependencies 字段已添加，安装前 UI 展示待完善）
+- [ ] 钱包模块残留清理（wallets 表 + walletCount 字段）
+- [ ] Marketplace 列表分页 UI（后端已支持，前端默认 pageSize=50）
+- [ ] 服务端测试覆盖
 
 ### 服务端
 - [x] ~~manifest.json 上传时自动校验格式~~ (v0.2.1: adm-zip 内存解压 + zod 验证)
+- [x] ~~请求体大小限制~~ (express.json limit: 10mb)
+- [ ] API 文档（server/API.md 已创建，待同步更新）
+- [ ] JWT refresh token 机制
+- [ ] 脚本版本回滚 API

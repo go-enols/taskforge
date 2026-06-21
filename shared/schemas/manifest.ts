@@ -91,7 +91,9 @@ export const ScriptManifestSchema = z.object({
   /** （可选）分类标签 */
   tags: z.array(z.string()).optional(),
   /** （可选）更新日志 */
-  changelog: z.string().optional()
+  changelog: z.string().optional(),
+  /** （可选）npm 依赖声明：包名 → 版本范围 */
+  dependencies: z.record(z.string(), z.string()).optional()
 })
 
 /** 推断的 manifest 类型 */

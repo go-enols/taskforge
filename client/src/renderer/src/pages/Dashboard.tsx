@@ -29,7 +29,7 @@ import {
   FolderGit2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { taskApi, scriptApi, marketplaceApi, logApi } from '../api'
+import { taskApi, scriptApi, marketplaceApi, logApi, appApi } from '../api'
 import type { Task, InstalledScript, RemoteScript, AppLog } from '../types'
 import { statusLabel } from '../utils/i18n-status'
 import { useAuth, type UserRole } from '../contexts/AuthContext'
@@ -233,6 +233,8 @@ export default function Dashboard(): React.JSX.Element {
           taskApi.list(1, 9999),
           logApi.query('error', undefined, undefined, undefined, undefined, 5)
         ])
+        // 后台静默获取本地统计（不与 Marketplace 绑定），后续可引入到 UI
+        appApi.getStats().catch(() => {})
 
         if (usersResult.status === 'fulfilled') {
           setUserCount(usersResult.value.total ?? usersResult.value.items.length)

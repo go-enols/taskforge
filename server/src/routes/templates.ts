@@ -57,6 +57,8 @@ function rowToTemplate(row: Record<string, unknown>) {
 /** 获取模板列表：普通用户只看到可见模板，开发者可看到自己所有模板，管理员看到全部 */
 router.get("/", (req: AuthenticatedRequest, res: Response) => {
     const showAll = req.query.all === "true" && (req.user?.role === "admin" || req.user?.role === "developer");
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
     let rows: Record<string, unknown>[];
     if (showAll) {
       rows = stmts.templateGetAllAdmin.all() as Record<string, unknown>[];
@@ -68,8 +70,11 @@ router.get("/", (req: AuthenticatedRequest, res: Response) => {
     } else {
       rows = stmts.templateGetAll.all() as Record<string, unknown>[];
     }
-    const items = rows.map(rowToTemplate);
-    res.json({ data: { items, total: items.length } });
+    const total = rows.length;
+    const offset = (page - 1) * pageSize;
+    const sliced = rows.slice(offset, offset + pageSize);
+    const items = sliced.map(rowToTemplate);
+    res.json({ data: { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) } });
   });
 
 /** 获取待审核模板列表（管理员专用） */

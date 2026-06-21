@@ -81,7 +81,8 @@ export const ScriptManifestSchema = z.object({
   dataRequirements: z.array(dataRequirementSchema).optional(),
   permissions: z.array(z.enum(['network', 'filesystem'])).optional(),
   tags: z.array(z.string()).optional(),
-  changelog: z.string().optional()
+  changelog: z.string().optional(),
+  dependencies: z.record(z.string(), z.string()).optional(),
 })
 
 /** 推断的 manifest 类型 */

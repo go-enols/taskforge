@@ -1185,7 +1185,6 @@ const DataSection: React.FC = () => {
   const { t } = useTranslation()
   const { isAdmin } = useAuth()
   const [stats, setStats] = useState<{
-    walletCount: number
     scriptParamCount: number
     proxyCount: number
     taskCount: number
@@ -1201,7 +1200,6 @@ const DataSection: React.FC = () => {
       .then((info) => {
         setDataDir(info.dataDir)
         setStats({
-          walletCount: info.walletCount,
           scriptParamCount: info.scriptParamCount,
           proxyCount: info.proxyCount,
           taskCount: info.taskCount
@@ -1262,8 +1260,7 @@ const DataSection: React.FC = () => {
   return (
     <>
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatBox label={t('dashboard.stats.wallets')} value={stats.walletCount} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <StatBox label={t('dashboard.stats.scriptParams')} value={stats.scriptParamCount} />
           <StatBox label={t('dashboard.stats.proxies')} value={stats.proxyCount} />
           <StatBox label={t('dashboard.stats.tasks')} value={stats.taskCount} />
