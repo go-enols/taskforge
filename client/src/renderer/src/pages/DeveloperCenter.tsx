@@ -1215,6 +1215,7 @@ Install via TaskForge marketplace, then create a task using this script.
           <div className="bg-bg-card rounded-xl border border-border-light p-12 text-center">
             <Clock size={48} className="mx-auto mb-4 text-text-muted" />
             <p className="text-text-muted">{t('developerPending.noPending')}</p>
+            <p className="text-xs text-text-muted mt-1">已审核的脚本和模板请在「我的脚本」tab 中查看。</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1302,6 +1303,9 @@ Install via TaskForge marketplace, then create a task using this script.
                         }`}>
                           {script.reviewStatus === 'approved' ? '已发布' : script.reviewStatus === 'rejected' ? '已拒绝' : '审核中'}
                         </span>
+                      )}
+                      {script.reviewComment && (
+                        <span className="text-xs text-text-muted ml-1">— {script.reviewComment}</span>
                       )}
                     </div>
                     <p className="text-xs text-text-muted font-mono mt-1">

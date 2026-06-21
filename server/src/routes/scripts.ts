@@ -420,13 +420,11 @@ router.post(
       return;
     }
     if (action === "reject") {
-      // 拒绝 = 默认删除：删除文件 + 删除 DB 记录（防止脏数据累积）
-      const filePath = join(getScriptsDir(), existing.file_path as string);
-      if (existsSync(filePath)) {
-        try { rmSync(filePath, { force: true }); } catch { /* 文件不存在或删除失败不影响主流程 */ }
-      }
-      stmts.scriptDelete.run(req.params.id);
-      res.json({ data: { id: req.params.id, deleted: true, comment: comment || "" } });
+      // 拒绝：更新审核状态并设为不可见，保留记录供开发者查看
+      const now = new Date().toISOString();
+      stmts.scriptReview.run("rejected", comment || "", 0, now, req.params.id);
+      const row = stmts.scriptGetById.get(req.params.id) as Record<string, unknown>;
+      res.json({ data: rowToScript(row) });
       return;
     }
     // approve：保持当前行为（更新审核状态 + 设为可见）
