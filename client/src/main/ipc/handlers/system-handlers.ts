@@ -268,7 +268,10 @@ export function registerSystemHandlers(services: Services): void {
     const headers = args[2] as Record<string, string>
     const formFields = (args[3] as Record<string, string>) || {}
     const method = (args[4] as 'POST' | 'PUT' | undefined) ?? 'POST'
-    return uploadMultipart(url, zipPath, headers, formFields, undefined, method)
+    const result = await uploadMultipart(url, zipPath, headers, formFields, undefined, method)
+    // 包装为标准 ApiResult 格式，与 callIPC 的期望对齐
+    if (result.success) return { data: result }
+    return { error: { message: result.error || `HTTP ${result.status}`, code: 'UPLOAD_FAILED' } }
   })
   // IPC 通道（带 upload:progress 事件）
   ipcMain.handle('server:upload', async (event, ...args: unknown[]) => {
@@ -277,9 +280,11 @@ export function registerSystemHandlers(services: Services): void {
     const headers = args[2] as Record<string, string>
     const formFields = (args[3] as Record<string, string>) || {}
     const method = (args[4] as 'POST' | 'PUT' | undefined) ?? 'POST'
-    return uploadMultipart(url, zipPath, headers, formFields, (pct: number) => {
+    const result = await uploadMultipart(url, zipPath, headers, formFields, (pct: number) => {
       try { event.sender.send('upload:progress', pct) } catch {}
     }, method)
+    if (result.success) return { data: result }
+    return { error: { message: result.error || `HTTP ${result.status}`, code: 'UPLOAD_FAILED' } }
   })
 
   /* ────────── 窗口 ────────── */
