@@ -1762,6 +1762,121 @@ for (const wallet of wallets) {
 }`}
             </pre>
           </section>
+
+          {/* ============ NDJSON 通信协议 ============ */}
+          <section>
+            <h2 className="text-lg font-semibold text-text-primary mb-3">
+              NDJSON 通信协议（stdin/stdout）
+            </h2>
+            <p className="text-sm text-text-secondary mb-3">
+              脚本与 TaskForge 主进程通过 stdin/stdout 交换 NDJSON 消息
+              （每行一个 JSON 对象，类似 LSP 协议）。
+              向后兼容纯文本 stdout — 非 JSON 行自动视为 info 日志。
+            </p>
+
+            <h3 className="text-md font-medium text-text-primary mb-2">
+              脚本 → 主进程（stdout）
+            </h3>
+            <div className="overflow-x-auto mb-4">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-bg-page border-b border-border-light">
+                    <th className="text-left px-3 py-2 font-medium text-text-primary">type</th>
+                    <th className="text-left px-3 py-2 font-medium text-text-primary">必填字段</th>
+                    <th className="text-left px-3 py-2 font-medium text-text-primary">可选字段</th>
+                    <th className="text-left px-3 py-2 font-medium text-text-primary">说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border-light">
+                    <td className="px-3 py-2 font-mono text-xs text-primary">log</td>
+                    <td className="px-3 py-2 text-xs"><code>level</code> <code>message</code></td>
+                    <td className="px-3 py-2 text-xs"><code>fields</code></td>
+                    <td className="px-3 py-2 text-xs">结构化日志，<code>level</code> 可选 debug / info / warn / error</td>
+                  </tr>
+                  <tr className="border-b border-border-light">
+                    <td className="px-3 py-2 font-mono text-xs text-primary">progress</td>
+                    <td className="px-3 py-2 text-xs"><code>percent</code></td>
+                    <td className="px-3 py-2 text-xs"><code>message</code></td>
+                    <td className="px-3 py-2 text-xs">进度 0-100，UI 实时显示百分比和可选描述</td>
+                  </tr>
+                  <tr className="border-b border-border-light">
+                    <td className="px-3 py-2 font-mono text-xs text-primary">error</td>
+                    <td className="px-3 py-2 text-xs"><code>message</code></td>
+                    <td className="px-3 py-2 text-xs"><code>fields</code></td>
+                    <td className="px-3 py-2 text-xs">等同于 <code>log('error', ...)</code></td>
+                  </tr>
+                  <tr className="border-b border-border-light">
+                    <td className="px-3 py-2 font-mono text-xs text-primary">result</td>
+                    <td className="px-3 py-2 text-xs"><code>ok</code>（boolean）</td>
+                    <td className="px-3 py-2 text-xs"><code>data</code> <code>error</code></td>
+                    <td className="px-3 py-2 text-xs">脚本主动报告最终结果</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 className="text-md font-medium text-text-primary mb-2">
+              主进程 → 脚本（stdin）
+            </h3>
+            <div className="overflow-x-auto mb-4">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-bg-page border-b border-border-light">
+                    <th className="text-left px-3 py-2 font-medium text-text-primary">type</th>
+                    <th className="text-left px-3 py-2 font-medium text-text-primary">说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border-light">
+                    <td className="px-3 py-2 font-mono text-xs text-primary">shutdown</td>
+                    <td className="px-3 py-2 text-xs">主进程通知脚本优雅退出（SIGTERM 前发出）</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* ============ 极简 SDK 示例 ============ */}
+          <section>
+            <h2 className="text-lg font-semibold text-text-primary mb-3">
+              极简 SDK 示例（零依赖）
+            </h2>
+            <pre className="bg-bg-page border border-border-light rounded-lg p-4 text-xs text-text-secondary overflow-auto">
+{`// ── 极简 SDK helper（零依赖，直接复制到 index.js 顶部即可） ──
+function log(level, message, fields) {
+  process.stdout.write(JSON.stringify({
+    type: 'log', level, message, fields
+  }) + '\\n')
+}
+function progress(percent, message) {
+  process.stdout.write(JSON.stringify({
+    type: 'progress', percent, message
+  }) + '\\n')
+}
+
+// ── 监听 shutdown 信号（主进程通知优雅退出） ──
+process.stdin.on('data', (chunk) => {
+  try {
+    const msg = JSON.parse(chunk.toString())
+    if (msg.type === 'shutdown') {
+      log('info', '收到 shutdown，正在清理...')
+      // 清理资源后退出
+      process.exit(0)
+    }
+  } catch { /* 忽略非 JSON 数据 */ }
+})
+
+// ── 业务示例 ──
+log('info', '脚本启动', { taskId: process.env.TASK_ID })
+progress(0, '初始化中...')
+// ... 业务逻辑 ...
+progress(100, '完成')
+process.stdout.write(JSON.stringify({
+  type: 'result', ok: true, data: { count: 42 }
+}) + '\\n')`}
+            </pre>
+          </section>
         </div>
       </div>
       </div>
