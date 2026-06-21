@@ -60,6 +60,15 @@ function validateZipManifest(zipBuffer: Buffer): { ok: true; manifest: Record<st
 
 // ---- helper ----
 
+/** 安全解析 JSON 字段：已是对象直接返回，字符串则 JSON.parse，失败返回默认值 */
+function safeJsonParse(value: unknown, defaultVal: unknown): unknown {
+  if (typeof value === 'object' && value !== null) return value
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) } catch { return defaultVal }
+  }
+  return defaultVal
+}
+
 function rowToScript(row: Record<string, unknown>) {
   const createdBy = (row.created_by as string) || undefined;
   let createdByName: string | undefined;
@@ -72,11 +81,11 @@ function rowToScript(row: Record<string, unknown>) {
     name: row.name as string,
     version: row.version as string,
     description: row.description as string,
-    schema: JSON.parse((row.schema as string) || "{}"),
+    schema: safeJsonParse(row.schema, {}),
     entryPoint: row.entry_point as string,
     checksum: row.checksum as string,
     downloadUrl: `/api/scripts/${row.id}/download`,
-    tags: JSON.parse((row.tags as string) || "[]"),
+    tags: safeJsonParse(row.tags, []),
     changelog: row.changelog as string,
     downloads: row.downloads as number,
     visible: (row.visible as number) === 1,
@@ -314,7 +323,7 @@ router.get("/:id/versions", (req: Request, res: Response) => {
     version: row.version as string,
     changelog: (row.changelog as string) || "",
     checksum: row.checksum as string,
-    schema: JSON.parse((row.schema as string) || "{}"),
+    schema: safeJsonParse(row.schema, {}),
     createdBy: row.created_by as string | null,
     createdAt: row.created_at as string,
   }));

@@ -250,7 +250,11 @@ export function registerSystemHandlers(services: Services): void {
       onProgress?.(100)
 
       const data = await response.json().catch(() => null)
-      return { success: response.ok, status: response.status, data }
+      if (!response.ok) {
+        const msg = data?.error?.message || `HTTP ${response.status}`
+        return { success: false, status: response.status, error: msg }
+      }
+      return { success: true, status: response.status, data }
     } catch (err) {
       return { success: false, status: 0, error: (err as Error).message }
     }

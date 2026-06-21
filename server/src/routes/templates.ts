@@ -19,6 +19,15 @@ const router = Router();
  * @param row - 数据库查询结果行
  * @returns 格式化后的模板对象
  */
+/** 安全解析 JSON 字段：已是对象直接返回，字符串则 JSON.parse，失败返回默认值 */
+function safeJsonParse(value: unknown, defaultVal: unknown): unknown {
+  if (typeof value === 'object' && value !== null) return value
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) } catch { return defaultVal }
+  }
+  return defaultVal
+}
+
 function rowToTemplate(row: Record<string, unknown>) {
   const createdBy = (row.created_by as string) || undefined
   let createdByName: string | undefined
@@ -32,7 +41,7 @@ function rowToTemplate(row: Record<string, unknown>) {
     type: row.type as string,
     version: row.version as string,
     description: row.description as string,
-    schema: JSON.parse((row.schema as string) || "{}"),
+    schema: safeJsonParse(row.schema, {}),
     checksum: row.checksum as string,
     downloads: row.downloads as number,
     downloadCount: row.downloads as number,
@@ -238,7 +247,7 @@ router.patch(
         typeof schema === "string"
           ? schema
           : JSON.stringify(
-              schema ?? JSON.parse((existing.schema as string) || "{}"),
+              schema ?? safeJsonParse(existing.schema, {}),
             );
       stmts.templateUpdate.run(
         name ?? existing.name,
