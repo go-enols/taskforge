@@ -81,7 +81,7 @@ router.get("/pending", requireRole("admin"), (req: AuthenticatedRequest, res: Re
 
 /** 获取当前用户的待审核模板列表 */
 router.get("/my-pending", requireRole("admin", "developer"), (req: AuthenticatedRequest, res: Response) => {
-  const rows = stmts.templateGetPendingByAuthor.all(req.user?.id) as Record<string, unknown>[];
+  const rows = stmts.templateGetMySubmissions.all(req.user?.id) as Record<string, unknown>[];
   const items = rows.map(rowToTemplate);
   res.json({ data: { items, total: items.length } });
 });

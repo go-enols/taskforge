@@ -319,7 +319,7 @@ const stmts = {
   /** 查询待审核脚本 */
   scriptGetPending: db.prepare("SELECT * FROM scripts WHERE review_status = 'pending' ORDER BY created_at DESC"),
   /** 按创建者查询待审核脚本 */
-  scriptGetPendingByAuthor: db.prepare("SELECT * FROM scripts WHERE created_by = ? AND review_status = 'pending' ORDER BY created_at DESC"),
+  scriptGetMySubmissions: db.prepare("SELECT * FROM scripts WHERE created_by = ? ORDER BY created_at DESC"),
   /** 更新脚本信息 */
   scriptUpdate: db.prepare(
     'UPDATE scripts SET name=?, version=?, description=?, schema=?, entry_point=?, checksum=?, file_path=?, tags=?, changelog=?, visible=?, review_status=?, review_comment=?, updated_at=? WHERE id=?'
@@ -388,7 +388,7 @@ const stmts = {
   /** 查询待审核模板 */
   templateGetPending: db.prepare("SELECT * FROM templates WHERE review_status = 'pending' ORDER BY created_at DESC"),
   /** 按创建者查询待审核模板 */
-  templateGetPendingByAuthor: db.prepare("SELECT * FROM templates WHERE created_by = ? AND review_status = 'pending' ORDER BY created_at DESC"),
+  templateGetMySubmissions: db.prepare("SELECT * FROM templates WHERE created_by = ? ORDER BY created_at DESC"),
   /** 更新模板信息 */
   templateUpdate: db.prepare(
     'UPDATE templates SET name=?, type=?, version=?, description=?, schema=?, checksum=?, updated_at=? WHERE id=?'

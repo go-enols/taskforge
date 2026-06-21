@@ -124,9 +124,9 @@ router.get("/pending", requireRole("admin"), (_req: AuthenticatedRequest, res: R
   res.json({ data: { items, total: items.length } });
 });
 
-/** 获取当前用户的待审核脚本列表（管理员 + 开发者） */
+/** 获取当前用户的脚本提交记录（含已审核的，管理员 + 开发者） */
 router.get("/my-pending", requireRole("admin", "developer"), (req: AuthenticatedRequest, res: Response) => {
-  const rows = stmts.scriptGetPendingByAuthor.all(req.user?.id) as Record<string, unknown>[];
+  const rows = stmts.scriptGetMySubmissions.all(req.user?.id) as Record<string, unknown>[];
   const items = rows.map(rowToScript);
   res.json({ data: { items, total: items.length } });
 });

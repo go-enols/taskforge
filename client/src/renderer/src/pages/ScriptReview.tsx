@@ -1,7 +1,7 @@
 /**
  * @file ScriptReview — 脚本审核页面
  * @description 管理员审核开发者提交的脚本。
- *              拒绝操作默认删除脚本（清理 ZIP 文件 + DB 记录），避免脏数据累积。
+ *              拒绝操作将脚本设为不可见并保留记录，供开发者查看审核意见。
  * @module renderer/pages
  */
 import { useState, useEffect, useCallback } from 'react'
@@ -44,7 +44,7 @@ export default function ScriptReview(): React.JSX.Element {
     try {
       await marketplaceApi.reviewScript(id, action, comment)
       if (action === 'reject') {
-        toast.success('已拒绝并删除脚本')
+        toast.success('已拒绝，脚本已下架')
       } else {
         toast.success('已批准，脚本已发布')
       }
@@ -211,7 +211,7 @@ export default function ScriptReview(): React.JSX.Element {
                     className="w-full px-3 py-2 rounded-lg border border-border-light bg-bg-input text-sm text-text-primary focus:border-primary outline-none transition-colors resize-none"
                   />
                   <p className="text-xs text-text-muted mt-1">
-                    拒绝时该说明会作为删除记录保留（可选填）
+                    拒绝时该说明会作为审核意见保留，开发者可在我的脚本中查看（可选填）
                   </p>
                 </div>
 
@@ -230,7 +230,7 @@ export default function ScriptReview(): React.JSX.Element {
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-danger text-white hover:bg-danger/90 disabled:opacity-50 transition-colors"
                   >
                     <X size={14} />
-                    {t('review.reject')} (删除)
+                    {t('review.reject')} (下架)
                   </button>
                 </div>
               </div>

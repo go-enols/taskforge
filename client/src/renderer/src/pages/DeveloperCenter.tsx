@@ -685,7 +685,7 @@ Install via TaskForge marketplace, then create a task using this script.
   // ─────────────────────────────────────────────
   const TABS: { id: DevTab; icon: React.ReactNode; label: string }[] = [
     { id: 'scaffold', icon: <Code size={16} />, label: '项目脚手架' },
-    { id: 'pending', icon: <List size={16} />, label: '我的待审核' },
+    { id: 'pending', icon: <List size={16} />, label: '我的提交' },
     { id: 'myscripts', icon: <Upload size={16} />, label: '我的脚本' },
     { id: 'scriptParam', icon: <FilePlus size={16} />, label: '创建参数模板' },
     { id: 'project', icon: <FileBox size={16} />, label: '项目模板' },
@@ -1215,7 +1215,7 @@ Install via TaskForge marketplace, then create a task using this script.
           <div className="bg-bg-card rounded-xl border border-border-light p-12 text-center">
             <Clock size={48} className="mx-auto mb-4 text-text-muted" />
             <p className="text-text-muted">{t('developerPending.noPending')}</p>
-            <p className="text-xs text-text-muted mt-1">已审核的脚本和模板请在「我的脚本」tab 中查看。</p>
+            <p className="text-xs text-text-muted mt-1">暂未提交任何脚本或模板。</p>
           </div>
         ) : (
           <div className="space-y-3">
