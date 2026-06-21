@@ -466,6 +466,7 @@ Install via TaskForge marketplace, then create a task using this script.
   const [pendingScripts, setPendingScripts] = useState<RemoteScript[]>([])
   const [pendingTemplates, setPendingTemplates] = useState<RemoteTemplate[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
 
   const fetchPending = useCallback(async () => {
     setPendingLoading(true)
@@ -1207,11 +1208,32 @@ Install via TaskForge marketplace, then create a task using this script.
           </button>
         </div>
 
+        {/* 审核状态筛选 */}
+        <div className="flex gap-2 flex-wrap">
+          {(['all', 'pending', 'approved', 'rejected'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setReviewFilter(f)}
+              className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                reviewFilter === f
+                  ? 'bg-primary text-white'
+                  : 'bg-bg-tertiary text-text-muted hover:text-text-secondary'
+              }`}
+            >
+              {f === 'all' ? '全部' : t(`review.${f}`)}
+            </button>
+          ))}
+        </div>
+
         {pendingLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
-        ) : pendingItems.length === 0 ? (
+        ) : (() => {
+          const filteredItems = pendingItems.filter(
+            (it) => reviewFilter === 'all' || it.reviewStatus === reviewFilter
+          )
+          return filteredItems.length === 0 ? (
           <div className="bg-bg-card rounded-xl border border-border-light p-12 text-center">
             <Clock size={48} className="mx-auto mb-4 text-text-muted" />
             <p className="text-text-muted">{t('developerPending.noPending')}</p>
@@ -1219,7 +1241,7 @@ Install via TaskForge marketplace, then create a task using this script.
           </div>
         ) : (
           <div className="space-y-3">
-            {pendingItems.map((item) => (
+            {filteredItems.map((item) => (
               <div
                 key={item.id}
                 className="bg-bg-card rounded-xl border border-border-light p-4"
@@ -1254,7 +1276,8 @@ Install via TaskForge marketplace, then create a task using this script.
             ))}
           </div>
         )}
-      </div>
+      )()}
+    </div>
 
       {/* ══════════════════════════════════════════
           Tab 3: 我的脚本
