@@ -55,6 +55,7 @@ import DataRequirementPanel, {
   type DataForRequirement
 } from '../components/DataRequirementPanel'
 import { toast } from '../utils/toast'
+import { useTaskState, useTaskLogBuffer } from '../utils/taskStateTracker'
 
 /** 每页显示任务数 */
 const PAGE_SIZE = 20
@@ -188,49 +189,35 @@ const Tasks: React.FC = () => {
     }
   }, [showScriptBrowser])
 
-  useEffect(() => {
-    const unsubscribe = window.electronAPI?.on?.('task:statusChanged', () => {
-      refresh()
-    })
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe()
-    }
-  }, [refresh])
+  /**
+   * 通过 TaskStateTracker 监听主进程推送的任务状态变更，刷新列表
+   * 组件卸载时订阅自动清理，但 tracker 的 IPC 监听器继续存活
+   */
+  const { version } = useTaskState()
 
   useEffect(() => {
-    if (!expandedId) return
-    const unsubscribe = window.electronAPI?.on?.('task:log', (rawData) => {
-      const data = rawData as {
-        taskId: string
-        logs: Array<{ level: string; message: string; timestamp: string }>
-      }
-      if (data.taskId === expandedId) {
-        setLogs((prev) => {
-          const newLogs = data.logs.map((l, i) => ({
-            id: -(prev.length + i),
-            taskId: data.taskId,
-            timestamp: l.timestamp,
-            level: l.level as TaskLog['level'],
-            message: l.message
-          }))
-          const combined = [...prev, ...newLogs]
-          return combined.length > 500 ? combined.slice(-500) : combined
-        })
-      }
-    })
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe()
-    }
-  }, [expandedId])
+    refresh()
+  }, [version, refresh])
+
+  /**
+   * 从 TaskStateTracker 获取当前展开任务的实时日志缓冲区，
+   * 当有新的日志到达时追加到 logs 状态中
+   */
+  const liveLogs = useTaskLogBuffer(expandedId)
+  const liveLogsLenRef = useRef(0)
 
   useEffect(() => {
-    const unsubscribe = window.electronAPI?.on?.('task:output', () => {
-      refresh()
-    })
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe()
+    if (!expandedId || liveLogs.length === 0) return
+    // 只在缓冲区有新条目时追加（避免重复设置）
+    if (liveLogs.length > liveLogsLenRef.current) {
+      const newEntries = liveLogs.slice(liveLogsLenRef.current)
+      liveLogsLenRef.current = liveLogs.length
+      setLogs((prev) => {
+        const combined = [...prev, ...newEntries]
+        return combined.length > 500 ? combined.slice(-500) : combined
+      })
     }
-  }, [refresh])
+  }, [expandedId, liveLogs.length, liveLogs])
 
   useEffect(() => {
     if (expandedId && logs.length > 0) {
@@ -260,6 +247,7 @@ const Tasks: React.FC = () => {
     setExpandedId(taskId)
     setLogsLoading(true)
     setLogs([])
+    liveLogsLenRef.current = 0
     try {
       const res = await taskApi.getLogs(taskId)
       setLogs(res)

@@ -6,10 +6,12 @@ import { Toaster } from 'sonner'
 import App from './App'
 import { queryClient } from './hooks/queries/queryClient'
 import { initTheme, ThemeProvider } from './hooks/useTheme'
+import { initTaskStateTracker } from './utils/taskStateTracker'
 import './i18n'
 import './assets/main.css'
 
 initTheme()
+initTaskStateTracker()
 
 const root = createRoot(document.getElementById('root')!)
 root.render(
