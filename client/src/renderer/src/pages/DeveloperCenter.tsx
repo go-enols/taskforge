@@ -1501,6 +1501,8 @@ Install via TaskForge marketplace, then create a task using this script.
             </div>
           </div>
         )}
+      </div>
+
       {/* ══════════════════════════════════════════
           Tab 4: SDK 文档
           ══════════════════════════════════════════ */}
@@ -1878,7 +1880,6 @@ process.stdout.write(JSON.stringify({
             </pre>
           </section>
         </div>
-      </div>
       </div>
 
       {/* ══════════════════════════════════════
