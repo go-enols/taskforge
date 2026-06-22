@@ -63,10 +63,6 @@ export default function DeveloperCenter() {
   const [folderPath, setFolderPath] = useState('')
   const [manifestContent, setManifestContent] = useState<string | null>(null)
   const [hasManifest, setHasManifest] = useState(false)
-  /** Editable version override for the folder upload. Pre-filled from manifest.json,
-   *  but the user can edit before upload (useful for hotfixes / version bump without
-   *  rewriting the source manifest). */
-  const [uploadVersion, setUploadVersion] = useState('')
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
   const [uploadError, setUploadError] = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -329,7 +325,6 @@ Install via TaskForge marketplace, then create a task using this script.
     setFolderPath(result.folderPath)
     setUploadStatus('idle')
     setUploadError('')
-    setUploadVersion('')
     setZipPath('')
     setZipManifest(null)
     setValidationResults([])
@@ -343,11 +338,7 @@ Install via TaskForge marketplace, then create a task using this script.
         const readResult = await fileApi.readFile(manifestPath)
         if (readResult.success && readResult.content) {
           setManifestContent(readResult.content)
-          // Pre-fill uploadVersion from manifest so the user can override
-          try {
-            const m = parseManifest(readResult.content)
-            if (m.version) setUploadVersion(String(m.version))
-          } catch { /* keep empty */ }
+          // version 以 manifest.json 为准，不允许用户覆盖
         }
       } catch {
         setManifestContent(null)
@@ -407,12 +398,7 @@ Install via TaskForge marketplace, then create a task using this script.
         console.error('[DeveloperCenter] Failed to parse manifest for form fields:', err)
       }
       if (!formFields.name) formFields.name = folderName
-      // User-editable version override wins over manifest-derived value
-      if (uploadVersion.trim()) {
-        formFields.version = uploadVersion.trim()
-      } else if (!formFields.version) {
-        formFields.version = '1.0.0'
-      }
+      // version 以 manifest.json 为准，不允许用户覆盖
 
       const uploadResult = await serverApi.upload(`${base}/api/scripts`, tmpZipPath, headers, formFields)
       const data = uploadResult as { success: boolean; status: number; data?: { error?: { message?: string } }; error?: string }
@@ -627,7 +613,6 @@ Install via TaskForge marketplace, then create a task using this script.
         const formFields: Record<string, string> = {
           name: editForm.name.trim(),
           description: editForm.description.trim(),
-          version: editForm.version.trim(),
           tags: JSON.stringify(tags),
           changelog: editForm.changelog.trim()
         }
@@ -644,7 +629,6 @@ Install via TaskForge marketplace, then create a task using this script.
         await marketplaceApi.patchScript(editScript.id, {
           name: editForm.name.trim(),
           description: editForm.description.trim(),
-          version: editForm.version.trim(),
           tags,
           changelog: editForm.changelog.trim()
         })
@@ -1007,21 +991,15 @@ Install via TaskForge marketplace, then create a task using this script.
             </div>
           )}
 
-          {/* Editable version override (pre-filled from manifest) */}
+
+          {/* version 以 manifest.json 为准 */}
           {folderPath && (
             <div className="mb-4">
               <label className="block text-xs text-text-secondary mb-1 font-medium">
                 {t('quickDev.versionLabel') || '版本号'}
               </label>
-              <input
-                type="text"
-                value={uploadVersion}
-                onChange={(e) => setUploadVersion(e.target.value)}
-                placeholder="1.0.0"
-                className="w-full bg-bg-input border border-border-light rounded-lg px-3 py-2 text-sm text-text-primary focus:border-primary outline-none"
-              />
-              <p className="text-[11px] text-text-muted mt-1">
-                {t('quickDev.versionHint') || '留空则使用 manifest.json 里的 version。'}
+              <p className="text-xs text-text-muted mt-1">
+                {t('quickDev.versionHint') || '来自 manifest.json，如需修改请编辑文件后重新选择文件夹。'}
               </p>
             </div>
           )}
@@ -1399,9 +1377,11 @@ Install via TaskForge marketplace, then create a task using this script.
                 </div>
                 <div>
                   <label className="block text-xs text-text-muted mb-1">版本</label>
-                  <input type="text" value={editForm.version}
-                    onChange={(e) => setEditForm((f) => ({ ...f, version: e.target.value }))}
-                    className="w-full bg-bg-input border border-border-light rounded-lg px-3 py-2 text-sm text-text-primary focus:border-primary outline-none" />
+                  <div className="flex items-center gap-2">
+                    <input type="text" value={editForm.version} readOnly
+                      className="w-full bg-bg-input/50 border border-border-light rounded-lg px-3 py-2 text-sm text-text-muted outline-none cursor-not-allowed" />
+                    <span className="text-[11px] text-text-muted whitespace-nowrap">来自 manifest.json</span>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs text-text-muted mb-1">描述</label>

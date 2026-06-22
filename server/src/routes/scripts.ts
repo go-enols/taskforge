@@ -239,18 +239,20 @@ router.put(
         return;
       }
     }
-    const { name, version, description, entryPoint, tags, changelog, visible, reviewStatus, reviewComment } = req.body;
+    const { name, description, entryPoint, tags, changelog, visible, reviewStatus, reviewComment } = req.body;
     const now = new Date().toISOString();
     let fileName = existing.file_path as string;
     let checksum = existing.checksum as string;
     let schemaStr = existing.schema as string;
     let manifestErr: string | null = null;
+    let manifestVersion: string | null = null;
     if (req.file) {
       const zipBuffer = req.file.buffer;
       const validation = validateZipManifest(zipBuffer);
       if (!validation.ok) { manifestErr = validation.error; }
       else {
         const m = validation.manifest;
+        manifestVersion = m.version as string;
         checksum = createHash("sha256").update(zipBuffer).digest("hex");
         schemaStr = JSON.stringify(validation.scriptSchema);
         fileName = `${Date.now()}-${m.name || "script"}.zip`;
@@ -264,10 +266,16 @@ router.put(
       res.status(400).json({ error: { message: manifestErr, code: "VALIDATION_ERROR" } });
       return;
     }
+    // 非 admin 用户上传文件时强制进入待审核状态
+    const isAdmin = req.user?.role === "admin";
+    const effectiveReviewStatus = (req.file && !isAdmin) ? "pending" : (reviewStatus !== undefined ? reviewStatus : existing.review_status);
+    const effectiveVisible = (req.file && !isAdmin) ? 0 : (visible !== undefined ? (visible ? 1 : 0) : existing.visible);
+    // 上传文件时版本号强制从 manifest.json 读取，不允许通过请求体修改
+    const effectiveVersion = req.file ? (manifestVersion || existing.version) : existing.version;
     try {
       stmts.scriptUpdate.run(
         name || existing.name,
-        version || existing.version,
+        effectiveVersion,
         description !== undefined ? description : existing.description,
         schemaStr,
         entryPoint || existing.entry_point,
@@ -275,8 +283,8 @@ router.put(
         fileName,
         tags !== undefined ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : existing.tags,
         changelog !== undefined ? changelog : existing.changelog,
-        visible !== undefined ? (visible ? 1 : 0) : existing.visible,
-        reviewStatus !== undefined ? reviewStatus : existing.review_status,
+        effectiveVisible,
+        effectiveReviewStatus,
         reviewComment !== undefined ? reviewComment : existing.review_comment || "",
         now,
         req.params.id
@@ -286,7 +294,7 @@ router.put(
         stmts.versionInsert.run(
           uuidv4(),
           req.params.id,
-          (version || existing.version) as string,
+          effectiveVersion,
           (changelog !== undefined ? changelog : existing.changelog) as string || "",
           checksum,
           fileName,
@@ -393,11 +401,13 @@ router.post(
     const schemaStr = JSON.stringify(validation.scriptSchema);
     const now = new Date().toISOString();
     const reviewStatus = req.user?.role === "admin" ? "approved" : "pending";
+    // 非 admin 重新上传后设为不可见，等待重新审核
+    const effectiveVisible = reviewStatus === "pending" ? 0 : existing.visible;
     try {
       stmts.scriptUpdate.run(
         m.name, m.version, m.description || "", schemaStr, m.entryPoint,
         fileName, checksum, JSON.stringify(m.tags || []), m.changelog || "",
-        existing.visible, reviewStatus, existing.review_comment || "", now, req.params.id
+        effectiveVisible, reviewStatus, existing.review_comment || "", now, req.params.id
       );
     } catch (dbErr) {
       const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
@@ -456,17 +466,17 @@ router.patch(
         return;
       }
     }
-    const { name, version, description, tags, changelog, visible } = req.body;
+    const { name, description, tags, changelog, visible } = req.body;
     const now = new Date().toISOString();
     stmts.scriptPatch.run(
       visible !== undefined ? (visible ? 1 : 0) : existing.visible,
       req.params.id
     );
     // If other fields are being updated, run a full update with existing values
-    if (name || version || description !== undefined || tags || changelog) {
+    if (name || description !== undefined || tags || changelog) {
       stmts.scriptUpdate.run(
         name || existing.name,
-        version || existing.version,
+        existing.version,
         description !== undefined ? description : existing.description,
         existing.schema,
         existing.entry_point,
