@@ -21,7 +21,8 @@ import type {
   TaskOutput,
   ProjectTemplate,
   RemoteProjectTemplate,
-  ScriptVersion
+  ScriptVersion,
+  DataSnapshot,
 } from './types'
 import { call } from './transport'
 
@@ -81,7 +82,11 @@ export const taskApi = {
   getLogs: (taskId: string, limit = 100) => call<TaskLog[]>('task:getLogs', [taskId, limit]),
   getProgress: (taskId: string) =>
     call<{ percent: number; message: string } | null>('task:getProgress', [taskId]),
-  getOutput: (taskId: string) => call<TaskOutput | null>('task:getOutput', [taskId])
+  getOutput: (taskId: string) => call<TaskOutput | null>('task:getOutput', [taskId]),
+  /** 订阅脚本推送的 data 快照（同 key 后发覆盖前发） */
+  onData: (cb: (snap: DataSnapshot) => void) => {
+    return window.electronAPI.on('task:data', (snap) => cb(snap as DataSnapshot))
+  },
 }
 
 export const scriptApi = {
@@ -91,7 +96,6 @@ export const scriptApi = {
   listInstalled: () => call<InstalledScript[]>('script:listInstalled'),
   remove: (scriptId: string) => call<void>('script:remove', [scriptId])
 }
-
 export const templateApi = {
   list: (page?: number, pageSize?: number, search?: string) =>
     call<ListResponse<Template>>('template:list', [page, pageSize, search]),

@@ -212,6 +212,67 @@ console.log('Done')
 process.exit(0)
 ```
 
+### Structured Data Snapshots
+
+Scripts can push named structured data snapshots via stdout using the `data` message:
+
+```js
+process.stdout.write(JSON.stringify({
+  type: 'data',
+  key: 'users',
+  label: 'Users Table',
+  view: 'table',           // table | kv | json | card | auto
+  data: [
+    { name: 'Alice', age: 30 },
+    { name: 'Bob', age: 25 }
+  ]
+}) + '\n')
+```
+
+The snapshots are accumulated during task execution and included in the final `TaskOutput.dataSnapshots` array.
+
+### Viewing Data Snapshots
+
+Data snapshots appear in two places:
+
+- **Tasks page** (route `/tasks`): expand a completed/running task → switch to the **Data** tab → each snapshot shows with auto-detected view.
+- **Debug page** (route `/debug`): after a task completes, the output panel at the bottom includes a **Data Snapshots** section.
+
+Each snapshot card has a view switcher (TABLE / KV / JSON / CARD). You can change the view at any time.
+
+### DebugPage Workflow
+
+The best way to test data snapshots during development:
+
+1. Open **DebugPage** (admin/developer only).
+2. Select your script folder.
+3. Start the task — stdout/stderr appear in the live log panel.
+4. After the task exits, the **output panel** shows exit code, duration, and any data snapshots your script sent.
+5. Click through TABLE / KV / JSON / CARD views to verify each snapshot renders correctly.
+
+### Important: stdin and Process Exit
+
+If your script listens on `process.stdin.on('data', ...)` to handle shutdown signals,
+Node.js **will not exit** because the stdin listener keeps the event loop alive.
+The parent process closes stdin immediately after spawning the child, so the 'data' listener
+never fires — but its mere presence prevents the process from terminating.
+
+To allow the process to exit after sending `result`, call `unref()` on stdin:
+
+```js
+process.stdin.on('data', (chunk) => {
+  // handle shutdown message
+})
+process.stdin.unref()  // ✅ allows process to exit when work is done
+```
+
+Alternatively, after your script finishes its work:
+```js
+process.stdin.destroy()  // ✅ close stdin explicitly
+```
+
+Without one of these, the task will appear to run forever.
+
 ## 6. Lifecycle and Process Control
 
 ### State Transitions

@@ -7,9 +7,10 @@ import { app } from 'electron'
 import { createLogger } from '../utils/logger'
 import { LogBuffer } from '../utils/log-buffer'
 import type { LogEntry } from '../utils/log-buffer'
-import { SdkLineParser } from './sdk-protocol'
+import { SdkLineParser, type DataView } from './sdk-protocol'
 import type { StoreService } from './store'
-import type { TaskOutput, TaskLogBatch, PermissionSet } from '../../shared/types'
+import type { TaskOutput, TaskLogBatch, PermissionSet, DataSnapshot } from '../../shared/types'
+import { estimateSize, MAX_SNAPSHOT_SIZE } from '../../shared/utils/type-guards'
 
 export type RendererSender = (channel: string, data: unknown) => void
 
@@ -38,6 +39,7 @@ const MAX_COMPLETED_OUTPUTS = 100
 export class TaskService {
   private runningTasks = new Map<string, RunningTask>()
   private completedOutputs = new Map<string, TaskOutput>()
+  private dataSnapshots = new Map<string, DataSnapshot>()
   private rendererSender: RendererSender | undefined
   private scriptsDir: string
 
@@ -113,6 +115,9 @@ export class TaskService {
     if (!task) throw new Error('Task not found')
     if (this.runningTasks.has(id)) throw new Error('Task is already running')
     if (task.status === 'running') throw new Error('Task is already running')
+
+    // 每次任务开始时清空之前的 data snapshots
+    this.dataSnapshots.clear()
 
     this.store.taskRepo.updateTask(id, { status: 'running', startedAt: new Date().toISOString() })
 
@@ -310,6 +315,9 @@ export class TaskService {
         env,
         stdio: ['pipe', 'pipe', 'pipe']
       })
+      // 关闭 stdin：父进程不向子进程写数据，子进程的 process.stdin.on('data',...)
+      // 会阻止事件循环退出，导致任务永远不结束
+      proc.stdin?.end()
 
       running.process = proc
 
@@ -323,9 +331,29 @@ export class TaskService {
           // 脚本通过 {type:"result"} 报告最终结果, 写入日志便于用户查看
           if (ok) {
             logBuffer.push('info', `[sdk] result: ${JSON.stringify(data)}`)
+            // 将 result.data 自动转换为一个 _result 数据快照
+            if (data !== undefined) {
+              const size = estimateSize(data)
+              if (size > MAX_SNAPSHOT_SIZE) {
+                logBuffer.push('warn', `[sdk] result data 超过 ${MAX_SNAPSHOT_SIZE} 字节 (${size})，已截断`)
+              } else {
+                const snap: DataSnapshot = {
+                  key: '_result',
+                  label: 'Result',
+                  view: 'auto',
+                  data,
+                  updatedAt: Date.now()
+                }
+                this.dataSnapshots.set('_result', snap)
+                this.sendToRenderer('task:data', snap)
+              }
+            }
           } else {
             logBuffer.push('error', `[sdk] result error: ${error ?? 'unknown'}`)
           }
+        },
+        onData: (key, label, view, data) => {
+          this.handleDataSnapshot(id, key, label, view, data)
         }
       })
 
@@ -356,7 +384,8 @@ export class TaskService {
           exitCode: code,
           stdout: running.stdout.slice(-10000),
           stderr: running.stderr.slice(-10000),
-          durationMs: Date.now() - running.startedAt
+          durationMs: Date.now() - running.startedAt,
+          dataSnapshots: Array.from(this.dataSnapshots.values())
         }
         this.store.taskRepo.updateTask(id, { status, endedAt: new Date().toISOString() })
         this.store.taskRepo.addTaskLog(id, 'info', `Process exited with code ${code ?? 'null'}`)
@@ -386,6 +415,25 @@ export class TaskService {
       this.runningTasks.delete(id)
       throw err
     }
+  }
+
+  /**
+   * 处理脚本发来的 onData 消息：按 key 覆盖存入 dataSnapshots Map，
+   * 超过 MAX_SNAPSHOT_SIZE 的大数据截断并记录警告日志。
+   */
+  private handleDataSnapshot(taskId: string, key: string, label: string | undefined, view: DataView, data: unknown): void {
+    if (!key) return
+    const size = estimateSize(data)
+    if (size > MAX_SNAPSHOT_SIZE) {
+      this.runningTasks.get(taskId)?.logBuffer.push(
+        'warn',
+        `[sdk] data snapshot "${key}" 超过 ${MAX_SNAPSHOT_SIZE} 字节 (${size})，已截断`
+      )
+      return
+    }
+    const snap: DataSnapshot = { key, label, view, data, updatedAt: Date.now() }
+    this.dataSnapshots.set(key, snap)
+    this.sendToRenderer('task:data', snap)
   }
 
   async stopTask(id: string): Promise<void> {
@@ -475,7 +523,8 @@ export class TaskService {
       exitCode: null,
       stdout: running.stdout.slice(-10000),
       stderr: running.stderr.slice(-10000),
-      durationMs: Date.now() - running.startedAt
+      durationMs: Date.now() - running.startedAt,
+      dataSnapshots: []
     }
   }
 
@@ -541,6 +590,7 @@ export class TaskService {
     }
     this.runningTasks.clear()
     this.completedOutputs.clear()
+    this.dataSnapshots.clear()
   }
 
   private trimCompletedOutputs(): void {

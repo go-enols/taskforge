@@ -300,14 +300,18 @@ export type AirdropTaskStatus = 'pending' | 'inProgress' | 'completed' | 'skippe
 export interface AirdropTaskItem {
   /** UUID */
   id: string
-  /** 任务标题 */
-  title: string
+  /** 任务名称 */
+  name: string
+  /** 任务类型 */
+  type: string
   /** 任务描述 */
   description: string
-  /** 截止日期 */
-  deadline?: string
-  /** 完成状态 */
+  /** 任务链接 */
+  link: string
+  /** 当前状态 */
   status: AirdropTaskStatus
+  /** 截止日期 */
+  deadline: string | null
   /** 备注 */
   notes: string
 }
@@ -316,58 +320,58 @@ export interface AirdropTaskItem {
 export interface Earning {
   /** UUID */
   id: string
-  /** 代币名称 */
-  token: string
-  /** 数量 */
+  /** 收益来源 */
+  source: string
+  /** 代币符号（如 ETH, USDT） */
+  symbol: string
+  /** 代币数量 */
   amount: number
-  /** 美元估值（可选） */
-  valueUsd?: number
+  /** 美元估值 */
+  usdValue: number
   /** 收益日期 */
   date: string
+  /** 交易哈希 */
+  txHash: string | null
   /** 备注 */
   notes: string
 }
 
 /** 空投项目完整数据 */
 export interface AirdropProject {
-  /** UUID */
+  /** 项目 UUID */
   id: string
   /** 项目名称 */
   name: string
-  /**
-   * 所属链 — 已废弃, 保留仅为向后兼容旧数据。
-   * 未来如需链信息, 应通过项目模板的自定义字段表达。
-   * @deprecated 自 696858f 之后已从 UI 移除, 改用 templateId + customFields
-   */
+  /** 所属链（已废弃，保留仅向后兼容） */
   chain: string
-  /** 项目状态 */
+  /** 当前状态 */
   status: AirdropStatus
   /** 项目类型 */
   projectType: AirdropProjectType
-  /** 描述（支持 Markdown） */
+  /** 项目描述（支持 Markdown） */
   description: string
   /** 官网 URL */
   website: string
-  /** 关联的任务脚本模板 ID（可选） */
-  scriptTemplateId?: string
-  /** 关联的脚本参数池名称（DB 字段保留 account_pool 兼容历史数据） */
-  accountPool: string
-  /** 相关链接列表 */
+  /** 关联的任务脚本模板 ID（可空） */
+  scriptTemplateId: string | null
+  /** 关联的参数池名称（可空，字段名保留兼容历史数据） */
+  accountPool: string | null
+  /** 关联的项目模板 ID（可空） */
+  templateId: string | null
+  /** 项目模板驱动的自定义字段值（key=字段名，value=输入值） */
+  customFields: Record<string, unknown>
+  /** 链接数组 */
   links: AirdropLink[]
-  /** 资格条件列表 */
+  /** 资格条件数组 */
   eligibilityCriteria: EligibilityCriterion[]
-  /** 空投任务列表 */
+  /** 空投任务项数组 */
   tasks: AirdropTaskItem[]
-  /** 收益记录列表 */
+  /** 收益数组 */
   earnings: Earning[]
-  /** 分类标签 */
+  /** 标签数组 */
   tags: string[]
-  /** 系统标签 */
+  /** 标签数组（冗余，用于 UI 筛选） */
   labels: string[]
-  /** 使用的项目模板 ID（关联 project_templates 表，可选） */
-  templateId?: string
-  /** 模板驱动的自定义字段值（key=字段名, value=用户填的值） */
-  customFields?: Record<string, unknown>
   /** ISO 8601 创建时间 */
   createdAt: string
   /** ISO 8601 更新时间 */
@@ -377,27 +381,26 @@ export interface AirdropProject {
 /**
  * 项目模板 — 用户可自定义的"项目结构定义"
  *
- * 设计目标: 让用户从模板创建项目, 模板里定义该类项目需要填的字段
- * (通过 JSON Schema 风格的字段数组), 项目存储时把字段值存到 AirdropProject.customFields。
- *
- * 跟 "templates" (账户模板) 表不冲突 — 那是脚本 schema, 这是项目 metadata schema。
+ * 不同于账户模板（templates 表，由 JSON Schema 定义脚本参数的数据结构），
+ * 项目模板定义空投项目的 metadata 表单字段。
+ * 不含文件包，由 AirdropProject.templateId 和 customFields 消费。
  */
 export interface ProjectTemplate {
-  /** UUID */
+  /** 模板 UUID（内置模板用 built-in:* 前缀） */
   id: string
-  /** 模板名称 (显示用) */
+  /** 模板名称（显示用） */
   name: string
   /** 模板描述 */
   description: string
-  /** 图标 (lucide-react icon name, e.g. "Folder", "Briefcase") */
+  /** 图标（lucide-react icon name，默认 Folder） */
   icon: string
-  /** 模板驱动字段 (按顺序渲染) */
+  /** 字段数组（按顺序渲染） */
   fields: ProjectTemplateField[]
-  /** 是否内置模板 (内置不可删, 只能禁用) */
+  /** 是否内置模板（true=内置不可删，false=用户创建） */
   builtIn: boolean
-  /** 是否启用 (用户可禁用某个模板) */
+  /** 是否启用 */
   enabled: boolean
-  /** 排序权重, 数字越小越靠前 */
+  /** 排序权重（数字越小越靠前，默认 100） */
   sortOrder: number
   /** ISO 8601 创建时间 */
   createdAt: string
@@ -412,76 +415,57 @@ export interface RemoteProjectTemplate {
   description: string
   icon: string
   fields: ProjectTemplateField[]
+  builtIn: boolean
+  enabled: boolean
+  sortOrder: number
   visible: boolean
-  createdBy?: string
-  createdByName?: string
-  reviewStatus?: string
-  reviewComment?: string
+  reviewStatus: string
+  reviewComment: string | null
+  createdBy: string
+  createdByName: string
   createdAt: string
   updatedAt: string
 }
 
 /** 代币收益汇总 */
 export interface TokenEarnings {
-  /** 代币名称 */
-  token: string
-  /** 总数量 */
+  symbol: string
   totalAmount: number
-  /** 总美元估值 */
-  totalValueUsd: number
+  totalUsdValue: number
 }
 
 /** 即将到来的截止日期 */
 export interface UpcomingDeadline {
-  /** 任务 ID */
-  taskId: string
-  /** 项目名称 */
   projectName: string
-  /** 任务标题 */
-  taskTitle: string
-  /** 截止日期 */
+  taskName: string
   deadline: string
+  daysRemaining: number
 }
 
 /** 空投分析统计数据 */
 export interface AirdropAnalytics {
-  /** 空投项目总数 */
-  totalAirdrops: number
-  /** 进行中的数量 */
-  ongoingCount: number
-  /** 已完成的数量 */
-  completedCount: number
-  /** 已领取的数量 */
-  claimedCount: number
-  /** 已取消的数量 */
-  cancelledCount: number
-  /** 总收益美元估值 */
-  totalEarningsValueUsd: number
-  /** 代币收益明细 */
+  totalProjects: number
+  activeProjects: number
+  totalEarningsUsd: number
   tokenEarnings: TokenEarnings[]
-  /** 即将到来的截止日期 */
   upcomingDeadlines: UpcomingDeadline[]
+  projectsByStatus: Record<string, number>
+  projectsByType: Record<string, number>
 }
 
 /** 应用日志条目 */
 export interface AppLog {
-  /** 自增 ID */
   id: number
-  /** ISO 8601 时间戳 */
   timestamp: string
-  /** 日志级别 */
   level: string
-  /** 分类 */
   category: string
-  /** 日志内容 */
   message: string
-  /** 附加字段 */
-  fields: unknown
+  fields: string | null
 }
 
 /** 分页响应数据结构 */
 export interface ListResponse<T> {
-  /** 当前页数据项 */
+  /** 当前页数据 */
   items: T[]
   /** 数据总数 */
   total: number
@@ -495,348 +479,224 @@ export interface ListResponse<T> {
 
 /** 任务时间线条目 */
 export interface TaskTimelineEntry {
-  /** 日期 */
   date: string
-  /** 启动数量 */
-  started: number
-  /** 完成数量 */
-  completed: number
-  /** 失败数量 */
-  failed: number
+  count: number
+  successRate: number
 }
 
 /** 最近任务执行结果 */
 export interface RecentTaskResult {
-  /** 任务 ID */
-  id: string
-  /** 脚本文件夹路径 */
-  scriptFolder: string
-  /** 任务状态 */
+  taskId: string
+  taskName: string
+  templateId: string
   status: string
-  /** 启动时间 */
-  startedAt: string | null
-  /** 结束时间 */
-  endedAt: string | null
-  /** 持续时长（秒） */
-  durationSecs: number | null
+  exitCode: number | null
+  durationMs: number
+  startedAt: string
 }
 
 /** 模板使用统计 */
 export interface TemplateUsage {
-  /** 模板名称 */
-  templateName: string
-  /** 关联任务数量 */
+  id: string
+  name: string
+  description: string
   taskCount: number
+  avgDurationMs: number
+  successRate: number
 }
 
 /** 模板排名数据 */
 export interface TemplateRanking {
-  /** 模板名称 */
-  templateName: string
-  /** 任务总数 */
+  id: string
+  name: string
+  description: string
   taskCount: number
-  /** 成功数量 */
-  successCount: number
-  /** 错误数量 */
-  errorCount: number
-  /** 成功率（百分比），无任务时为 null */
-  successRate: number | null
+  avgDurationMs: number
+  successRate: number
+  lastUsedAt: string
 }
 
 /** 周趋势数据 */
 export interface WeeklyTrend {
-  /** 周起始日期 */
-  weekStart: string
-  /** 启动数量 */
-  started: number
-  /** 完成数量 */
-  completed: number
-  /** 失败数量 */
-  failed: number
+  date: string
+  taskCount: number
+  successCount: number
+  failCount: number
+  avgDurationMs: number
 }
 
 /** Dashboard 统计聚合数据 */
 export interface StatsAggregate {
-  /** 钱包总数 */
-  walletTotal: number
-  /** 各链钱包数量分布 */
-  walletChainDistribution: Record<string, number>
-  /** 代理总数 */
-  proxyTotal: number
-  /** 各协议代理数量分布 */
-  proxyProtocolDistribution: Record<string, number>
-  /** 各状态代理数量分布 */
-  proxyStatusDistribution: Record<string, number>
-  /** 脚本参数总数 */
-  scriptParamTotal: number
-  /** 各参数池数量分布 */
-  scriptParamPoolDistribution: Record<string, number>
-  /** 任务总数 */
-  taskTotal: number
-  /** 各状态任务数量分布 */
-  taskStatusDistribution: Record<string, number>
-  /** 任务成功率（百分比） */
-  taskSuccessRate: number | null
-  /** 已完成任务数 */
-  taskCompletedCount: number
-  /** 错误任务数 */
-  taskErrorCount: number
-  /** 已结束任务总数 */
-  totalFinishedTasks: number
-  /** 平均任务时长（秒） */
-  averageTaskDurationSecs: number | null
-  /** 任务时长分布 */
-  taskDurationDistribution: Record<string, number>
-  /** 任务时间线 */
-  taskTimeline: TaskTimelineEntry[]
-  /** 最近任务结果 */
+  totalWallets: number
+  totalProxies: number
+  totalScriptParams: number
+  totalTasks: number
+  totalAppLogs: number
+  totalAirdrops: number
+  taskSuccessRate: number
+  avgTaskDurationMs: number
+  tasksByStatus: Record<string, number>
+  tasksByTemplate: Record<string, number>
   recentTaskResults: RecentTaskResult[]
-  /** 模板使用统计 */
+  taskTimeline: TaskTimelineEntry[]
   templateUsage: TemplateUsage[]
-  /** 模板排名 */
   templateRanking: TemplateRanking[]
-  /** 周趋势 */
   weeklyTrend: WeeklyTrend[]
-  /** 总日志数 */
-  totalLogs: number
+  runningTaskCount: number
 }
 
 /** 应用信息 */
 export interface AppInfo {
-  /** 应用版本号 */
-  version: string
-  /** 数据目录路径 */
-  dataDir: string
-  /** 数据库是否已连接 */
-  dbConnected: boolean
-  /** 数据库错误信息 */
-  dbError: string | null
-  /** 钱包数量 */
+  folders: Record<string, string>
   walletCount: number
-  /** 脚本参数数量 */
   scriptParamCount: number
-  /** 代理数量 */
   proxyCount: number
-  /** 任务数量 */
   taskCount: number
-  /** 运行中任务数 */
-  runningTaskCount: number
-  /** 总日志数 */
+  appLogCount: number
   totalLogs: number
 }
 
 /** 备份信息 */
 export interface BackupInfo {
-  /** 备份文件名 */
-  filename: string
-  /** 文件大小（字节） */
-  size: number
-  /** ISO 8601 创建时间 */
+  filePath: string
+  fileSize: number
   createdAt: string
 }
 
 /** 应用更新信息 */
 export interface UpdateInfo {
-  /** 版本号 */
-  version: string
-  /** 更新说明 */
-  notes: string
-  /** 发布日期 */
-  pub_date: string
-  /** 下载目标 URL */
-  target: string
+  canUpdate: boolean
+  currentVersion: string
+  latestVersion: string
+  releaseNotes: string
+  downloadProgress: number
 }
 
 /** API 错误信息 */
 export interface ApiError {
-  /** 错误描述 */
-  message: string
-  /** 错误代码 */
   code?: string
-  /** 错误分类 */
-  category?: string
+  message: string
+  details?: unknown
 }
 
 /** 通用 API 响应包装 */
 export interface ApiResult<T = unknown> {
-  /** 响应数据（成功时存在） */
   data?: T
-  /** 错误信息（失败时存在） */
   error?: ApiError
 }
 
 /** 服务端脚本元数据（从 Marketplace API 获取） */
 export interface RemoteScript {
-  /** 脚本 UUID */
   id: string
-  /** 脚本名称 */
   name: string
-  /** 版本号 */
   version: string
-  /** 描述 */
   description: string
-  /** 参数配置的 JSON Schema */
   schema: Record<string, unknown>
-  /** 入口文件名 */
-  entryPoint?: string
-  /** SHA256 校验和 */
+  entryPoint: string
   checksum: string
-  /** 下载 URL */
+  filePath: string
   downloadUrl: string
-  /** 更新日志 */
-  changelog?: string
-  /** 分类标签 */
-  tags?: string[]
-  /** 下载次数 */
-  downloads?: number
-  /** 是否可见 */
+  tags: string[]
+  changelog: string
+  downloads: number
   visible: boolean
-  /** 创建者用户 ID */
-  createdBy?: string
-  /** 创建者显示名称 */
-  createdByName?: string
-  /** 审核状态 */
-  reviewStatus?: string
-  /** 审核评论 */
-  reviewComment?: string
-  /** 平均评分 */
-  avgRating?: number
-  /** 评分总数 */
-  reviewCount?: number
-  /** ISO 8601 更新时间 */
+  createdBy: string
+  createdByName: string
+  reviewStatus: string
+  reviewComment: string | null
+  avgRating: number
+  reviewCount: number
+  createdAt: string
   updatedAt: string
 }
 
 /** 脚本版本历史记录 */
 export interface ScriptVersion {
-  /** 版本 UUID */
   id: string
-  /** 版本号 */
+  scriptId: string
   version: string
-  /** 该版本的更新日志 */
   changelog: string
-  /** 该版本 ZIP 的 SHA256 校验和 */
   checksum: string
-  /** 该版本的 JSON Schema */
+  filePath: string
   schema: Record<string, unknown>
-  /** 创建者用户 ID */
-  createdBy: string | null
-  /** ISO 8601 创建时间 */
+  createdBy: string
   createdAt: string
 }
 
 /** 脚本评分/评论 */
 export interface ScriptReview {
-  /** 评分 UUID */
-  id: string
-  /** 关联的脚本 ID */
+  id: number
   scriptId: string
-  /** 评分用户 ID */
   userId: string
-  /** 用户名（展示用） */
-  username?: string
-  /** 评分（1-5星） */
+  username: string
   rating: number
-  /** 评论内容（可选） */
-  comment?: string
-  /** ISO 8601 创建时间 */
+  comment: string | null
   createdAt: string
-  /** ISO 8601 更新时间 */
-  updatedAt: string
 }
 
 /** 脚本评分统计 */
 export interface RatingStats {
-  /** 平均评分 */
   avgRating: number
-  /** 评分总数 */
-  count: number
-  /** 各星级分布 */
-  distribution: {
-    stars5: number
-    stars4: number
-    stars3: number
-    stars2: number
-    stars1: number
-  }
+  totalReviews: number
+  distribution: Record<number, number>
 }
 
 /** 服务端模板元数据（从 Marketplace API 获取） */
 export interface RemoteTemplate {
-  /** 模板 UUID */
   id: string
-  /** 模板名称 */
-  name: string
-  /** 模板类型 */
   type: string
-  /** 版本号 */
-  version: string
-  /** 描述 */
-  description: string
-  /** JSON Schema 定义的数据结构 */
+  name: string
   schema: Record<string, unknown>
-  /** SHA256 校验和 */
-  checksum?: string
-  /** 下载 URL */
-  downloadUrl: string | null
-  /** 下载次数 */
-  downloads?: number
-  /** 下载次数字段（兼容） */
-  downloadCount?: number
-  /** 是否可见 */
+  version: string
+  description: string | null
+  checksum: string
+  filePath: string
+  downloadUrl: string
   visible: boolean
-  /** 创建者用户 ID */
-  createdBy?: string
-  /** 创建者显示名称 */
-  createdByName?: string
-  /** 审核状态 */
-  reviewStatus?: string
-  /** 审核评论 */
-  reviewComment?: string
-  /** ISO 8601 更新时间 */
+  createdBy: string
+  createdByName: string
+  reviewStatus: string
+  reviewComment: string | null
+  downloads: number
+  tags: string[]
+  createdAt: string
   updatedAt: string
 }
 
 /** 脚本运行时权限 */
 export interface PermissionSet {
-  /** 允许发起网络请求 */
   network: boolean
-  /** 允许读写脚本目录外的文件系统 */
   filesystem: boolean
 }
 
 /** 已安装到本地的脚本信息 */
 export interface InstalledScript {
-  /** 脚本 UUID */
   id: string
-  /** 脚本名称 */
   name: string
-  /** 版本号 */
   version: string
-  /** 描述 */
   description: string
-  /** 入口文件名 */
-  entryPoint: string
-  /** 参数配置的 JSON Schema */
-  schema: Record<string, unknown>
-  /** 安装路径 */
   installPath: string
-  /** SHA256 校验和 */
-  checksum: string
-  /** 远程服务器 URL */
+  entryPoint: string
   remoteUrl: string | null
-  /** ISO 8601 下载时间 */
-  downloadedAt: string
-  /** ISO 8601 更新时间 */
-  updatedAt: string
-  /** 从 manifest.json 提取的运行时权限声明 */
+  manifest: Record<string, unknown>
+  tags: string[]
+  isInstalled: boolean
   permissions: PermissionSet
-  /**
-   * manifest.json 声明的 requiredAccountTemplateIds 中, 本地尚未下载的账户模板 ID 列表
-   * 仅在 downloadScript 后由 ScriptFetcher 软检查附加, 用于 UI 提示用户去 Marketplace 下载
-   * 缺省 undefined 表示脚本不需要任何账户模板, 或所有依赖已就绪
-   */
   missingAccountTemplates?: string[]
+}
+
+/** 数据快照 — 脚本发来的结构化数据（key 唯一，按 key 覆盖更新） */
+export interface DataSnapshot {
+  /** 唯一标识，同 key 后发覆盖前发 */
+  key: string
+  /** 可选 UI 展示名 */
+  label?: string
+  /** 视图建议：table / kv / json / card / auto（auto 由前端按数据形状自选） */
+  view: 'table' | 'kv' | 'json' | 'card' | 'auto'
+  /** 任意可序列化值 */
+  data: unknown
+  /** 毫秒时间戳 */
+  updatedAt: number
 }
 
 /** 任务执行输出 */
@@ -851,6 +711,8 @@ export interface TaskOutput {
   stderr: string
   /** 执行时长（毫秒） */
   durationMs: number
+  /** 任务运行期间累计的结构化数据快照集合（按 key 去重，最后一次写入为准） */
+  dataSnapshots: DataSnapshot[]
 }
 
 /** 任务日志批量数据 */

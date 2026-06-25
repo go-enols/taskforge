@@ -10,6 +10,7 @@
  *   {"type":"progress","percent":50,"message":"..."}
  *   {"type":"error","message":"...","fields":{...}}
  *   {"type":"result","ok":true,"data":{...}}
+ *   {"type":"data","key":"stats","label":"Statistics","view":"table","data":{...}}
  *   {"type":"response","id":1,"result":{...}}
  *
  * 主进程 → 脚本 (stdin):
@@ -30,12 +31,16 @@
 
 import type { LogBuffer } from '../utils/log-buffer'
 
+/** 数据视图类型 — 脚本可建议最佳展示方式 */
+export type DataView = 'table' | 'kv' | 'json' | 'card' | 'auto'
+
 /** 脚本 → 主进程: 主动发起的消息 (无 id, type 必填) */
 export type SdkMessage =
   | { type: 'log'; level: 'debug' | 'info' | 'warn' | 'error'; message: string; fields?: Record<string, unknown> }
   | { type: 'progress'; percent: number; message?: string }
   | { type: 'error'; message: string; fields?: Record<string, unknown> }
   | { type: 'result'; ok: boolean; data?: unknown; error?: string }
+  | { type: 'data'; key: string; label?: string; view?: DataView; data: unknown }
   | { type: 'response'; id: number; result?: unknown; error?: string }
 
 /** 主进程 → 脚本: 主动发起的消息 (type + 必填字段) */
@@ -72,6 +77,7 @@ export class SdkLineParser {
       logBuffer: LogBuffer
       onProgress?: (percent: number, message?: string) => void
       onResult?: (ok: boolean, data?: unknown, error?: string) => void
+      onData?: (key: string, label: string | undefined, view: DataView, data: unknown) => void
     }
   ) {}
 
@@ -102,22 +108,22 @@ export class SdkLineParser {
    * 实际场景: 进程内极少双向 RPC, 多用于 SDK 调用方主动 query
    */
   waitForResponse(id: number, timeoutMs = 30_000): Promise<RpcResponse> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id)
-        reject(new Error(`RPC timeout for id ${id}`))
-      }, timeoutMs)
-      this.pending.set(id, {
-        resolve: (value) => {
-          clearTimeout(timer)
-          resolve({ result: value })
-        },
-        reject: (err) => {
-          clearTimeout(timer)
-          resolve({ error: err.message })
-        }
-      })
+    const { promise, resolve, reject } = Promise.withResolvers<RpcResponse>()
+    const timer = setTimeout(() => {
+      this.pending.delete(id)
+      reject(new Error(`RPC timeout for id ${id}`))
+    }, timeoutMs)
+    this.pending.set(id, {
+      resolve: (value) => {
+        clearTimeout(timer)
+        resolve({ result: value })
+      },
+      reject: (err) => {
+        clearTimeout(timer)
+        resolve({ error: err.message })
+      }
     })
+    return promise
   }
 
   private processLine(line: string): void {
@@ -179,6 +185,15 @@ export class SdkLineParser {
       }
       case 'result': {
         this.handlers.onResult?.(Boolean(msg.ok), msg.data, msg.error as string | undefined)
+        break
+      }
+      case 'data': {
+        this.handlers.onData?.(
+          String(msg.key ?? ''),
+          typeof msg.label === 'string' ? msg.label : undefined,
+          (msg.view as DataView) ?? 'auto',
+          msg.data
+        )
         break
       }
       // 脚本发的 response 也会走上面 id 分支, 这里不再处理

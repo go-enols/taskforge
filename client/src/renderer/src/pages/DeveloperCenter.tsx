@@ -1837,16 +1837,21 @@ function progress(percent, message) {
   }) + '\\n')
 }
 
-// ── 监听 shutdown 信号（主进程通知优雅退出） ──
+// ── 优雅退出（unref 避免阻塞事件循环，SIGTERM 是标准方式） ──
 process.stdin.on('data', (chunk) => {
   try {
     const msg = JSON.parse(chunk.toString())
     if (msg.type === 'shutdown') {
       log('info', '收到 shutdown，正在清理...')
-      // 清理资源后退出
       process.exit(0)
     }
   } catch { /* 忽略非 JSON 数据 */ }
+})
+process.stdin.unref()  // 关键：不阻止进程自然退出
+
+process.on('SIGTERM', () => {
+  log('info', '收到 SIGTERM，正在清理...')
+  process.exit(0)
 })
 
 // ── 业务示例 ──

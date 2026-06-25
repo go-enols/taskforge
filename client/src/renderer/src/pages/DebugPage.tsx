@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file DebugPage — 脚本调试页
  * @description 提供脚本的实时调试环境：选择项目文件夹、查看 Schema、匹配脚本参数、
  *              设置沙箱模式、运行/暂停/恢复/停止任务、查看实时日志与输出。
@@ -25,6 +25,7 @@ import {
 import { taskApi, fileApi, scriptParamApi, dialogApi } from '../api'
 import type { TaskLog, Task, ScriptParam, TaskOutput } from '../../../../src/shared/types'
 import LogViewer from '../components/common/LogViewer'
+import { DataViewer } from '../components/common/DataViewer'
 import { DynamicForm } from '../components/common'
 import { jsonSchemaToFieldMeta, type FieldMeta } from '../../../shared/schemas/task-params'
 import { toast } from '../utils/toast'
@@ -644,6 +645,21 @@ const DebugPage: React.FC = () => {
                   </span>
                 </div>
               </div>
+              {output.dataSnapshots && output.dataSnapshots.length > 0 && (
+                <div className="border-t border-border-light pt-2 mt-2">
+                  <h4 className="text-xs font-medium text-text-muted mb-2">
+                    Data Snapshots ({output.dataSnapshots.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {output.dataSnapshots.map((snap) => (
+                      <div key={snap.key} className="border border-border-light rounded p-2 bg-bg-tertiary/30">
+                        <span className="text-xs font-medium mb-1 block">{snap.label ?? snap.key}</span>
+                        <DataViewer snap={snap} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -8,7 +8,7 @@
 
 基于 Electron 的全栈桌面应用，**核心定位是"脚本分发 + 沙箱执行平台"**。React + Tailwind CSS 渲染层，Node.js 主进程。所有业务逻辑在 TypeScript 中实现，附带独立的 Express 服务端子项目作为脚本与账户模板的分发后端。
 
-> **重要**：本仓库的原始名称是 airdrop-farm，正在重命名为 TaskForge（见 `.omo/plans/taskforge-redesign.md`）。所有"空投"业务（airdrop tracking、airdrop projects）只是脚本可执行的众多垂直场景之一，不是产品主线。当前重构目标：把脚本市场 + 沙箱执行作为导航/产品文案的一等公民，空投业务降级为次要模块。
+> **重要**：本仓库的原始名称是 airdrop-farm，已重命名为 TaskForge。所有"空投"业务（airdrop tracking、airdrop projects）只是脚本可执行的众多垂直场景之一，不是产品主线。重构已完成：脚本市场（Marketplace）+ 沙箱执行作为导航/产品文案的一等公民，空投业务（Airdrops）降级为次要模块。客户端当前版本 **v0.3.9**（见 `client/package.json`）。
 
 ### 子项目
 
@@ -44,48 +44,69 @@ taskforge/
 │   ├── src/
 │   │   ├── main/                    # Electron 主进程 (Node.js)
 │   │   │   ├── index.ts             # App 入口、窗口管理、服务初始化
-│   │   │   ├── ipc/index.ts         # 统一 handler 注册表 (IPC + HTTP 共享)
+│   │   │   ├── ipc/
+│   │   │   │   ├── registry.ts      # handlerMap / register() / executeHandler（IPC+HTTP 共享注册表）
+│   │   │   │   ├── index.ts         # registerIpcHandlers() 聚合入口，按领域调用各 handler 注册函数
+│   │   │   │   └── handlers/        # 按领域拆分的 handler 文件（app/wallet/proxy/task/script/
+│   │   │   │                        #   template/taskTemplate/scheduler/airdrop/projectTemplate/
+│   │   │   │                        #   captchaKey/proxyProvider/setting/log/system/market/scriptParam）
 │   │   │   ├── httpapi/server.ts    # HTTP API 冗余传输层 (:34116)
 │   │   │   ├── services/            # 业务逻辑
-│   │   │   │   ├── store.ts         # SQLite 数据访问层
-│   │   │   │   ├── task.ts          # 任务执行引擎（子进程管理、权限控制）
-│   │   │   │   ├── wallet.ts        # 钱包管理
-│   │   │   │   ├── script-fetcher.ts # 远程脚本下载器
+│   │   │   │   ├── store.ts         # SQLite 数据访问层（聚合各 Repository）
+│   │   │   │   ├── task.ts          # 任务执行引擎（子进程管理、SDK 协议、4 层权限）
+│   │   │   │   ├── script-fetcher.ts # 远程脚本下载器（校验、解压、meta.json 写入）
 │   │   │   │   ├── scheduler.ts     # 定时任务调度
+│   │   │   │   ├── sdk-protocol.ts  # NDJSON 协议解析器 SdkLineParser
+│   │   │   │   ├── sandbox-enforcer.cjs # Layer 4 根级权限强制 patch
 │   │   │   │   ├── encryption.ts    # 加密服务
-│   │   │   │   └── repositories/    # 数据仓库层
-│   │   │   └── utils/               # 日志等工具
+│   │   │   │   └── repositories/    # 数据仓库层（wallet/proxy/task/scriptParam/template/
+│   │   │   │                        #   taskTemplate/scheduledTask/airdrop-project/captcha-key/
+│   │   │   │                        #   proxyProvider/app-log/settings/project-template）
+│   │   │   └── utils/               # logger、log-buffer、zipExtractor
 │   │   ├── preload/                  # Context bridge (electronAPI.invoke / .on)
 │   │   └── renderer/                # React 前端
 │   │       └── src/
-│   │           ├── api.ts           # 类型化 API 客户端
+│   │           ├── api.ts           # 类型化 API 客户端（含 marketplaceApi / fileApi / serverApi 等）
 │   │           ├── transport.ts     # 双传输层 (IPC → HTTP 自动降级)
-│   │           ├── components/      # 共享 UI 组件 (TitleBar, BrandMark, ThemeToggle, ParticlegroundBg 等)
-│   │           ├── pages/           # 路由页面
-│   │           ├── hooks/           # 自定义 hooks
-│   │           ├── contexts/        # React contexts (AuthContext 等)
-│   │           ├── i18n/            # 国际化 (zh-CN)
+│   │           ├── App.tsx          # 路由 + 角色 ProtectedRoute
+│   │           ├── components/      # 共享 UI 组件 (TitleBar, Layout, BrandMark, ThemeToggle,
+│   │           │                    #   ParticlegroundBg, DynamicForm, MarkdownEditor/View,
+│   │           │                    #   DataRequirementPanel, OfflineBanner, common/*, airdrops/*, data-import/*)
+│   │           ├── pages/           # 路由页面（见 §3.1）
+│   │           ├── hooks/           # 自定义 hooks（useTheme + queries/* + useApi 等）
+│   │           ├── contexts/        # React contexts (AuthContext)
+│   │           ├── i18n/            # 国际化 (zh-CN.json)
 │   │           ├── types/           # 前端类型定义
-│   │           └── utils/           # 前端工具函数
+│   │           └── utils/           # 前端工具函数（toast, taskStateTracker, data-import-parser 等）
 │   ├── shared/
-│   │   ├── types/index.ts           # 共享 TypeScript 接口
-│   │   └── schemas/                 # 共享数据校验 schema
+│   │   ├── types/index.ts           # 共享 TypeScript 接口（客户端 + 服务端共用）
+│   │   └── schemas/                 # 共享 zod schema（manifest, task-params）
+│   ├── scripts/                     # check-i18n.cjs（CI 校验 i18n key）、postinstall.cjs、sdk-example/
 │   ├── resources/                   # 应用图标
 │   ├── build/                       # 构建资源 (entitlements, icons)
-│   └── tests/                       # 测试文件
+│   └── tests/                       # Vitest 测试（main/ + renderer/）
+├── shared/
+│   └── schemas/manifest.ts          # 客户端 + 服务端共享的 ScriptManifestSchema（单一真源）
 ├── server/                      # Marketplace 服务端
 │   ├── package.json
 │   ├── tsconfig.json
-│   ├── data/                        # 运行时数据（marketplace.db, uploads/）
+│   ├── data/                        # 运行时数据（marketplace.db, uploads/scripts/）
 │   └── src/
-│       ├── index.ts             # Express 入口，端口 3400
-│       ├── db/index.ts          # SQLite 数据库 + prepared statements
+│       ├── index.ts             # Express 入口，默认端口 8268，HOST 0.0.0.0
+│       ├── db/index.ts          # SQLite + 预编译语句 + 顺序迁移框架（_migrations 版本表）
 │       ├── routes/auth.ts       # 登录/注册/初始化
-│       ├── routes/scripts.ts    # 脚本 CRUD + 上传/下载
-│       ├── routes/templates.ts  # 模板 CRUD
-│       ├── routes/users.ts      # 用户管理
-│       ├── middleware/auth.ts   # JWT + Bearer Token 认证
-│       └── utils/keys.ts        # 密钥生成
+│       ├── routes/scripts.ts    # 脚本 CRUD + 上传/下载/重新上传/版本/审核/部分更新
+│       ├── routes/templates.ts  # 账户模板 CRUD
+│       ├── routes/project-templates.ts # 项目模板 CRUD + 审核 + 可见性
+│       ├── routes/users.ts      # 用户管理（含 api_key）
+│       ├── middleware/auth.ts   # JWT + Bearer Token + requireRole 角色守卫
+│       ├── middleware/validate.ts # 请求体校验
+│       ├── shared/schemas/manifest.ts # 服务端副本 manifest schema
+│       ├── schemas/auth-user.ts # 认证/用户 schema
+│       ├── types.ts             # AuthenticatedRequest 等服务端类型
+│       └── utils/keys.ts        # JWT/API 密钥生成
+├── tools/icon-builder/            # 应用图标构建脚本
+├── docs/                          # task-script-dev-guide.html 等
 ├── AGENTS.md / CLAUDE.md / README.md
 ├── .github/workflows/             # PR check + Release
 └── .gitignore
@@ -102,7 +123,7 @@ taskforge/
 1. **IPC（主）** — `window.electronAPI.invoke(channel, ...args)` 通过 Electron context bridge
 2. **HTTP（备）** — `POST http://127.0.0.1:34116/api/call {channel, args}`
 
-两个传输层共享 `src/main/ipc/index.ts` 中的 `handlerMap`。`executeHandler()` 是所有 API 调用的唯一入口，无论走哪种传输层。
+两个传输层共享 `src/main/ipc/registry.ts` 中的 `handlerMap`。`executeHandler()` 是所有 API 调用的唯一入口，无论走哪种传输层。`registerIpcHandlers()`（`ipc/index.ts`）按领域调用各 `handlers/*.ts` 文件的注册函数。
 
 传输层选择逻辑（`transport.ts`）：
 - 强制模式：URL 参数 `?transport=http` 或 `localStorage['app-transport']`
@@ -110,23 +131,24 @@ taskforge/
 
 ### 2.2 客户端 ↔ 服务端通信（Marketplace）
 
-客户端通过 HTTP 直接 fetch Marketplace Server（默认 `http://localhost:3400`）：
-- **渲染进程**：`marketplaceApi` 对象（`api.ts`）调用 `${base}/api/scripts` / `${base}/api/templates`
+客户端通过 HTTP 直接 fetch Marketplace Server（默认 `http://localhost:8268`）：
+- **渲染进程**：`marketplaceApi` 对象（`api.ts`）调用 `${base}/api/scripts` / `${base}/api/templates` / `${base}/api/project-templates`
 - **主进程**：`ScriptFetcher` 类（`script-fetcher.ts`）调用 `${base}/api/scripts`
-- **配置**：Settings 页面 → 存取 setting key `marketplace_server_url` → 默认 `http://localhost:3400`
+- **配置**：Settings 页面 → 存取 setting key `marketplace_server_url` → 默认 `http://localhost:8268`
 - **CSP**：`connect-src` 已放开 `http://localhost:* http://127.0.0.1:*`
 
-### 2.3 新增 API 端点流程
+### 2.3 新增 IPC 端点流程
 
-1. 在 `client/src/main/ipc/index.ts` 中 `register('channel:name', handler)`
-2. 在 `client/src/renderer/src/api.ts` 中添加类型化方法 `call<T>('channel:name', [args])`
-3. IPC 和 HTTP 自动支持新端点
+1. 在 `client/src/main/ipc/registry.ts` 导出 `register()`（已存在，直接复用）
+2. 在合适的 `client/src/main/ipc/handlers/<领域>-handlers.ts` 中 `register('channel:name', handler)`，并在 `ipc/index.ts` 的 `registerIpcHandlers()` 中调用对应 `registerXxxHandlers(services)`
+3. 在 `client/src/renderer/src/api.ts` 中添加类型化方法（按需 `call<T>('channel:name', [args])`）
+4. IPC 和 HTTP 自动支持新端点（`register()` 同时写入 `handlerMap` 与 `ipcMain.handle`）
 
 ---
 
 ## 3. 技术栈
 
-- **Electron** — 桌面壳（electron-vite 脚手架）
+- **Electron 39** — 桌面壳（electron-vite 脚手架）
 - **React 19 + TypeScript** — 渲染层 UI
 - **Tailwind CSS v4** — 样式（@tailwindcss/vite 插件）
 - **three.js** — WebGL 3D 渲染（登录页粒子背景）
@@ -135,15 +157,21 @@ taskforge/
 - **ethers.js** — EVM 钱包管理
 - **@solana/web3.js** — Solana 钱包管理
 - **bip39 + ed25519-hd-key** — HD 钱包派生
-- **react-router-dom** — 前端路由（HashRouter）
-- **i18next** — 国际化
+- **react-router-dom 7** — 前端路由（HashRouter，懒加载页面 + KeepAliveOutlet 缓存）
+- **i18next + react-i18next** — 国际化（zh-CN，CI 由 `scripts/check-i18n.cjs` 校验 key 完整性）
 - **lucide-react** — 图标
-- **Express (server/)** — 市场服务端
-- **JWT + bcrypt** — 认证与角色授权
+- **react-markdown + remark-gfm + rehype-sanitize** — Markdown 渲染（空投描述、SDK 文档）
 - **sonner** — Toast 提示
 - **@tanstack/react-query** — 服务端状态管理
-- **react-hook-form** — 表单处理
-- **zod** — 数据验证
+- **react-hook-form + @hookform/resolvers** — 表单处理
+- **zod 4** — 数据验证（manifest schema 单一真源见 `shared/schemas/manifest.ts`）
+- **adm-zip + json5** — zip 内存解压与 manifest 解析（客户端 `script-fetcher` + 服务端上传校验）
+- **uuid** — UUID v4 生成
+- **electron-updater** — 应用自动更新
+- **Express (server/)** — 市场服务端
+- **multer** — 服务端 multipart 文件上传（内存存储，限 50MB）
+- **express-rate-limit** — 服务端限流（认证 10/min、通用 100/min）
+- **JWT + bcrypt** — 认证与角色授权
 
 ---
 
@@ -161,28 +189,34 @@ taskforge/
 
 ### 页面访问权限
 
-| 页面                  | admin | developer | user |
-| --------------------- | :---: | :-------: | :--: |
-| Dashboard             |  ✅   |    ✅     |  ✅  |
-| Wallets               |  ❌   |    ✅     |  ✅  |
-| Accounts              |  ❌   |    ✅     |  ✅  |
-| Proxies               |  ❌   |    ✅     |  ✅  |
-| Airdrops              |  ❌   |    ✅     |  ✅  |
-| Tasks                 |  ❌   |    ✅     |  ✅  |
-| Scheduler             |  ❌   |    ✅     |  ✅  |
-| Templates（模板市场）|  ✅²  |    ✅     |  ✅¹ |
-| Quick Dev             |  ❌   |    ✅     |  ❌  |
-| Developer Pending     |  ❌   |    ✅     |  ❌  |
-| Admin Review          |  ✅   |    ❌     |  ❌  |
-| Logs                  |  ✅   |    ❌     |  ❌  |
-| Settings              |  ✅   |    ❌     |  ❌  |
-| User Management       |  ✅   |    ❌     |  ❌  |
-| Debug Page            |  ✅   |    ✅     |  ❌  |
+重构后页面与路由（见 `App.tsx`、`Layout.tsx` 的 `ALL_NAV_ITEMS`）：
 
-> ¹ user 角色在 Templates 页面只能浏览和安装模板/脚本，不可使用 Schema 编辑器、上传、更新或删除。
-> ² admin 在 Templates 页面可管理可见性、删除任何条目，但不进行运营性使用。日常上传/编辑由 developer 完成。
+| 路由                         | 页面组件         | admin | developer | user | 说明                                                          |
+| ---------------------------- | ---------------- | :---: | :-------: | :--: | ------------------------------------------------------------- |
+| `/`                          | Dashboard        |  ✅   |    ✅     |  ✅  | 仪表盘                                                        |
+| `/marketplace`               | Templates        |  ✅²  |    ✅     |  ✅¹ | 脚本/账户模板市场（浏览 + 安装）                              |
+| `/marketplace/scripts/:id`   | ScriptDetail     |  ✅²  |    ✅     |  ✅¹ | 脚本详情（版本历史、评分评论、下载）                          |
+| `/tasks`                     | Tasks            |  ❌   |    ✅     |  ✅  | 任务运行（沙箱、实时日志、进度）                              |
+| `/data`                      | Data             |  ❌   |    ✅     |  ✅  | 数据管理父页（Tab：ScriptParams / Proxies / Captcha / Import）|
+| `/data/params`               | Data             |  ❌   |    ✅     |  ✅  | 脚本参数池（原 Accounts，按模板 schema 录入）                 |
+| `/data/proxies`              | Data             |  ❌   |    ✅     |  ✅  | 代理管理                                                      |
+| `/data/captcha`              | Data             |  ❌   |    ✅     |  ✅  | 验证码 API 密钥                                               |
+| `/scheduler`                 | Scheduler        |  ❌   |    ✅     |  ✅  | Cron 定时任务                                                 |
+| `/airdrops`                  | Airdrops         |  ❌   |    ✅     |  ✅  | 空投项目追踪（次要业务模块）                                  |
+| `/settings`                  | Settings         |  ✅   |    ✅     |  ✅  | 应用设置（含 Marketplace 服务器地址、备份、更新）            |
+| `/stats`                     | Stats            |  ✅   |    ❌     |  ❌  | 统计分析（基于 StatsAggregate）                               |
+| `/dev`                       | DeveloperCenter  |  ✅³  |    ✅     |  ❌  | 开发者中心（Tab：脚手架 / 我的提交 / 我的脚本 / SDK 文档 / 参数模板 / 项目模板）|
+| `/admin`                     | AdminCenter      |  ✅   |    ❌     |  ❌  | 管理中心（用户管理）                                          |
+| `/admin/script-review`       | ScriptReview     |  ✅   |    ❌     |  ❌  | 脚本审核（approve/reject）                                    |
+| `/admin/templates`           | TemplateReview   |  ✅   |    ❌     |  ❌  | 项目模板审核                                                  |
+| `/logs`                      | Logs             |  ✅   |    ❌     |  ❌  | 应用日志查看                                                  |
+| `/debug`                     | DebugPage        |  ✅   |    ✅     |  ❌  | 调试页（IPC/传输层探活、脚本执行、结构化数据快照可视化） |
 
-**注意**：路由层面（`App.tsx`）某些页面对 admin 没有显式拦截，但导航栏（`Layout.tsx`）不再展示这些入口；admin 不应通过 URL 跳转使用运营页面。
+> ¹ user 在 Marketplace 只能浏览和安装模板/脚本，不可使用 Schema 编辑器、上传、更新或删除。
+> ² admin 在 Marketplace 可管理可见性、删除任何条目，但不进行日常运营上传（由 developer 完成）。
+> ³ admin 可访问 DeveloperCenter（含审核视角），但脚手架/上传等开发流程主要由 developer 使用。
+
+**导航与路由对应关系**：`Layout.tsx` 的 `ALL_NAV_ITEMS` 定义左侧导航（带 `roles` 过滤），其中 `/data` 和 `/admin` 是可展开的父级菜单。`App.tsx` 用 `<ProtectedRoute roles={[...]}>` 在路由层二次校验；未列角色的路径访问会被拦截回 Dashboard。`KeepAliveOutlet` 缓存已挂载页面组件，切换路由不重新挂载。
 
 ### 实现层次
 
@@ -219,20 +253,22 @@ taskforge/
 | labels      | TEXT → JSON   | 标签数组                     |
 | created_at  | TEXT NOT NULL | ISO 8601                     |
 
-#### accounts — 账户（账号池中的账户）
+#### script_params — 脚本参数（参数池中的条目）
+
+> 由老表 `accounts` 重命名而来（`StoreService.migrateAccountsToScriptParams()` 自动迁移；DB 列 `pool` 仍保留旧列名以兼容历史数据）。对应类型 `ScriptParam`，IPC channel 前缀 `scriptParam:*`。
 
 | 字段        | 类型          | 说明                               |
 | ----------- | ------------- | ---------------------------------- |
 | id          | TEXT PK       | UUID v4                            |
 | template_id | TEXT NOT NULL | 关联的模板 ID                      |
-| data        | TEXT → JSON   | 账户数据（由模板 schema 定义结构） |
-| pool        | TEXT NOT NULL | 账号池名称（分组标识）             |
+| data        | TEXT → JSON   | 参数数据（由模板 schema 定义结构） |
+| pool        | TEXT NOT NULL | 参数池名称（分组标识）             |
 | labels      | TEXT → JSON   | 标签数组                           |
 | notes       | TEXT          | 备注                               |
 | created_at  | TEXT NOT NULL | ISO 8601                           |
 | updated_at  | TEXT NOT NULL | ISO 8601                           |
 
-索引：`idx_accounts_pool ON accounts(pool)`
+索引：`idx_script_params_pool ON script_params(pool)`
 
 #### proxies — 代理
 
@@ -340,13 +376,15 @@ taskforge/
 | -------------------- | ------------- | -------------------------------------------------- |
 | id                   | TEXT PK       | UUID v4                                            |
 | name                 | TEXT NOT NULL | 项目名称                                           |
-| chain                | TEXT          | 所属链（默认空）                                   |
+| chain                | TEXT          | 所属链（**已废弃**，保留仅向后兼容；链信息改用 `template_id` + `custom_fields`）|
 | status               | TEXT NOT NULL | ongoing / completed / cancelled / claimed          |
 | project_type         | TEXT NOT NULL | testnet / mainnet / galxe / quest / social / other |
 | description          | TEXT          | 项目描述（支持 Markdown）                          |
 | website              | TEXT          | 官网 URL                                           |
 | script_template_id   | TEXT          | 关联的任务脚本模板 ID（可空）                      |
-| account_pool         | TEXT          | 关联的账号池名称（可空）                           |
+| account_pool         | TEXT          | 关联的参数池名称（可空，字段名保留兼容历史数据）   |
+| template_id          | TEXT          | 关联的项目模板 ID（可空，见 `project_templates` 表）|
+| custom_fields        | TEXT → JSON   | 项目模板驱动的自定义字段值（key=字段名）           |
 | links                | TEXT → JSON   | `[{label, url}]` 链接数组                          |
 | eligibility_criteria | TEXT → JSON   | 资格条件数组                                       |
 | tasks                | TEXT → JSON   | 空投任务项数组                                     |
@@ -388,11 +426,32 @@ taskforge/
 
 索引：`idx_app_logs_category ON app_logs(category)`
 
+#### project_templates — 项目模板（项目元数据表单字段定义）
+
+> 与 `templates`（账户模板，脚本/账户数据结构）不同：`project_templates` 定义空投项目的 metadata 表单字段，无文件包，由 `AirdropProject.templateId` + `customFields` 消费。客户端 `ProjectTemplateRepository` 管理，服务端 `project_templates` 路由分发。
+
+| 字段        | 类型          | 说明                                              |
+| ----------- | ------------- | ------------------------------------------------- |
+| id          | TEXT PK       | UUID v4（内置模板用 `built-in:*` 前缀）           |
+| name        | TEXT NOT NULL | 模板名称（显示用）                                |
+| description | TEXT          | 模板描述                                          |
+| icon        | TEXT          | 图标（lucide-react icon name，默认 `Folder`）     |
+| fields      | TEXT → JSON   | `ProjectTemplateField[]` 字段数组（按顺序渲染）   |
+| built_in    | INTEGER       | 是否内置模板（1=内置不可删，0=用户创建）          |
+| enabled     | INTEGER       | 是否启用（1/0）                                   |
+| sort_order  | INTEGER       | 排序权重（数字越小越靠前，默认 100）              |
+| created_at  | TEXT NOT NULL | ISO 8601                                          |
+| updated_at  | TEXT NOT NULL | ISO 8601                                          |
+
+> 注：服务端 `project_templates` 表额外含 `visible / created_by / review_status / review_comment` 列（审核 + 可见性），客户端表不含这些。
+
 ### 4.2 数据库迁移
 
 `StoreService` 包含自动迁移逻辑，用于向后兼容现有数据库：
-- `migrateAirdropProjects()` — 为 airdrop_projects 表添加新字段
-- `migrateProxies()` — 为 proxies 表添加 format 字段
+- `migrateAccountsToScriptParams()` — 把老表 `accounts` 重命名为 `script_params`，并迁移索引 `idx_accounts_pool` → `idx_script_params_pool`
+- `migrateAirdropProjects()` — 为 airdrop_projects 表添加 `website / script_template_id / account_pool / template_id / custom_fields` 字段
+- `migrateProxies()` — 为 proxies 表添加 `format` 字段
+- `seedProjectTemplates()` — 首次启动插入 2 个内置项目模板（`built-in:basic-project`、`built-in:tracked-project`）
 
 ---
 
@@ -402,13 +461,19 @@ taskforge/
 
 | 项目     | 值                                                               |
 | -------- | ---------------------------------------------------------------- |
-| 默认端口 | 3400                                                             |
-| 监听地址 | 127.0.0.1（可用 `HOST` 环境变量覆盖）                            |
+| 默认端口 | 8268（commit 6e4f4c4 从 3400 改为 8268，可用 `PORT` 环境变量覆盖）|
+| 监听地址 | 0.0.0.0（commit 44b7fdc 从 127.0.0.1 改为 0.0.0.0 允许外部访问；可用 `HOST` 环境变量覆盖）|
 | 数据库   | `server/data/marketplace.db` (SQLite, WAL)                       |
-| 上传目录 | `server/data/uploads/scripts/`、`server/data/uploads/templates/` |
+| 上传目录 | `server/data/uploads/scripts/`（脚本 zip 内存上传，落盘于此）    |
 | 认证     | JWT Token + Bearer Token 认证                                    |
-| GET 请求 | 公开，无需认证                                                   |
+| GET 请求 | 公开，无需认证（脚本/模板/项目模板列表与详情）                   |
 | 写请求   | 需要 `Authorization: Bearer <token>`                             |
+| CORS     | 白名单：Electron 客户端端口（34116）、vite dev（5173）、通配 `*`；可用 `CORS_ORIGINS` 追加逗号分隔来源 |
+| 限流     | 认证端点 10/min，通用 API 100/min（`express-rate-limit`）        |
+| 请求体   | JSON 限 10MB（防大 JSON 攻击）                                   |
+| 文件上传 | multer 内存存储，单文件限 50MB                                   |
+
+> **迁移框架**：服务端数据库采用显式迁移框架（`db/index.ts` 的 `_migrations` 版本表 + 顺序 migration 函数）。每个 schema 变更必须以独立 migration 追加到 `MIGRATIONS` 数组，框架在事务中按序执行、幂等、失败回滚。
 
 ### 5.2 API 端点
 
@@ -422,16 +487,25 @@ taskforge/
 
 #### Scripts（`/api/scripts`）
 
-| 方法   | 路径            | 说明                                                      |
-| ------ | --------------- | --------------------------------------------------------- |
-| GET    | `/`            | 列出所有脚本。返回 `{data: {items: ScriptItem[], total}}` |
-| GET    | `/:id`         | 获取脚本详情                                              |
-| GET    | `/:id/download`| 下载脚本 zip 包（自增下载计数）                           |
-| POST   | `/`            | 上传脚本（multipart）                                     |
-| PUT    | `/:id`         | 更新脚本信息                                              |
-| DELETE | `/:id`         | 删除脚本（含文件）                                        |
+| 方法   | 路径             | 鉴权                  | 说明                                                      |
+| ------ | ---------------- | --------------------- | --------------------------------------------------------- |
+| GET    | `/`              | 登录                  | 列出所有脚本（含可见性过滤）。返回 `{data: ScriptItem[]}` |
+| GET    | `/pending`       | admin                 | 待审核脚本列表                                            |
+| GET    | `/my-pending`    | admin / developer     | 当前用户的待审核脚本                                      |
+| GET    | `/:id`           | 登录                  | 获取脚本详情                                              |
+| GET    | `/:id/download`  | 登录                  | 下载脚本 zip 包（自增下载计数）                           |
+| GET    | `/:id/versions`  | 登录                  | 脚本版本历史（`script_versions` 表）                      |
+| POST   | `/`              | admin / developer     | 上传脚本（multipart，adm-zip 内存解压 + zod 校验 manifest）|
+| POST   | `/:id/reupload`  | admin / developer     | 重新上传脚本 zip（替换文件 + 重新校验，非 admin 置为 pending 不可见）|
+| POST   | `/:id/review`    | admin                 | 审核脚本（action=approve/reject，reject 置不可见但保留记录）|
+| PUT    | `/:id`           | admin / 创建者        | 更新脚本信息（重新上传版本时写入 `script_versions`）      |
+| PATCH  | `/:id`           | admin / 创建者        | 部分更新（可见性、元数据等，不含 ZIP 替换）               |
+| PATCH  | `/:id/review`    | admin                 | 更新审核状态/评论/可见性                                  |
+| DELETE | `/:id`           | admin / 创建者        | 删除脚本（含文件）                                        |
 
-#### Templates（`/api/templates`）
+> GET 列表返回 `{data: ScriptItem[]}`，单条返回 `{data: ScriptItem}`。
+
+#### Templates — 账户模板（`/api/templates`）
 
 | 方法   | 路径   | 说明                  |
 | ------ | ------ | --------------------- |
@@ -441,61 +515,72 @@ taskforge/
 | PUT    | `/:id` | 更新模板              |
 | DELETE | `/:id` | 删除模板              |
 
+#### Project Templates — 项目模板（`/api/project-templates`）
+
+| 方法   | 路径              | 鉴权              | 说明                                            |
+| ------ | ----------------- | ----------------- | ----------------------------------------------- |
+| GET    | `/`               | 登录              | 列出所有可见项目模板                            |
+| GET    | `/pending`        | admin             | 待审核项目模板                                  |
+| GET    | `/:id`            | 登录              | 获取项目模板详情                                |
+| POST   | `/`               | admin / developer | 创建项目模板                                    |
+| PUT    | `/:id`            | admin / 创建者    | 更新项目模板                                    |
+| PATCH  | `/:id/visibility` | admin             | 切换项目模板可见性                              |
+| POST   | `/:id/review`     | admin             | 审核项目模板（approve/reject）                  |
+| DELETE | `/:id`            | admin / 创建者    | 删除项目模板                                    |
+
 #### Users（`/api/users`）
 
-| 方法   | 路径         | 说明                  |
-| ------ | ------------ | --------------------- |
-| GET    | `/`         | 列出所有用户（admin 权限） |
-| GET    | `/me`       | 获取当前用户信息      |
-| PUT    | `/:id/role` | 更新用户角色（admin 权限） |
+| 方法   | 路径              | 鉴权  | 说明                              |
+| ------ | ----------------- | ----- | --------------------------------- |
+| GET    | `/`               | admin | 列出所有用户（含 api_key 掩码）   |
+| GET    | `/me`             | 登录  | 获取当前用户信息                  |
+| PUT    | `/:id/role`       | admin | 更新用户角色                      |
+| POST   | `/:id/regenerate-key` | admin / 自己 | 重新生成用户 API 密钥（UUID v4）|
 
 #### Health
 
-| 方法 | 路径          | 说明                                       |
-| ---- | ------------- | ------------------------------------------ |
-| GET  | `/api/health` | 健康检查。返回 `{status: "ok", timestamp, needsSetup}` |
+| 方法 | 路径          | 说明                                                           |
+| ---- | ------------- | -------------------------------------------------------------- |
+| GET  | `/api/health` | 健康检查（探活 DB）。返回 `{status, db, timestamp, needsSetup}`|
 
 ### 5.3 ScriptItem 数据结构（服务端）
 
-上传脚本时服务端存储的字段：
+上传脚本时服务端存储的字段（`scripts` 表 + `rowToScript()` 映射生成响应）：
 
-| 字段        | 类型        | 说明                                  |
-| ----------- | ----------- | ------------------------------------- |
-| id          | TEXT        | UUID v4                               |
-| name        | TEXT        | 脚本名称                              |
-| version     | TEXT        | 语义化版本                            |
-| description | TEXT        | 描述                                  |
-| schema      | TEXT → JSON | 参数 schema（定义脚本需要的表单字段） |
-| entry_point | TEXT        | 入口文件（如 `index.js`）             |
-| checksum    | TEXT        | sha256                                |
-| downloadUrl | TEXT(生成)  | `/api/scripts/:id/download`           |
-| tags        | TEXT → JSON | 标签数组                              |
-| changelog   | TEXT        | 更新日志                              |
-| downloads   | INTEGER     | 下载次数                              |
-| visible     | INTEGER     | 是否可见（1/0）                       |
-| created_by  | TEXT        | 创建者用户 ID                         |
-| review_status | TEXT      | 审核状态（pending/approved/rejected） |
-| review_comment | TEXT    | 审核评论                              |
-| updated_at  | TEXT        | ISO 8601                              |
+| 字段            | 类型        | 说明                                  |
+| --------------- | ----------- | ------------------------------------- |
+| id              | TEXT        | UUID v4                               |
+| name            | TEXT        | 脚本名称                              |
+| version         | TEXT        | 语义化版本（仅来自 manifest，上传时锁定）|
+| description     | TEXT        | 描述                                  |
+| schema          | TEXT → JSON | 参数 schema（定义脚本需要的表单字段） |
+| entry_point     | TEXT        | 入口文件（如 `index.js`）             |
+| checksum        | TEXT        | sha256（zip 包校验和）                |
+| file_path       | TEXT        | 服务端落盘文件名（`uploads/scripts/`）|
+| downloadUrl     | TEXT(生成)  | `/api/scripts/:id/download`           |
+| tags            | TEXT → JSON | 标签数组                              |
+| changelog       | TEXT        | 更新日志                              |
+| downloads       | INTEGER     | 下载次数                              |
+| visible         | INTEGER     | 是否可见（1/0）                       |
+| created_by      | TEXT        | 创建者用户 ID                         |
+| createdByName   | TEXT(生成)  | 创建者显示名（关联 users 表）         |
+| review_status   | TEXT        | 审核状态（pending/approved/rejected） |
+| review_comment  | TEXT        | 审核评论                              |
+| avg_rating      | REAL        | 平均评分（0-5，聚合自 script_reviews）|
+| review_count    | INTEGER     | 评分总数                              |
+| created_at      | TEXT        | ISO 8601                              |
+| updated_at      | TEXT        | ISO 8601                              |
 
-### 5.4 TemplateItem 数据结构（服务端）
+### 5.4 服务端其他数据表
 
-| 字段          | 类型        | 说明        |
-| ------------- | ----------- | ----------- |
-| id            | TEXT        | UUID v4     |
-| name          | TEXT        | 模板名称    |
-| type          | TEXT        | 模板类型    |
-| version       | TEXT        | 语义化版本  |
-| description   | TEXT        | 描述        |
-| checksum      | TEXT        | sha256      |
-| schema        | TEXT → JSON | JSON Schema |
-| downloadUrl   | TEXT(可选)  | 下载链接    |
-| downloadCount | INTEGER     | 下载次数    |
-| visible       | INTEGER     | 是否可见    |
-| created_by    | TEXT        | 创建者 ID   |
-| review_status | TEXT        | 审核状态    |
-| review_comment | TEXT       | 审核评论    |
-| updated_at    | TEXT        | ISO 8601    |
+| 表名              | 说明                                                              |
+| ----------------- | ----------------------------------------------------------------- |
+| `templates`       | 账户模板（含 `schema / checksum / visible / created_by / review_status / review_comment`）|
+| `project_templates` | 项目模板（含 `fields / icon / visible / created_by / review_status`，见 §4.1）|
+| `users`           | 用户（`username UNIQUE / password_hash / display_name / role / api_key UNIQUE`）|
+| `script_versions` | 脚本版本历史（`script_id / version / changelog / checksum / file_path / schema / created_by`）|
+| `script_reviews`  | 脚本评分评论（`script_id / user_id / rating(1-5) / comment`，`UNIQUE(script_id, user_id)`）|
+| `_migrations`     | 迁移版本表（`name PK / executed_at`）                             |
 
 ---
 
@@ -513,7 +598,17 @@ taskforge/
   "description": "脚本用途说明",
   "entryPoint": "index.js",
   "runtime": "node",
-  "requiredAccountTemplateIds": ["template-uuid-1", "template-uuid-2"],
+  "dataRequirements": [
+    {
+      "key": "wallets",
+      "label": "EVM 钱包",
+      "templateType": "evm-wallet",
+      "min": 1,
+      "max": -1,
+      "source": "wallet",
+      "description": "脚本将使用这些钱包执行签名交易"
+    }
+  ],
   "schema": {
     "type": "object",
     "properties": {
@@ -529,26 +624,42 @@ taskforge/
     "required": ["targetUrl"]
   },
   "permissions": ["network", "filesystem"],
+  "dependencies": { "axios": "^1.6.0", "ethers": "^6.10.0" },
   "tags": ["airdrop", "testnet"],
   "changelog": "v1.0.0 初始版本"
 }
 ```
 
-**字段说明**：
+**字段说明**（单一真源 `shared/schemas/manifest.ts` 的 `ScriptManifestSchema`）：
 
-| 字段                       | 必填 | 说明                                                         |
-| -------------------------- | ---- | ------------------------------------------------------------ |
-| id                         | ✅   | 脚本唯一标识                                                 |
-| name                       | ✅   | 显示名称                                                     |
-| version                    | ✅   | 语义化版本                                                   |
-| description                | ✅   | 用途描述                                                     |
-| entryPoint                 | ✅   | 入口文件名（相对脚本目录）                                   |
-| runtime                    | ✅   | 运行时：`"node"`                                             |
-| requiredAccountTemplateIds | ❌   | 需要的账户模板 ID 列表                                       |
-| schema                     | ✅   | 任务配置表单的 JSON Schema                                   |
-| permissions                | ❌   | 权限声明：`["network", "filesystem"]`                        |
-| tags                       | ❌   | 分类标签                                                     |
-| changelog                  | ❌   | 更新日志                                                     |
+| 字段             | 必填 | 说明                                                         |
+| ---------------- | ---- | ------------------------------------------------------------ |
+| id               | ✅   | 脚本唯一标识                                                 |
+| name             | ✅   | 显示名称                                                     |
+| version          | ✅   | 语义化版本（正则校验，如 `1.0.0`、`1.0.0-beta.1`）           |
+| description      | ✅   | 用途描述                                                     |
+| entryPoint       | ✅   | 入口文件名（相对脚本目录；`.js/.mjs/.cjs` 走 node，`.ts` 走 `npx tsx`）|
+| runtime          | ✅   | 运行时，固定 `"node"`（zod literal 校验）                    |
+| schema           | ✅   | 任务配置表单的 JSON Schema（`type: "object"`，`.passthrough()`）|
+| dataRequirements | ❌   | 数据需求声明（替代旧的 `requiredAccountTemplateIds`，见下表）|
+| permissions      | ❌   | 权限声明：`["network", "filesystem"]`（zod enum）            |
+| dependencies     | ❌   | npm 依赖声明（`{ 包名: 版本范围 }`，安装前 UI 展示）         |
+| tags             | ❌   | 分类标签                                                     |
+| changelog        | ❌   | 更新日志                                                     |
+
+**DataRequirement 字段**（声明脚本运行需要的数据，任务创建时由 `DataRequirementPanel` 让用户选择，运行时注入为 `TASK_DATA_<KEY>` 环境变量）：
+
+| 字段           | 必填 | 说明                                                                 |
+| -------------- | ---- | -------------------------------------------------------------------- |
+| key            | ✅   | 运行时注入的环境变量 key（如 `wallets` → `TASK_DATA_WALLETS`）       |
+| label          | ✅   | 用户界面显示名称                                                     |
+| templateType   | ✅   | 匹配 `templates.type`，决定筛选哪类数据                             |
+| min            | ❌   | 最少选择条数（默认 0）                                               |
+| max            | ❌   | 最多选择条数（-1 表示无上限，默认 -1）                               |
+| source         | ✅   | 数据来源路由：`wallet` → wallets 表 / `proxy` → proxies 表 / `script_param` → script_params 表 |
+| description    | ❌   | 用途说明，显示在选择面板中                                           |
+
+> **manifest.json 支持注释**：服务端用 `json5` 解析，允许 JSON5 注释格式。manifest schema 在客户端与服务端两侧均用 zod 校验（上传时从 zip 内存解压提取）。
 
 ### 6.2 脚本执行环境与权限控制
 
@@ -603,8 +714,9 @@ PYTHONPATH, CLASSPATH
 | `TASK_PERM_NETWORK`       | `"1"` 或 `"0"`，生效的网络权限                               |
 | `TASK_PERM_FILESYSTEM`    | `"1"` 或 `"0"`，生效的文件系统权限                           |
 | `TASK_SANDBOX`            | `"1"` 或 `"0"`，是否沙箱模式                                 |
-| `TASK_WALLETS`            | JSON 数组格式的钱包数据（仅在非沙箱且有 network 权限时注入） |
-| `TASK_ACCOUNTS`           | JSON 数组格式的账户数据（仅在非沙箱且有 network 权限时注入） |
+| `TASK_DATA_<KEY>`         | 动态生成：遍历 manifest `dataRequirements`，把任务 config 中 `_data_<key>` 选中的数据序列化为 JSON 注入。key 转大写（如 `wallets` → `TASK_DATA_WALLETS`）。仅在非沙箱且有 network 权限时注入 |
+
+> 旧的 `TASK_WALLETS` / `TASK_ACCOUNTS` 固定变量已移除，改由 `dataRequirements` 驱动的 `TASK_DATA_<KEY>` 机制（见 §6.1）。用户在任务创建时通过 `DataRequirementPanel` 选择数据，选择结果存于 `task.config._data_<key>`。
 
 #### 任务生命周期
 
@@ -630,14 +742,21 @@ PYTHONPATH, CLASSPATH
 | `progress` | `percent` (0-100), `message?` | 任务进度，UI 实时显示 |
 | `error` | `message` | 错误日志（level=error） |
 | `result` | `ok` (boolean), `data?`, `error?` | 脚本主动报告最终结果 |
+| \`data\` | \`key\` (string), \`label?\`, \`view?\` (\`table\`/\`kv\`/\`json\`/\`card\`/\`auto\`), \`data\` | 结构化数据快照，同 key 覆盖，≤100KB |
 
 **主进程 → 脚本**（stdin）：
 
-| type/id | 字段 | 用途 |
-|---|---|---|
-| `shutdown` | — | 主进程通知脚本优雅退出（SIGTERM 前） |
-
-#### 6.3.2 极简 SDK（Node.js 零依赖示例）
+> **注意**：stdin 管道在子进程启动后立即被关闭（`proc.stdin.end()`）。脚本无法通过 stdin 接收消息。
+> 如果脚本监听了 `process.stdin.on('data', ...)`，Node.js 事件循环会被阻止退出，导致任务永远结束不了。
+> 如需监听 stdin（预留），必须调用 `process.stdin.unref()` 允许进程自然退出。
+>
+> `shutdown` 指令目前未实现。脚本应监听 `SIGTERM` 信号实现优雅退出。
+>
+> ```js
+> process.stdin.on('data', () => {})  // 需要配合 unref()
+> process.stdin.unref()
+> process.on('SIGTERM', () => process.exit(0))  // ✅ 推荐
+> ```
 
 ```js
 // 脚本入口 index.js
@@ -654,6 +773,7 @@ progress(0, '初始化')
 // ...
 progress(100, '完成')
 process.stdout.write(JSON.stringify({ type: 'result', ok: true, data: { count: 42 } }) + '\n')
+process.stdout.write(JSON.stringify({ type: 'data', key: 'stats', label: 'Statistics', view: 'table', data: [{ name: 'Alice', age: 30 }] }) + '\n')
 ```
 
 #### 6.3.3 解析器位置
@@ -662,81 +782,120 @@ process.stdout.write(JSON.stringify({ type: 'result', ok: true, data: { count: 4
 - `flush()`: 进程退出时调用，处理残留不完整行
 - `waitForResponse(id, timeoutMs)`: 主进程发起 RPC 后等脚本响应（暂未启用）
 
-TaskService 在 `task.ts:339-355` 位置把 stdout 改走 `SdkLineParser.feed()`，stderr 仍走纯文本（脚本 SDK 不期望从 stderr 发 JSON）。
+TaskService 在 `task.ts` 的 spawn 回调中把 stdout 改走 `SdkLineParser.feed()`（构造于约 `task.ts:317`，喂入于 `:336`，退出时 `parser.flush()` 于 `:351`），stderr 仍走纯文本（脚本 SDK 不期望从 stderr 发 JSON）。
 
 ### 6.4 脚本下载流程
 
-1. 用户在 Templates 页面浏览远程脚本列表（`marketplaceApi.listScripts()`）
+1. 用户在 Marketplace（`/marketplace`，页面组件 `Templates.tsx`）浏览远程脚本列表（`marketplaceApi.listScripts()`）
 2. 点击安装 → `scriptApi.download(scriptId)`
 3. `ScriptFetcher` 从 Marketplace Server 下载 zip → 校验 → 解压到 `{userData}/scripts/{scriptId}/`
-4. 解压后检查 `manifest.json`，写入 `meta.json`
+4. 解压后检查 `manifest.json`，写入 `meta.json`（含 `permissions`）
 5. 写入 `task_templates` 表，标记 `is_installed=1`
+6. 软检查 `manifest.dataRequirements`/`requiredAccountTemplateIds`，未下载的账户模板写入 `missingAccountTemplates` 供 UI 提示
 
 ---
 
 ## 7. 各模块详细规范
 
-### 7.1 账户管理（Accounts）
+> 重构后页面整合：`Accounts` → `Data` 父页（Tab：ScriptParams / Proxies / Captcha / Import），`QuickDev` + `DeveloperPending` → `DeveloperCenter`，`AdminReview` + `UserManagement` → `AdminCenter` + `ScriptReview`/`TemplateReview`，新增 `Marketplace`、`Stats`。
 
-**页面**：`src/renderer/src/pages/Accounts.tsx`
+### 7.1 数据管理（Data 父页）
 
-**已实现功能**：
-- ✅ 动态表单渲染：选择模板后，根据 `Template.schema` 通过 `DynamicForm` 组件自动渲染表单字段
-- ✅ JSON 批量导入账户（支持粘贴 JSON 数组）
-- ✅ 文件导入（带解析和预览）
-- ✅ 创建账户时检查账号池是否存在，不存在时提示确认
-- ✅ 账号池列表获取
-- ✅ 批量创建接口
-- ✅ 账户导出功能
-- ✅ 搜索和分页
-- ✅ 标签管理
+**页面**：`src/renderer/src/pages/Data.tsx`（Tab 容器，URL 同步），子组件 `ScriptParams.tsx` / `Proxies.tsx` / `Captcha.tsx` / `components/data-import/ImportCenter.tsx`
 
-**账户模板流程**：
-- 用户必须先从 Marketplace 下载账户模板（`templates` 表）
-- 下载的模板包含 `schema`（JSON Schema），前端用此 schema 渲染 DynamicForm
+**ScriptParams 子模块**（原 Accounts，类型 `ScriptParam`，IPC `scriptParam:*`，DB `script_params`）：
+- ✅ 动态表单渲染：选择账户模板后，根据 `Template.schema` 通过 `DynamicForm` 自动渲染表单字段
+- ✅ JSON 批量导入参数（粘贴 JSON 数组）+ 文件导入（带解析预览，`utils/data-import-parser.ts`）
+- ✅ 创建时检查参数池是否存在，不存在时提示确认
+- ✅ 参数池列表获取 / 批量创建 / 导出
+- ✅ 搜索和分页 / 标签管理
 
-### 7.2 代理管理（Proxies）
+**Proxies 子模块**（类型 `Proxy`，IPC `proxy:*`，DB `proxies`）：
+- ✅ 多种代理格式（manual / api / ip / ws）+ 协议（http / https / socks5 / ws）
+- ✅ 批量选择删除、地址一键复制、状态管理（active / inactive / expired）
+- ✅ 搜索和分页、标签管理
 
-**页面**：`src/renderer/src/pages/Proxies.tsx`
+**Captcha 子模块**（类型 `CaptchaKey`，IPC `captchaKey:*`，DB `captcha_keys`）：验证码 API 密钥管理（provider / apiKey / balance）。
 
-**已实现功能**：
-- ✅ 多种代理格式支持：manual / api / ip / ws
-- ✅ 多种协议支持：http / https / socks5 / ws
-- ✅ 批量选择和批量删除
-- ✅ 代理地址一键复制
-- ✅ 标签管理
-- ✅ 搜索和分页
-- ✅ 状态管理（active / inactive / expired）
-- ✅ 代理提供商配置（Settings 页面）
+**Import 子模块**（`ImportCenter.tsx`）：统一的数据导入入口，支持文件拖放（`FileDropzone`）与预览表（`ImportPreviewTable`），按模板 schema 校验后批量写入对应表。
 
-### 7.3 任务管理（Tasks）
+**账户模板流程**：用户必须先从 Marketplace 下载账户模板（`templates` 表），下载的模板含 `schema`，前端据此渲染 DynamicForm。
+
+### 7.2 任务管理（Tasks）
 
 **页面**：`src/renderer/src/pages/Tasks.tsx`
 
 **已实现功能**：
-- ✅ 三层权限控制模型（沙箱模式 + manifest 权限 + 环境变量保护）
-- ✅ 任务启动/暂停/恢复/停止
-- ✅ 实时日志查看
-- ✅ 任务进度跟踪
-- ✅ 任务输出获取
-- ✅ 任务配置表单（基于脚本 schema）
-- ✅ 依赖自动安装
-- ✅ 子进程管理和清理
-- ✅ 孤立任务清理
+- ✅ **四层权限控制模型**（沙箱模式 + manifest 权限 + 环境变量白名单 + sandbox-enforcer 根级强制，见 §6.2）
+- ✅ 任务启动/暂停/恢复/停止（SIGSTOP/SIGCONT 非Windows，Windows 软暂停）
+- ✅ 实时日志查看（`LogViewer` 组件，IPC `task:log` 事件流）
+- ✅ 任务进度跟踪（SDK `progress` 消息 + `TaskStateTracker` 模块级状态跟踪器，IPC 与组件生命周期解耦）
+- ✅ 任务输出获取（`TaskOutput`，保留最后 10KB stdout/stderr）
+- ✅ 任务配置表单（基于脚本 schema + `DataRequirementPanel` 选择数据需求）
+- ✅ 依赖自动安装（spawn 后自动 `npm install`）
+- ✅ 子进程管理和清理、孤立任务清理
+
+### 7.3 脚本市场（Marketplace）
+
+**页面**：`src/renderer/src/pages/Templates.tsx`（路由 `/marketplace`）+ `ScriptDetail.tsx`（路由 `/marketplace/scripts/:id`）
+
+**已实现功能**：
+- ✅ 浏览脚本/账户模板列表（`marketplaceApi.listScripts/listTemplates`），按可见性 + 审核状态过滤
+- ✅ 脚本详情：版本历史（`/api/scripts/:id/versions`）、评分评论（`script_reviews` 表）、下载安装
+- ✅ 一键安装脚本（见 §6.4）
+- ✅ 离线/断网降级（`OfflineBanner` + marketplaceFetch 初步实现）
 
 ### 7.4 空投管理（Airdrops）
 
-**页面**：`src/renderer/src/pages/Airdrops.tsx`
+**页面**：`src/renderer/src/pages/Airdrops.tsx`（组件 `components/airdrops/*`）
 
 **已实现功能**：
-- ✅ `website` 字段（官网 URL）
-- ✅ `scriptTemplateId` 字段（关联任务脚本模板）
-- ✅ `accountPool` 字段（关联账号池，下拉选择）
-- ✅ 描述字段支持 Markdown（UI 提示）
-- ✅ 链接管理
-- ✅ 任务列表管理
-- ✅ 收益记录管理
-- ✅ 标签和标签管理
+- ✅ `website` 字段（官网 URL）、`scriptTemplateId`（关联任务脚本模板）、`accountPool`（关联参数池下拉）
+- ✅ **项目模板驱动**（`templateId` + `customFields`）：通过 `project_templates` 定义项目自定义字段，表单由 `AirdropFormSections/*` 分区渲染
+- ✅ 描述字段支持 Markdown（`MarkdownEditor` + `MarkdownView` 组件，非仅提示）
+- ✅ 链接管理、任务列表管理、收益记录管理、标签管理
+- ✅ 搜索和分页、状态管理（ongoing / completed / cancelled / claimed）、项目类型分类
+- ✅ 空投分析统计（`AirdropAnalytics`：总数、收益美元估值、代币明细、即将到来的截止日期）
+
+### 7.5 开发者中心（DeveloperCenter）
+
+**页面**：`src/renderer/src/pages/DeveloperCenter.tsx`（路由 `/dev`，admin + developer）
+
+合并原 QuickDev + DeveloperPending，6 个 Tab：
+1. **脚手架（scaffold）** — 选择本地文件夹 → 自动检测/编辑 `manifest.json` → 打包 zip 上传（`fileApi`/`zipApi`/`serverApi`）
+2. **我的提交（pending）** — 当前用户提交的脚本审核状态（含审核评论，支持审核状态筛选）
+3. **我的脚本（myscripts）** — 当前用户上传的全部脚本管理（编辑/删除/重新上传）
+4. **SDK 文档（sdk）** — NDJSON 协议说明与极简 SDK 示例（见 §6.3）
+5. **参数模板（scriptParam）** — 账户模板编辑器（`TemplateEditor.tsx`）
+6. **项目模板（project）** — 项目模板管理（`ProjectTemplates.tsx`）
+
+### 7.6 管理中心（AdminCenter）+ 审核
+
+- **AdminCenter**（`/admin`，admin）— 用户管理 Tab：列表、改角色、重新生成 API 密钥
+- **ScriptReview**（`/admin/script-review`，admin）— 脚本审核（approve/reject，reject 置不可见但保留记录供开发者查看）
+- **TemplateReview**（`/admin/templates`，admin）— 项目模板审核 + 可见性切换
+
+### 7.7 统计（Stats）
+
+**页面**：`src/renderer/src/pages/Stats.tsx`（路由 `/stats`，admin）
+
+基于 `StatsAggregate` 类型的统计分析页：钱包/代理/参数池/任务分布、任务成功率与时长分布、任务时间线、模板使用与排名、周趋势、总日志数。
+
+### 7.8 模板系统
+
+#### 账户模板（`templates` 表，类型 `Template`）
+- 用途：定义脚本参数的数据结构（如 EVM 钱包需要 address + privateKey）
+- 来源：从 Marketplace Server 下载或本地创建（`is_local`）
+- schema 格式：标准 JSON Schema，前端用 `DynamicForm` 渲染录入表单
+
+#### 任务脚本模板（`task_templates` 表，类型 `TaskTemplate`）
+- 用途：记录已安装的任务脚本元数据（manifest、安装路径）
+- 来源：从 Marketplace Server 下载脚本 zip 包后自动创建（见 §6.4）
+
+#### 项目模板（`project_templates` 表，类型 `ProjectTemplate`）
+- 用途：定义空投项目的 metadata 表单字段（如目标、截止日期、优先级）
+- 来源：内置 2 个种子模板（`built-in:basic-project`、`built-in:tracked-project`）+ 用户创建 / Marketplace 分享
+- 消费方式：`AirdropProject.templateId` 关联，字段值存于 `AirdropProject.customFields`
 - ✅ 搜索和分页
 - ✅ 状态管理（ongoing / completed / cancelled / claimed）
 - ✅ 项目类型分类
@@ -758,36 +917,53 @@ TaskService 在 `task.ts:339-355` 位置把 stdout 改走 `SdkLineParser.feed()`
 
 ## 8. 类型定义速查
 
-所有共享类型定义在 `client/src/shared/types/index.ts`。
+所有共享类型定义在 `client/src/shared/types/index.ts`（客户端 + 服务端共用）。
 
 | 类型                 | 说明                                                         |
 | -------------------- | ------------------------------------------------------------ |
 | `Wallet`             | EVM/Solana/SUI/Bitcoin 钱包                                 |
-| `Account`            | 账号池中的账户（关联 Template）                             |
+| `ScriptParam`        | 脚本参数池条目（原 `Account`，关联 Template，DB `script_params`）|
+| `DataRequirement`    | 数据需求声明（manifest `dataRequirements`，驱动 `TASK_DATA_<KEY>` 注入）|
+| `DataSource`         | `'wallet' \| 'proxy' \| 'script_param'`                      |
 | `Proxy`              | 代理配置                                                     |
 | `ProxyFormat`        | 代理格式类型（manual/api/ip/ws）                            |
 | `ProxyProvider`      | 代理提供商 API 配置                                         |
+| `CaptchaKey`         | 验证码 API 密钥                                             |
 | `Task`               | 任务（关联脚本文件夹）                                      |
 | `TaskLog`            | 任务日志                                                     |
 | `TaskStatus`         | `idle \| running \| paused \| stopped \| complete \| error` |
-| `Template`           | 账户模板                                                     |
+| `Template`           | 账户模板（脚本/参数数据结构）                               |
 | `TaskTemplate`       | 任务脚本模板（已安装的任务脚本）                            |
 | `ScheduledTask`      | 定时任务                                                     |
-| `AirdropProject`     | 空投项目                                                     |
+| `AirdropProject`     | 空投项目（含 `templateId` + `customFields`）                |
 | `AirdropStatus`      | `ongoing \| completed \| cancelled \| claimed`              |
 | `AirdropProjectType` | `testnet \| mainnet \| galxe \| quest \| social \| other`   |
-| `RemoteScript`       | 服务端脚本元数据                                             |
-| `InstalledScript`    | 已安装到本地的脚本                                           |
-| `RemoteTemplate`     | 服务端模板元数据                                             |
 | `AirdropLink`        | `{label, url}`                                              |
-| `AirdropTaskItem`    | 空投任务项                                                   |
+| `AirdropTaskItem`    | 空投任务项（含 `status: AirdropTaskStatus`）                |
+| `EligibilityCriterion`| 资格条件                                                    |
 | `Earning`            | 收益记录                                                     |
-| `StatsAggregate`     | Dashboard 统计聚合                                          |
-| `AppInfo`            | 应用信息                                                     |
+| `ProjectTemplate`    | 项目模板（定义空投项目 metadata 字段）                      |
+| `ProjectTemplateField`| 项目模板字段定义（JSON Schema 子集）                        |
+| `RemoteProjectTemplate`| 服务端项目模板元数据                                        |
+| `RemoteScript`       | 服务端脚本元数据（含 `avgRating`/`reviewCount`）            |
+| `ScriptVersion`      | 脚本版本历史记录                                            |
+| `ScriptReview`       | 脚本评分/评论                                               |
+| `RatingStats`        | 脚本评分统计（均值/总数/星级分布）                          |
+| `InstalledScript`    | 已安装到本地的脚本（含 `missingAccountTemplates`）          |
+| `RemoteTemplate`     | 服务端模板元数据                                             |
+| `StatsAggregate`     | Dashboard / Stats 统计聚合                                  |
+| `AirdropAnalytics`   | 空投分析统计                                                |
+| `TokenEarnings` / `UpcomingDeadline` / `TaskTimelineEntry` / `RecentTaskResult` / `TemplateUsage` / `TemplateRanking` / `WeeklyTrend` | Stats 子结构 |
+| `AppInfo`            | 应用信息（含 `scriptParamCount`）                           |
+| `BackupInfo`         | 备份信息                                                     |
+| `UpdateInfo`         | 应用更新信息（electron-updater）                            |
+| `AppLog`             | 应用日志条目                                                 |
 | `ApiResult<T>`       | `{data?: T, error?: ApiError}`                              |
 | `ListResponse<T>`    | `{items: T[], total, page, pageSize, totalPages}`           |
 | `PermissionSet`      | 脚本运行时权限 `{network, filesystem}`                       |
 | `TaskOutput`         | 任务输出 `{taskId, exitCode, stdout, stderr, durationMs}`   |
+| `TaskLogBatch`       | 任务日志批量数据                                             |
+| `TaskProgressUpdate` | 任务进度更新通知                                             |
 
 ---
 
@@ -801,7 +977,7 @@ TaskService 在 `task.ts:339-355` 位置把 stdout 改走 `SdkLineParser.feed()`
 - 日期使用 ISO 8601 格式
 - JSON 字段由 `StoreService` 自动序列化/反序列化
 - 新增 IPC channel 时需同时：
-  1. 在 `ipc/index.ts` 中 `register()`
+  1. 在 `ipc/registry.ts` 导出的 `register()`（已存在，直接复用）中调用；实际在对应 `ipc/handlers/<领域>-handlers.ts` 写 `register('channel:name', handler)`，并在 `ipc/index.ts` 的 `registerIpcHandlers()` 调用 `registerXxxHandlers(services)`
   2. 在 `renderer/src/api.ts` 中添加类型化方法
   3. 在 `preload/index.ts` 中添加到 allowlist（如需要）
 
@@ -921,29 +1097,35 @@ const { theme, pref, setPref } = useTheme()
 ## 12. 待实现功能清单（TODO）
 
 ### 任务系统
-- [x] ~~脚本 SDK：stdin/stdout JSON-RPC 通信协议，提供结构化的日志、进度、账户/代理获取 API~~
-- [ ] `requiredAccountTemplateIds` 校验（安装脚本前检查所需账户模板）
+- [x] ~~脚本 SDK：stdin/stdout NDJSON 通信协议，提供结构化的日志、进度、结果 API~~
+- [x] ~~`dataRequirements` 数据需求声明（替代 `requiredAccountTemplateIds`），任务创建时由 DataRequirementPanel 选择，运行时注入 `TASK_DATA_<KEY>`~~
 - [ ] 通过任务模板（而非脚本路径）选择脚本的完整流程
+- [ ] `dataRequirements` 的 `source=script_param` 在 DataRequirementPanel 中的完整联动
 
 ### 代理管理
 - [ ] ProxyProvider 自动同步机制（从 API 自动拉取代理到 proxies 表）
-- [ ] 统一代理管理入口到 Proxies 页面（Settings 中的 proxy_providers 设为只读或移除）
+- [ ] 统一代理管理入口到 Data/Proxies 页面（Settings 中的 proxy_providers 设为只读或移除）
 
 ### 空投管理
-- [x] ~~Markdown 编辑器组件集成（当前仅提示支持，无实际编辑器）~~
+- [x] ~~Markdown 编辑器组件集成（MarkdownEditor + MarkdownView）~~
 - [x] ~~Markdown 渲染组件~~
+- [x] ~~项目模板驱动字段（`project_templates` 表 + `customFields`）~~
 
 ### 数据与架构
+- [x] ~~accounts → script_params 表重命名 + 迁移~~
 - [ ] Dashboard 数据源统一到 StatsAggregate（当前 Dashboard 自行拼数据）
 - [ ] 离线/断网优雅降级（OfflineBanner + marketplaceFetch 已有初步实现）
 - [ ] 脚本依赖声明（manifest.dependencies 字段已添加，安装前 UI 展示待完善）
-- [ ] 钱包模块残留清理（wallets 表 + walletCount 字段）
+- [ ] 钱包模块残留清理（wallets 表 + AppInfo.walletCount 字段；空投/Stats 仍引用）
 - [ ] Marketplace 列表分页 UI（后端已支持，前端默认 pageSize=50）
 - [ ] 服务端测试覆盖
 
 ### 服务端
 - [x] ~~manifest.json 上传时自动校验格式~~ (v0.2.1: adm-zip 内存解压 + zod 验证)
 - [x] ~~请求体大小限制~~ (express.json limit: 10mb)
+- [x] ~~默认端口 3400→8268、监听 127.0.0.1→0.0.0.0、CORS 白名单 + 通配、限流~~
+- [x] ~~脚本评分评论（script_reviews）+ 版本历史（script_versions）+ 项目模板路由~~
+- [x] ~~显式迁移框架（_migrations 版本表 + 顺序脚本）~~
 - [ ] API 文档（server/API.md 已创建，待同步更新）
 - [ ] JWT refresh token 机制
 - [ ] 脚本版本回滚 API
