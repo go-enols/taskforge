@@ -85,7 +85,7 @@ export const taskApi = {
   getOutput: (taskId: string) => call<TaskOutput | null>('task:getOutput', [taskId]),
   /** 订阅脚本推送的 data 快照（同 key 后发覆盖前发） */
   onData: (cb: (snap: DataSnapshot) => void) => {
-    return window.electronAPI.on('task:data', (snap) => cb(snap as DataSnapshot))
+    return window.electronAPI?.on?.('task:data', (snap) => cb(snap as DataSnapshot))
   },
 }
 

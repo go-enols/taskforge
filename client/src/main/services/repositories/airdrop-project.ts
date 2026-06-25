@@ -77,7 +77,7 @@ export class AirdropProjectRepository extends BaseRepository<AirdropProject> {
       projectType: row.project_type as AirdropProject['projectType'],
       description: row.description as string,
       website: row.website as string,
-      scriptTemplateId: row.script_template_id as string | undefined,
+      scriptTemplateId: (row.script_template_id as string | null) ?? null,
       accountPool: row.account_pool as string,
       links: this.fromJsonArray<AirdropLink>(row.links as string | null),
       eligibilityCriteria: this.fromJsonArray<EligibilityCriterion>(row.eligibility_criteria as string | null),
@@ -85,7 +85,7 @@ export class AirdropProjectRepository extends BaseRepository<AirdropProject> {
       earnings: this.fromJsonArray<Earning>(row.earnings as string | null),
       tags: this.fromJsonArray<string>(row.tags as string | null),
       labels: this.fromJsonArray<string>(row.labels as string | null),
-      templateId: (row.template_id as string | null) ?? undefined,
+      templateId: (row.template_id as string | null) ?? null,
       customFields: this.fromJson<Record<string, unknown>>(row.custom_fields as string | null) ?? {},
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string
@@ -238,21 +238,21 @@ export class AirdropProjectRepository extends BaseRepository<AirdropProject> {
       .all() as Array<{ id: string; name: string; earnings: string | null; tasks: string | null }>
 
     let totalEarningsValueUsd = 0
-    const tokenMap = new Map<string, { amount: number; valueUsd: number }>()
-    const deadlineEntries: Array<{ taskId: string; projectName: string; taskTitle: string; deadline: string }> = []
+    const tokenMap = new Map<string, { amount: number; usdValue: number }>()
+    const deadlineEntries: Array<{ taskId: string; projectName: string; taskName: string; deadline: string }> = []
 
     for (const row of allRows) {
       const earnings = this.fromJsonArray<Earning>(row.earnings)
       for (const e of earnings) {
-        if (e.token && e.amount) {
-          const prev = tokenMap.get(e.token) ?? { amount: 0, valueUsd: 0 }
-          tokenMap.set(e.token, {
+        if (e.symbol && e.amount) {
+          const prev = tokenMap.get(e.symbol) ?? { amount: 0, usdValue: 0 }
+          tokenMap.set(e.symbol, {
             amount: prev.amount + (e.amount ?? 0),
-            valueUsd: prev.valueUsd + (e.valueUsd ?? 0)
+            usdValue: prev.usdValue + (e.usdValue ?? 0)
           })
         }
-        if (e.valueUsd) {
-          totalEarningsValueUsd += e.valueUsd
+        if (e.usdValue) {
+          totalEarningsValueUsd += e.usdValue
         }
       }
 
@@ -262,7 +262,7 @@ export class AirdropProjectRepository extends BaseRepository<AirdropProject> {
           deadlineEntries.push({
             taskId: t.id,
             projectName: row.name,
-            taskTitle: t.title || t.description || '',
+            taskName: t.name || t.description || '',
             deadline: t.deadline
           })
         }
@@ -270,9 +270,9 @@ export class AirdropProjectRepository extends BaseRepository<AirdropProject> {
     }
 
     const tokenEarnings = [...tokenMap.entries()]
-      .map(([token, v]) => ({ token, totalAmount: v.amount, totalValueUsd: v.valueUsd }))
+      .map(([symbol, v]) => ({ symbol, totalAmount: v.amount, totalUsdValue: v.usdValue }))
       .sort((a, b) => {
-        if (b.totalValueUsd !== a.totalValueUsd) return b.totalValueUsd - a.totalValueUsd
+        if (b.totalUsdValue !== a.totalUsdValue) return b.totalUsdValue - a.totalUsdValue
         return b.totalAmount - a.totalAmount
       })
 

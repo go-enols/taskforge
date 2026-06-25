@@ -807,7 +807,7 @@ export class StoreService {
       )
       .all() as Record<string, unknown>[]
     const templateUsage: TemplateUsage[] = templateUsageRows.map((row) => ({
-      templateName: row.template_name as string,
+      name: row.template_name as string,
       taskCount: row.task_count as number
     }))
 
@@ -819,14 +819,11 @@ export class StoreService {
     const templateRanking: TemplateRanking[] = templateRankingRows.map((row) => {
       const tc = row.task_count as number
       const sc = (row.success_count as number) ?? 0
-      const ec = (row.error_count as number) ?? 0
-      return {
-        templateName: row.template_name as string,
+            return {
+        name: row.template_name as string,
         taskCount: tc,
-        successCount: sc,
-        errorCount: ec,
-        successRate: tc > 0 ? Math.round((sc / tc) * 10000) / 10000 : null
-      }
+        successRate: tc > 0 ? Math.round((sc / tc) * 10000) / 10000 : 0
+      } as TemplateRanking
     })
 
     const eightWeeksAgo = new Date(Date.now() - 56 * 86400000).toISOString()
@@ -844,11 +841,11 @@ export class StoreService {
       scriptParamPoolDistribution,
       taskTotal,
       taskStatusDistribution,
-      taskSuccessRate,
+      taskSuccessRate: taskSuccessRate ?? undefined,
       taskCompletedCount,
       taskErrorCount,
       totalFinishedTasks,
-      averageTaskDurationSecs,
+      averageTaskDurationSecs: averageTaskDurationSecs ?? undefined,
       taskDurationDistribution,
       taskTimeline,
       recentTaskResults,

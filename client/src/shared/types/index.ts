@@ -425,6 +425,7 @@ export interface RemoteProjectTemplate {
   createdByName: string
   createdAt: string
   updatedAt: string
+  downloadCount?: number
 }
 
 /** 代币收益汇总 */
@@ -439,18 +440,24 @@ export interface UpcomingDeadline {
   projectName: string
   taskName: string
   deadline: string
-  daysRemaining: number
+  daysRemaining?: number
 }
 
 /** 空投分析统计数据 */
 export interface AirdropAnalytics {
-  totalProjects: number
-  activeProjects: number
-  totalEarningsUsd: number
-  tokenEarnings: TokenEarnings[]
-  upcomingDeadlines: UpcomingDeadline[]
-  projectsByStatus: Record<string, number>
-  projectsByType: Record<string, number>
+  totalAirdrops?: number
+  ongoingCount?: number
+  completedCount?: number
+  claimedCount?: number
+  cancelledCount?: number
+  totalEarningsValueUsd?: number
+  totalProjects?: number
+  activeProjects?: number
+  tokenEarnings?: TokenEarnings[]
+  upcomingDeadlines?: UpcomingDeadline[]
+  projectsByStatus?: Record<string, number>
+  projectsByType?: Record<string, number>
+  totalEarningsUsd?: number
 }
 
 /** 应用日志条目 */
@@ -479,81 +486,114 @@ export interface ListResponse<T> {
 
 /** 任务时间线条目 */
 export interface TaskTimelineEntry {
-  date: string
-  count: number
-  successRate: number
+  date?: string
+  count?: number
+  successRate?: number
+  started?: number
+  completed?: number
+  failed?: number
 }
 
 /** 最近任务执行结果 */
 export interface RecentTaskResult {
-  taskId: string
-  taskName: string
-  templateId: string
-  status: string
-  exitCode: number | null
-  durationMs: number
-  startedAt: string
+  taskId?: string
+  taskName?: string
+  templateId?: string
+  status?: string
+  exitCode?: number | null
+  durationMs?: number
+  startedAt?: string | null
+  id?: string
+  scriptFolder?: string
+  durationSecs?: number | null
+  endedAt?: string | null
 }
 
 /** 模板使用统计 */
 export interface TemplateUsage {
-  id: string
-  name: string
-  description: string
+  id?: string
+  name?: string
+  description?: string
   taskCount: number
-  avgDurationMs: number
-  successRate: number
+  avgDurationMs?: number
+  successRate?: number
 }
 
 /** 模板排名数据 */
 export interface TemplateRanking {
-  id: string
-  name: string
-  description: string
+  id?: string
+  name?: string
+  description?: string
   taskCount: number
-  avgDurationMs: number
-  successRate: number
-  lastUsedAt: string
+  avgDurationMs?: number
+  successRate?: number
+  lastUsedAt?: string
+  templateName?: string
+  successCount?: number
+  errorCount?: number
 }
 
 /** 周趋势数据 */
 export interface WeeklyTrend {
-  date: string
-  taskCount: number
-  successCount: number
-  failCount: number
-  avgDurationMs: number
+  date?: string
+  taskCount?: number
+  successCount?: number
+  failCount?: number
+  avgDurationMs?: number
+  weekStart?: string
+  started?: number
+  completed?: number
+  failed?: number
 }
 
 /** Dashboard 统计聚合数据 */
 export interface StatsAggregate {
-  totalWallets: number
-  totalProxies: number
-  totalScriptParams: number
-  totalTasks: number
-  totalAppLogs: number
-  totalAirdrops: number
-  taskSuccessRate: number
-  avgTaskDurationMs: number
-  tasksByStatus: Record<string, number>
-  tasksByTemplate: Record<string, number>
-  recentTaskResults: RecentTaskResult[]
-  taskTimeline: TaskTimelineEntry[]
-  templateUsage: TemplateUsage[]
-  templateRanking: TemplateRanking[]
-  weeklyTrend: WeeklyTrend[]
-  runningTaskCount: number
+  totalWallets?: number
+  walletTotal?: number
+  walletChainDistribution?: Record<string, number>
+  totalProxies?: number
+  proxyTotal?: number
+  proxyProtocolDistribution?: Record<string, number>
+  proxyStatusDistribution?: Record<string, number>
+  totalScriptParams?: number
+  scriptParamTotal?: number
+  scriptParamPoolDistribution?: Record<string, number>
+  totalTasks?: number
+  taskTotal?: number
+  taskStatusDistribution?: Record<string, number>
+  taskSuccessRate?: number
+  taskCompletedCount?: number
+  taskErrorCount?: number
+  totalFinishedTasks?: number
+  averageTaskDurationSecs?: number
+  avgTaskDurationMs?: number
+  taskDurationDistribution?: Record<string, number>
+  totalAirdrops?: number
+  tasksByStatus?: Record<string, number>
+  tasksByTemplate?: Record<string, number>
+  recentTaskResults?: RecentTaskResult[]
+  taskTimeline?: TaskTimelineEntry[]
+  templateUsage?: TemplateUsage[]
+  templateRanking?: TemplateRanking[]
+  weeklyTrend?: WeeklyTrend[]
+  runningTaskCount?: number
+  totalLogs?: number
 }
 
 /** 应用信息 */
 export interface AppInfo {
-  folders: Record<string, string>
+  version?: string
+  dataDir?: string
+  dbConnected?: boolean
+  dbError?: string | null
+  folders?: Record<string, string>
   walletCount: number
   scriptParamCount: number
   proxyCount: number
   taskCount: number
-  appLogCount: number
+  appLogCount?: number
   totalLogs: number
+  runningTaskCount?: number
 }
 
 /** 备份信息 */
@@ -608,6 +648,7 @@ export interface RemoteScript {
   reviewCount: number
   createdAt: string
   updatedAt: string
+  downloadCount?: number
 }
 
 /** 脚本版本历史记录 */
@@ -661,6 +702,7 @@ export interface RemoteTemplate {
   tags: string[]
   createdAt: string
   updatedAt: string
+  downloadCount?: number
 }
 
 /** 脚本运行时权限 */
@@ -683,6 +725,10 @@ export interface InstalledScript {
   isInstalled: boolean
   permissions: PermissionSet
   missingAccountTemplates?: string[]
+  schema?: Record<string, unknown>
+  checksum?: string
+  downloadedAt?: string
+  updatedAt?: string
 }
 
 /** 数据快照 — 脚本发来的结构化数据（key 唯一，按 key 覆盖更新） */

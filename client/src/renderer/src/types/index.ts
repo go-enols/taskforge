@@ -41,6 +41,7 @@ export type {
   RatingStats,
   ScriptVersion,
   TaskOutput,
+  DataSnapshot,
   TaskLogBatch,
   TaskProgressUpdate,
   ProjectTemplate,

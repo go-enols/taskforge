@@ -160,7 +160,11 @@ export class ScriptFetcher {
         remoteUrl: this.getServerUrl(),
         downloadedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        permissions
+        permissions,
+        manifest: manifest,
+        tags: (manifest.tags as string[]) || [],
+        isInstalled: true,
+        missingAccountTemplates: []
       }
 
       writeFileSync(join(scriptDir, 'meta.json'), JSON.stringify(installed, null, 2))

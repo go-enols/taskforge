@@ -158,7 +158,7 @@ const Tasks: React.FC = () => {
   }, [items])
   // 订阅 task:data — 脚本推送的结构化数据快照
   useEffect(() => {
-    const off = window.electronAPI.on('task:data', (snap) => {
+    const off = window.electronAPI?.on?.('task:data', (snap) => {
       setDataSnapshots(prev => { const n = new Map(prev); n.set((snap as DataSnapshot).key, snap as DataSnapshot); return n })
     })
     return () => off?.()
