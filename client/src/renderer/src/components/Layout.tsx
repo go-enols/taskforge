@@ -5,7 +5,7 @@
  *              状态持久化。父级菜单项（如"数据"）可展开/折叠其子项。
  * @module renderer/components
  */
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -166,19 +166,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }
     return init
   })
-  /** 侧边栏折叠时父级菜单的弹出子菜单状态 */
-  const [popupParent, setPopupParent] = useState<string | null>(null)
+  /** 侧边栏折叠时父级菜单的悬浮展开状态 */
+  const [hoverParent, setHoverParent] = useState<string | null>(null)
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const popupRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (!popupParent) return
-    const handler = (e: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        setPopupParent(null)
-      }
-    }
-    document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
-  }, [popupParent])
+
+  const handleMouseEnter = (path: string) => {
+    if (!collapsed) return
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    setHoverParent(path)
+  }
+  const handleMouseLeave = () => {
+    if (!collapsed) return
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = setTimeout(() => setHoverParent(null), 150)
+  }
 
   const userRole: UserRole = user?.role ?? 'user'
   const NAV_ITEMS = ALL_NAV_ITEMS.filter((item) => item.roles.includes(userRole))
@@ -247,11 +249,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               // 父级菜单项（带子项）：点击切换展开/折叠，不导航
               const childItems = item.children!.filter((c) => c.roles.includes(userRole))
               return (
-                <div key={item.path} className="space-y-0.5 relative">
+                <div
+                  key={item.path}
+                  className="space-y-0.5 relative"
+                  onMouseEnter={() => handleMouseEnter(item.path)}
+                  onMouseLeave={handleMouseLeave}
+                >
                   <button
                     onClick={() => {
-                      if (collapsed) {
-                        setPopupParent(popupParent === item.path ? null : item.path)
+                      if (collapsed && item.children) {
+                        // 折叠时点击父级图标 → 跳转到第一个子页面
+                        const firstChild = item.children.filter((c) => c.roles.includes(userRole))[0]
+                        if (firstChild) navigate(firstChild.path)
                       } else {
                         toggleGroup(item.path)
                       }
@@ -299,16 +308,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       })}
                     </div>
                   )}
-                  {/* 侧边栏折叠时：弹出子菜单 */}
-                  {collapsed && popupParent === item.path && (
-                    <div ref={popupRef} className="absolute left-full top-0 ml-2 z-50 bg-bg-card border border-border-light rounded-lg shadow-lg py-1.5 min-w-[140px]">
+                  {/* 侧边栏折叠时：悬浮弹出子菜单 */}
+                  {collapsed && hoverParent === item.path && (
+                    <div ref={popupRef} onMouseEnter={() => { if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current); setHoverParent(item.path) }} onMouseLeave={handleMouseLeave} className="absolute left-full top-0 ml-2 z-50 bg-bg-card border border-border-light rounded-lg shadow-lg py-1.5 min-w-[140px]">
                       {childItems.map((child) => {
                         const childActive = location.pathname === child.path
                         const ChildIcon = child.icon
                         return (
                           <button
                             key={child.path}
-                            onClick={() => { navigate(child.path); setPopupParent(null) }}
+                            onClick={() => { navigate(child.path); setHoverParent(null) }}
                             className={`flex items-center gap-2.5 w-full px-3 py-2 text-sm transition-colors ${
                               childActive
                                 ? 'bg-primary/10 text-primary font-medium'
