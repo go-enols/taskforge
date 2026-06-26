@@ -5,7 +5,7 @@
  *              状态持久化。父级菜单项（如"数据"）可展开/折叠其子项。
  * @module renderer/components
  */
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -166,6 +166,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }
     return init
   })
+  /** 侧边栏折叠时父级菜单的弹出子菜单状态 */
+  const [popupParent, setPopupParent] = useState<string | null>(null)
+  const popupRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!popupParent) return
+    const handler = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setPopupParent(null)
+      }
+    }
+    document.addEventListener('mousedown', handler, true)
+    return () => document.removeEventListener('mousedown', handler, true)
+  }, [popupParent])
 
   const userRole: UserRole = user?.role ?? 'user'
   const NAV_ITEMS = ALL_NAV_ITEMS.filter((item) => item.roles.includes(userRole))
@@ -234,16 +247,22 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               // 父级菜单项（带子项）：点击切换展开/折叠，不导航
               const childItems = item.children!.filter((c) => c.roles.includes(userRole))
               return (
-                <div key={item.path} className="space-y-0.5">
+                <div key={item.path} className="space-y-0.5 relative">
                   <button
-                    onClick={() => toggleGroup(item.path)}
+                    onClick={() => {
+                      if (collapsed) {
+                        setPopupParent(popupParent === item.path ? null : item.path)
+                      } else {
+                        toggleGroup(item.path)
+                      }
+                    }}
                     className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm transition-colors focus-ring ${
                       active
                         ? 'bg-primary/10 text-primary font-medium'
                         : 'text-text-secondary hover:bg-bg-tertiary'
                     }`}
                     title={t(item.key)}
-                    aria-expanded={expanded}
+                    aria-expanded={collapsed ? false : expanded}
                   >
                     <Icon size={18} />
                     {!collapsed && (
@@ -256,7 +275,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       </>
                     )}
                   </button>
-                  {/* 子项列表：仅在展开时渲染 */}
+                  {/* 侧边栏展开时：行内子项列表 */}
                   {!collapsed && expanded && (
                     <div className="ml-4 pl-2 border-l border-border-light/60 space-y-0.5">
                       {childItems.map((child) => {
@@ -274,6 +293,29 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             title={t(child.key)}
                           >
                             <ChildIcon size={14} />
+                            <span>{t(child.key)}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {/* 侧边栏折叠时：弹出子菜单 */}
+                  {collapsed && popupParent === item.path && (
+                    <div ref={popupRef} className="absolute left-full top-0 ml-2 z-50 bg-bg-card border border-border-light rounded-lg shadow-lg py-1.5 min-w-[140px]">
+                      {childItems.map((child) => {
+                        const childActive = location.pathname === child.path
+                        const ChildIcon = child.icon
+                        return (
+                          <button
+                            key={child.path}
+                            onClick={() => { navigate(child.path); setPopupParent(null) }}
+                            className={`flex items-center gap-2.5 w-full px-3 py-2 text-sm transition-colors ${
+                              childActive
+                                ? 'bg-primary/10 text-primary font-medium'
+                                : 'text-text-secondary hover:bg-bg-tertiary'
+                            }`}
+                          >
+                            <ChildIcon size={15} />
                             <span>{t(child.key)}</span>
                           </button>
                         )
