@@ -302,6 +302,8 @@ export interface AirdropTaskItem {
   id: string
   /** 任务名称 */
   name: string
+  /** 任务标题（兼容旧引用） */
+  title?: string
   /** 任务类型 */
   type: string
   /** 任务描述 */
@@ -324,10 +326,14 @@ export interface Earning {
   source: string
   /** 代币符号（如 ETH, USDT） */
   symbol: string
+  /** 代币符号（兼容旧引用） */
+  token?: string
   /** 代币数量 */
   amount: number
   /** 美元估值 */
   usdValue: number
+  /** 美元估值（兼容旧引用） */
+  valueUsd?: number
   /** 收益日期 */
   date: string
   /** 交易哈希 */
@@ -431,14 +437,20 @@ export interface RemoteProjectTemplate {
 /** 代币收益汇总 */
 export interface TokenEarnings {
   symbol: string
+  /** 代币符号（兼容旧引用） */
+  token?: string
   totalAmount: number
   totalUsdValue: number
+  /** 美元总值（兼容旧引用） */
+  totalValueUsd?: number
 }
 
 /** 即将到来的截止日期 */
 export interface UpcomingDeadline {
   projectName: string
   taskName: string
+  /** 任务标题（兼容旧引用） */
+  taskTitle?: string
   deadline: string
   daysRemaining?: number
 }
