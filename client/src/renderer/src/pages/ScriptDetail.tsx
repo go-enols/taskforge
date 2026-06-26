@@ -434,7 +434,7 @@ function OverviewTab({
           <InfoRow label="已安装版本" value={installed.version} />
           <InfoRow
             label="安装时间"
-            value={new Date(installed.downloadedAt).toLocaleString('zh-CN')}
+            value={new Date(installed.downloadedAt || '').toLocaleString('zh-CN')}
           />
         </Section>
       )}
@@ -483,11 +483,13 @@ function VersionTab({
   if (!hasCurrentInHistory) {
     allVersions.push({
       id: script.id,
+      scriptId: script.id,
       version: script.version,
       changelog: script.changelog || '',
       checksum: script.checksum,
+      filePath: '',
       schema: script.schema,
-      createdBy: script.createdBy || null,
+      createdBy: script.createdBy,
       createdAt: script.updatedAt
     })
   }

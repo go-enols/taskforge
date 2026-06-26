@@ -101,8 +101,8 @@ const Airdrops: React.FC = () => {
               manifest: s.schema as Record<string, unknown>,
               remoteUrl: s.remoteUrl,
               isInstalled: true,
-              downloadedAt: s.downloadedAt,
-              updatedAt: s.updatedAt
+              downloadedAt: s.downloadedAt || '',
+              updatedAt: s.updatedAt || ''
             })
           )
         )
@@ -251,7 +251,7 @@ const Airdrops: React.FC = () => {
                     name: previous.name,
                     chain: previous.chain,
                     website: previous.website,
-                    scriptTemplateId: previous.scriptTemplateId,
+                    scriptTemplateId: previous.scriptTemplateId || '',
                     accountPool: previous.accountPool,
                     status: previous.status,
                     projectType: previous.projectType,
@@ -261,7 +261,9 @@ const Airdrops: React.FC = () => {
                     tasks: previous.tasks,
                     earnings: previous.earnings,
                     tags: previous.tags,
-                    labels: previous.labels
+                    labels: previous.labels,
+                    templateId: previous.templateId || '',
+                    customFields: previous.customFields || {}
                   })
                   .then(() => {
                     toast.success(t('common.saveSuccess'))

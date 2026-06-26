@@ -41,8 +41,8 @@ const Stats: React.FC = () => {
   }, [fetchData])
 
   /** 格式化成功率（null 时显示占位符） */
-  const formatRate = (rate: number | null): string => {
-    if (rate === null) return '—'
+  const formatRate = (rate: number | null | undefined): string => {
+    if (rate == null) return '—'
     return `${(rate * 100).toFixed(1)}%`
   }
 
@@ -198,7 +198,7 @@ const Stats: React.FC = () => {
                       key={i}
                       className="border-b border-border-light/50 hover:bg-bg-card-hover transition-colors"
                     >
-                      <td className="px-4 py-2">{item.templateName}</td>
+                      <td className="px-4 py-2">{item.name || item.id || '-'}</td>
                       <td className="px-4 py-2 text-right font-medium">{item.taskCount}</td>
                     </tr>
                   ))}
@@ -234,7 +234,7 @@ const Stats: React.FC = () => {
                       key={i}
                       className="border-b border-border-light/50 hover:bg-bg-card-hover transition-colors"
                     >
-                      <td className="px-4 py-2">{item.templateName}</td>
+                      <td className="px-4 py-2">{item.name || item.id || '-'}</td>
                       <td className="px-4 py-2 text-right text-success font-medium">
                         {item.successCount}
                       </td>

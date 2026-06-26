@@ -159,7 +159,7 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     getMarketplaceUrl().then((url) => setServerUrl(url))
     checkSetup()
-    appApi.getInfo().then((info) => setAppVersion(info.version)).catch(() => {})
+    appApi.getInfo().then((info) => setAppVersion(info.version || '')).catch(() => {})
   }, [checkSetup])
 
   // ---- 服务端地址保存 ----

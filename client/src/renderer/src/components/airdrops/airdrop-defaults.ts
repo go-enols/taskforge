@@ -257,7 +257,7 @@ export const fromFormData = (fd: AirdropFormData): Omit<AirdropProject, 'id' | '
   website: fd.website.trim(),
   chain: '', // deprecated: 留空保持向后兼容
   description: fd.description.trim(),
-  scriptTemplateId: fd.scriptTemplateId.trim() || undefined,
+  scriptTemplateId: fd.scriptTemplateId.trim() || null,
   accountPool: fd.accountPool.trim(),
   status: fd.status,
   projectType: fd.projectType,
@@ -277,23 +277,30 @@ export const fromFormData = (fd: AirdropFormData): Omit<AirdropProject, 'id' | '
   })),
   tasks: fd.tasks.map((t) => ({
     id: t.id,
+    name: t.title.trim(),
     title: t.title.trim(),
     description: t.description.trim(),
-    deadline: t.deadline.trim() || undefined,
+    deadline: t.deadline.trim() || null,
     status: t.status,
-    notes: t.notes.trim()
+    notes: t.notes.trim(),
+    type: 'general',
+    link: ''
   })),
   earnings: fd.earnings
     .map((e) => ({
       id: e.id,
+      source: 'airdrop',
       token: e.token.trim(),
+      symbol: e.token.trim(),
       amount: Number(e.amount) || 0,
+      usdValue: Number(e.valueUsd) || 0,
       valueUsd: Number(e.valueUsd) || 0,
       date: e.date,
+      txHash: null,
       notes: e.notes.trim()
     }))
     .filter((e) => e.token.length > 0),
-  templateId: fd.templateId.trim() || undefined,
+  templateId: fd.templateId.trim() || null,
   customFields: fd.customFields
 })
 

@@ -166,7 +166,7 @@ export default function TemplateReview(): React.JSX.Element {
    Data template review sub-component
    ═══════════════════════════════════════════ */
 
-function DataTemplateReview<T extends { id: string; name: string; description?: string; version?: string; type?: string; updatedAt?: string; createdAt?: string }>(props: {
+function DataTemplateReview<T extends { id: string; name: string; description?: string | null; version?: string; type?: string; updatedAt?: string; createdAt?: string }>(props: {
   templates: T[]
   loading: boolean
   reviewComments: Record<string, string>

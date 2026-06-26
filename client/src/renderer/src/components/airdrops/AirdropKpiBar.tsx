@@ -42,7 +42,7 @@ const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
   const { t } = useTranslation()
 
   // 取收益最高的前 2 种代币显示在底部摘要行
-  const topTokens = analytics.tokenEarnings.slice(0, 2)
+  const topTokens = (analytics.tokenEarnings || []).slice(0, 2)
 
   // 定义 4 个 KPI 磁贴的配置
   const tiles: KpiTile[] = [
@@ -69,7 +69,7 @@ const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
     },
     {
       labelKey: 'airdrops.kpi.earnings',
-      value: formatUsd(analytics.totalEarningsValueUsd),
+      value: formatUsd(analytics.totalEarningsValueUsd || 0),
       icon: TrendingUp,
       accent: 'border-l-success',
       iconColor: 'text-success'
@@ -112,7 +112,7 @@ const AirdropKpiBar: React.FC<AirdropKpiBarProps> = ({ analytics }) => {
               className="inline-flex items-center px-1.5 py-0.5 bg-bg-card border border-border-light rounded text-text-secondary font-medium tabular-nums"
             >
               {t2.totalAmount} {t2.token}
-              {t2.totalValueUsd > 0 && (
+              {t2.totalValueUsd != null && t2.totalValueUsd > 0 && (
                 <span className="ml-1 text-text-muted text-[10px]">
                   ${t2.totalValueUsd.toLocaleString()}
                 </span>

@@ -31,7 +31,7 @@ npm install
 npm run dev
 ```
 
-客户端从 `http://127.0.0.1:3400` 获取脚本和模板（可在 Settings 页面配置 `marketplace_server_url`）。
+客户端从 `http://127.0.0.1:8268` 获取脚本和模板（可在 Settings 页面配置 `marketplace_server_url`）。
 
 ## Client (Electron 应用)
 
@@ -84,7 +84,7 @@ npm run build:linux  # Linux 安装包
 ```bash
 cd server
 npm install
-npm run dev          # tsx watch 模式，监听 http://localhost:3400
+npm run dev          # tsx watch 模式，监听 http://localhost:8268
 npm run build        # tsc 编译到 dist/
 npm start            # 运行编译后的 dist/index.js
 ```
@@ -112,8 +112,8 @@ npm start            # 运行编译后的 dist/index.js
 
 ### 配置
 
-- 默认端口：3400（可通过 `PORT` 环境变量覆盖）
-- 监听地址：127.0.0.1（可通过 `HOST` 环境变量覆盖）
+- 默认端口：8268（可通过 `PORT` 环境变量覆盖）
+- 监听地址：0.0.0.0（可通过 `HOST` 环境变量覆盖）
 - 数据库：`server/data/marketplace.db`（SQLite + WAL）
 - 上传目录：`server/data/uploads/scripts/`、`server/data/uploads/templates/`
 - 认证：JWT Token + Bearer Token

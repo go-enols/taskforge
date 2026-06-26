@@ -1,0 +1,27 @@
+{
+  "id": "test",
+  "name": "Test",
+  "version": "1.0.4",
+  "description": "用于测试6-11",
+  "entryPoint": "index.js",
+  "runtime": "node",
+  "permissions": [
+    "network",
+    "filesystem"
+  ],
+  "tags": [],
+  "changelog": "",
+  "dataRequirements": [],
+  "schema": {
+    "type": "object",
+    "properties": {
+      "msg": {
+        "type": "string",
+        "title": "消息"
+      }
+    },
+    "required": [
+      "msg"
+    ]
+  }
+}

@@ -1198,7 +1198,7 @@ const DataSection: React.FC = () => {
     appApi
       .getInfo()
       .then((info) => {
-        setDataDir(info.dataDir)
+        setDataDir(info.dataDir || '')
         setStats({
           scriptParamCount: info.scriptParamCount,
           proxyCount: info.proxyCount,
@@ -1584,7 +1584,7 @@ const AboutSection: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           {info?.dataDir && (
             <>
               <button
-                onClick={() => handleCopy(info.dataDir, 'dataDir')}
+                onClick={() => handleCopy(info.dataDir!, 'dataDir')}
                 className="p-1 text-text-muted hover:text-primary hover:bg-primary-light rounded transition-colors shrink-0"
                 title={t('settings.aboutSection.copyPath')}
               >
