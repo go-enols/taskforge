@@ -1,0 +1,7 @@
+{
+  "name": "taskforge-mobile-node",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "description": "TaskForge mobile Node.js runtime (runs downloaded automation scripts)"
+}

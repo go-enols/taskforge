@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// TaskForge 移动端 PWA
-// 生产部署在 https://task.likecloud.top/app/（nginx 静态托管，同源调用 /api）
-export default defineConfig({
-  base: '/app/',
+// TaskForge 移动端
+// - Web/PWA 构建：base=/app/，部署在 https://task.likecloud.top/app/
+// - Android App 构建（--mode android）：base=./，由 Capacitor 从本地 assets 加载
+export default defineConfig(({ mode }) => ({
+  base: mode === 'android' ? './' : '/app/',
   plugins: [react()],
   server: {
     port: 5174,
@@ -21,4 +22,4 @@ export default defineConfig({
     target: 'es2020',
     sourcemap: false
   }
-})
+}))

@@ -250,8 +250,9 @@ export const scriptApi = {
     ),
   get: (id: string) => request<ScriptItem>(`/api/scripts/${encodeURIComponent(id)}`),
   versions: (id: string) => request<ScriptVersion[]>(`/api/scripts/${encodeURIComponent(id)}/versions`),
-  /** 下载脚本 zip 并触发浏览器保存 */
-  download: async (id: string, fallbackName: string): Promise<void> => {
+
+  /** 下载脚本 zip 为 Blob（App 安装到本机时使用） */
+  fetchZip: async (id: string): Promise<Blob> => {
     const token = getToken()
     const response = await fetch(`/api/scripts/${encodeURIComponent(id)}/download`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -263,14 +264,16 @@ export const scriptApi = {
         | null
       throw new ApiError(payload?.error?.message || `下载失败（${response.status}）`, response.status)
     }
-    const blob = await response.blob()
-    const disposition = response.headers.get('content-disposition') ?? ''
-    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition)
-    const filename = match ? decodeURIComponent(match[1]) : `${fallbackName}.zip`
+    return await response.blob()
+  },
+
+  /** 下载脚本 zip 并触发浏览器保存 */
+  download: async (id: string, fallbackName: string): Promise<void> => {
+    const blob = await scriptApi.fetchZip(id)
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = filename
+    anchor.download = `${fallbackName}.zip`
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()

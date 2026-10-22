@@ -2,19 +2,29 @@
   "name": "taskforge-mobile",
   "private": true,
   "version": "1.0.0",
-  "description": "TaskForge 移动端 PWA — 脚本市场 / 模板 / 个人中心",
+  "description": "TaskForge 移动端：Android App（Capacitor + 内嵌 Node.js 运行时执行脚本）+ 可安装 PWA",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:web": "npm run build",
+    "build:android": "tsc --noEmit && vite build --mode android && node scripts/copy-nodejs.cjs",
+    "sync:android": "npm run build:android && cap sync android",
+    "android:apk": "npm run sync:android && cd android && gradlew.bat assembleDebug",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capawesome/capacitor-nodejs": "^0.2.0",
+    "json5": "^2.2.3",
+    "jszip": "^3.10.2",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",

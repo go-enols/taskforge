@@ -22,11 +22,27 @@ import {
   type TemplateItem,
   type User
 } from './api'
+import { isNativeApp, onNodeEvent, pingNodeRuntime, type RuntimePing } from './native'
+import {
+  deleteInstalledTask,
+  installScriptToDevice,
+  listInstalledTasks,
+  loadTaskConfig,
+  runInstalledTask,
+  stopInstalledTask,
+  syncTasksFromRuntime,
+  type InstalledTask,
+  type TaskLogEntry,
+  type TaskRunStatus
+} from './tasks'
 
 /* ────────────────────────── 类型与工具 ────────────────────────── */
 
-type Tab = 'market' | 'templates' | 'profile'
+type Tab = 'market' | 'templates' | 'tasks' | 'profile'
 type ToastType = 'info' | 'success' | 'error'
+
+/** 静态资源前缀（Web: /app/，Android: ./） */
+const ICON_BASE = `${import.meta.env.BASE_URL}icons/`
 
 interface ToastState {
   text: string
@@ -300,7 +316,7 @@ function AuthScreen({
     <div className="auth-page">
       <div className="auth-glow" aria-hidden="true" />
       <div className="auth-brand">
-        <img src="/app/icons/icon-192.png" alt="" className="auth-brand__logo" />
+        <img src={`${ICON_BASE}icon-192.png`} alt="" className="auth-brand__logo" />
         <h1 className="auth-brand__name">TASKFORGE</h1>
         <p className="auth-brand__subtitle">自动化脚本 · 市场 · 移动端</p>
       </div>
@@ -453,14 +469,19 @@ function ScriptCard({
 function ScriptSheet({
   script,
   onClose,
-  notify
+  notify,
+  native,
+  onInstalled
 }: {
   script: ScriptItem
   onClose: () => void
   notify: (text: string, type?: ToastType) => void
+  native: boolean
+  onInstalled: (task: InstalledTask) => void
 }): React.JSX.Element {
   const [versions, setVersions] = useState<ScriptVersion[] | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [installing, setInstalling] = useState(false)
   const [showSchema, setShowSchema] = useState(false)
 
   useEffect(() => {
@@ -490,16 +511,48 @@ function ScriptSheet({
     }
   }
 
+  const install = async (): Promise<void> => {
+    setInstalling(true)
+    try {
+      const task = await installScriptToDevice(script)
+      notify(`已安装「${task.name}」，可在任务页运行`, 'success')
+      onInstalled(task)
+      onClose()
+    } catch (err) {
+      notify(err instanceof Error ? err.message : '安装失败', 'error')
+    } finally {
+      setInstalling(false)
+    }
+  }
+
   return (
     <Sheet
       title={script.name}
       subtitle={`v${script.version}${script.createdByName ? ` · ${script.createdByName}` : ''}`}
       onClose={onClose}
       footer={
-        <button type="button" className="btn btn--primary btn--block" onClick={download} disabled={downloading}>
-          {downloading ? <Spinner /> : null}
-          {downloading ? '下载中…' : '下载脚本 ZIP'}
-        </button>
+        <div className="footer-actions">
+          {native ? (
+            <button
+              type="button"
+              className="btn btn--primary btn--block"
+              onClick={() => void install()}
+              disabled={installing}
+            >
+              {installing ? <Spinner /> : null}
+              {installing ? '正在安装…' : '安装到本机（任务页运行）'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`btn btn--block ${native ? 'btn--ghost' : 'btn--primary'}`}
+            onClick={() => void download()}
+            disabled={downloading}
+          >
+            {downloading ? <Spinner /> : null}
+            {downloading ? '下载中…' : '下载脚本 ZIP'}
+          </button>
+        </div>
       }
     >
       {script.description ? <p className="sheet-paragraph">{script.description}</p> : null}
@@ -584,11 +637,15 @@ function ScriptSheet({
 function MarketPage({
   notify,
   online,
-  banner
+  banner,
+  native,
+  onInstalled
 }: {
   notify: (text: string, type?: ToastType) => void
   online: boolean
   banner: ReactNode
+  native: boolean
+  onInstalled: (task: InstalledTask) => void
 }): React.JSX.Element {
   const [items, setItems] = useState<ScriptItem[]>([])
   const [total, setTotal] = useState(0)
@@ -711,7 +768,13 @@ function MarketPage({
       )}
 
       {selected ? (
-        <ScriptSheet script={selected} onClose={() => setSelected(null)} notify={notify} />
+        <ScriptSheet
+          script={selected}
+          onClose={() => setSelected(null)}
+          notify={notify}
+          native={native}
+          onInstalled={onInstalled}
+        />
       ) : null}
     </div>
   )
@@ -933,6 +996,439 @@ function TemplatesPage({ notify }: { notify: (text: string, type?: ToastType) =>
 }
 
 /* ────────────────────────── 个人中心 ────────────────────────── */
+
+/* ────────────────────────── 本机任务（Android App） ────────────────────────── */
+
+interface SchemaProperty {
+  type?: string
+  title?: string
+  description?: string
+  default?: unknown
+  enum?: unknown[]
+}
+
+/** 读取 JSON Schema 的顶层属性 */
+function schemaProperties(schema: Record<string, unknown> | undefined): Array<[string, SchemaProperty]> {
+  const properties =
+    schema && typeof schema.properties === 'object' && schema.properties !== null
+      ? (schema.properties as Record<string, SchemaProperty>)
+      : {}
+  return Object.entries(properties)
+}
+
+/** 由 schema 默认值 + 上次保存的配置生成初始 config */
+function buildInitialConfig(task: InstalledTask): Record<string, unknown> {
+  const config: Record<string, unknown> = {}
+  for (const [key, prop] of schemaProperties(task.schema)) {
+    if (prop.default !== undefined) config[key] = prop.default
+    else if (prop.type === 'number' || prop.type === 'integer') config[key] = 0
+    else if (prop.type === 'boolean') config[key] = false
+    else config[key] = ''
+  }
+  return { ...config, ...loadTaskConfig(task.id) }
+}
+
+const TASK_STATUS_LABELS: Record<TaskRunStatus, string> = {
+  idle: '未运行',
+  running: '运行中',
+  exited: '已结束',
+  stopped: '已停止',
+  error: '运行失败'
+}
+
+/** 任务参数配置弹层：按脚本 schema 生成表单，附带沙箱开关 */
+function TaskConfigSheet({
+  task,
+  onClose,
+  onStarted,
+  notify
+}: {
+  task: InstalledTask
+  onClose: () => void
+  onStarted: (taskId: string) => void
+  notify: (text: string, type?: ToastType) => void
+}): React.JSX.Element {
+  const properties = schemaProperties(task.schema)
+  const [config, setConfig] = useState<Record<string, unknown>>(() => buildInitialConfig(task))
+  const [sandbox, setSandbox] = useState(false)
+  const [running, setRunning] = useState(false)
+
+  const setValue = (key: string, value: unknown): void => {
+    setConfig((previous) => ({ ...previous, [key]: value }))
+  }
+
+  const start = async (): Promise<void> => {
+    setRunning(true)
+    try {
+      await runInstalledTask(task, config, sandbox)
+      onStarted(task.id)
+      notify(sandbox ? '已在沙箱模式启动任务' : '任务已启动', 'success')
+      onClose()
+    } catch (err) {
+      notify(err instanceof Error ? err.message : '任务启动失败', 'error')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <Sheet
+      title={`运行：${task.name}`}
+      subtitle={`v${task.version}`}
+      onClose={onClose}
+      footer={
+        <button type="button" className="btn btn--primary btn--block" onClick={() => void start()} disabled={running}>
+          {running ? <Spinner /> : null}
+          {running ? '启动中…' : '开始运行'}
+        </button>
+      }
+    >
+      {properties.length === 0 ? (
+        <p className="muted-text">该脚本没有可配置参数，点击「开始运行」即可。</p>
+      ) : (
+        properties.map(([key, prop]) => {
+          const title = prop.title || key
+          const value = config[key]
+          const type = prop.type || 'string'
+          if (Array.isArray(prop.enum) && prop.enum.length > 0) {
+            return (
+              <label key={key} className="field">
+                <span className="field__label">{title}</span>
+                <select
+                  className="field__input"
+                  value={String(value ?? '')}
+                  onChange={(event) => setValue(key, event.target.value)}
+                >
+                  {prop.enum.map((option) => (
+                    <option key={String(option)} value={String(option)}>
+                      {String(option)}
+                    </option>
+                  ))}
+                </select>
+                {prop.description ? <span className="muted-text">{prop.description}</span> : null}
+              </label>
+            )
+          }
+          if (type === 'boolean') {
+            return (
+              <label key={key} className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={Boolean(value)}
+                  onChange={(event) => setValue(key, event.target.checked)}
+                />
+                <span>{title}</span>
+              </label>
+            )
+          }
+          if (type === 'number' || type === 'integer') {
+            return (
+              <label key={key} className="field">
+                <span className="field__label">{title}</span>
+                <input
+                  className="field__input"
+                  type="number"
+                  value={value === undefined || value === null || value === '' ? '' : String(value)}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    setValue(key, raw === '' ? '' : Number(raw))
+                  }}
+                />
+              </label>
+            )
+          }
+          if (type === 'object' || type === 'array') {
+            return (
+              <label key={key} className="field">
+                <span className="field__label">{title}（JSON）</span>
+                <textarea
+                  className="field__input field__textarea"
+                  rows={4}
+                  value={typeof value === 'string' ? value : JSON.stringify(value ?? (type === 'array' ? [] : {}), null, 2)}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    try {
+                      setValue(key, JSON.parse(raw))
+                    } catch {
+                      setValue(key, raw)
+                    }
+                  }}
+                />
+              </label>
+            )
+          }
+          return (
+            <label key={key} className="field">
+              <span className="field__label">{title}</span>
+              <input
+                className="field__input"
+                value={value === undefined || value === null ? '' : String(value)}
+                onChange={(event) => setValue(key, event.target.value)}
+              />
+              {prop.description ? <span className="muted-text">{prop.description}</span> : null}
+            </label>
+          )
+        })
+      )}
+
+      <label className="checkbox-field">
+        <input type="checkbox" checked={sandbox} onChange={(event) => setSandbox(event.target.checked)} />
+        <span>
+          沙箱模式
+          <span className="muted-text">（拒绝网络与文件系统权限，适合不信任的脚本）</span>
+        </span>
+      </label>
+
+      <p className="muted-text">
+        脚本在本机内嵌 Node.js 运行时中执行；声明的权限：{task.permissions && task.permissions.length > 0 ? task.permissions.join('、') : '无'}。
+        依赖 npm 包的脚本需开发者自行打包进 zip。
+      </p>
+    </Sheet>
+  )
+}
+
+/** 本机任务页：安装的脚本列表、运行/停止、日志 */
+function TasksPage({
+  notify,
+  goMarket
+}: {
+  notify: (text: string, type?: ToastType) => void
+  goMarket: () => void
+}): React.JSX.Element {
+  const [tasks, setTasks] = useState<InstalledTask[]>([])
+  const [statuses, setStatuses] = useState<Record<string, TaskRunStatus>>({})
+  const [progress, setProgress] = useState<Record<string, number>>({})
+  const [logs, setLogs] = useState<Record<string, TaskLogEntry[]>>({})
+  const [loading, setLoading] = useState(true)
+  const [runtime, setRuntime] = useState<RuntimePing | null>(null)
+  const [runtimeError, setRuntimeError] = useState('')
+  const [configTask, setConfigTask] = useState<InstalledTask | null>(null)
+  const [logTask, setLogTask] = useState<InstalledTask | null>(null)
+  const logEndRef = useRef<HTMLDivElement | null>(null)
+
+  const loadTasks = useCallback(async (): Promise<void> => {
+    setTasks(listInstalledTasks())
+    try {
+      const [runtimeInfo, runtimeTasks] = await Promise.all([pingNodeRuntime(), syncTasksFromRuntime()])
+      setRuntime(runtimeInfo)
+      setRuntimeError('')
+      setTasks(runtimeTasks)
+    } catch (err) {
+      setRuntimeError(err instanceof Error ? err.message : 'Node 运行时不可用')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadTasks()
+  }, [loadTasks])
+
+  useEffect(() => {
+    return onNodeEvent((eventName, payload) => {
+      const data = payload as Record<string, unknown> | null
+      if (!data || typeof data.taskId !== 'string') return
+      const taskId = data.taskId
+      if (eventName === 'task-status') {
+        setStatuses((previous) => ({ ...previous, [taskId]: (data.status as TaskRunStatus) || 'idle' }))
+        if (data.status === 'exited' || data.status === 'stopped' || data.status === 'error') {
+          setProgress((previous) => ({ ...previous, [taskId]: 0 }))
+        }
+      } else if (eventName === 'task-log') {
+        const entry = data as unknown as TaskLogEntry
+        setLogs((previous) => {
+          const list = [...(previous[taskId] || []), entry]
+          if (list.length > 500) list.splice(0, list.length - 500)
+          return { ...previous, [taskId]: list }
+        })
+      } else if (eventName === 'task-progress') {
+        setProgress((previous) => ({
+          ...previous,
+          [taskId]: Math.max(0, Math.min(100, Number(data.percent) || 0))
+        }))
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ block: 'end' })
+  }, [logs, logTask])
+
+  const stopTask = async (task: InstalledTask): Promise<void> => {
+    try {
+      await stopInstalledTask(task.id)
+      notify('已请求停止任务', 'info')
+    } catch (err) {
+      notify(err instanceof Error ? err.message : '停止失败', 'error')
+    }
+  }
+
+  const removeTask = async (task: InstalledTask): Promise<void> => {
+    if (!window.confirm(`删除任务「${task.name}」？脚本文件也会从手机删除。`)) return
+    try {
+      await deleteInstalledTask(task.id)
+      setTasks(listInstalledTasks())
+      notify('任务已删除', 'success')
+    } catch (err) {
+      notify(err instanceof Error ? err.message : '删除失败', 'error')
+    }
+  }
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">任务</h1>
+          <p className="page-subtitle">本机脚本执行（内嵌 Node.js 运行时）</p>
+        </div>
+        <button type="button" className="icon-button" onClick={() => void loadTasks()} aria-label="刷新">
+          ↻
+        </button>
+      </div>
+
+      {runtime ? (
+        <div className="runtime-banner">
+          <span className="runtime-banner__dot" aria-hidden="true" />
+          <div className="runtime-banner__text">
+            <strong>
+              Node.js {runtime.node} · {runtime.workerSupported ? 'Worker 隔离运行' : '主运行时模式'}
+            </strong>
+            <span>
+              {runtime.enforcerPresent ? '沙箱权限控制已启用' : '缺少权限控制文件'} · {runtime.arch} · 脚本保存在手机应用私有目录
+            </span>
+          </div>
+        </div>
+      ) : runtimeError ? (
+        <div className="runtime-banner runtime-banner--error">
+          <span aria-hidden="true">⚠️</span>
+          <div className="runtime-banner__text">
+            <strong>Node 运行时未就绪</strong>
+            <span>{runtimeError}</span>
+          </div>
+          <button type="button" className="btn btn--small btn--ghost" onClick={() => void loadTasks()}>
+            重试
+          </button>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="card-list">
+          {[0, 1].map((key) => (
+            <div key={key} className="script-card script-card--skeleton">
+              <div className="skeleton-line skeleton-line--wide" />
+              <div className="skeleton-line" />
+            </div>
+          ))}
+        </div>
+      ) : tasks.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state__icon">🤖</div>
+          <p className="empty-state__title">还没有安装脚本</p>
+          <p className="empty-state__desc">去脚本市场选择脚本，点「安装到手机并运行」</p>
+          <button type="button" className="btn btn--primary" onClick={goMarket}>
+            去脚本市场
+          </button>
+        </div>
+      ) : (
+        <div className="card-list">
+          {tasks.map((task) => {
+            const status = statuses[task.id] || 'idle'
+            const percent = progress[task.id] || 0
+            return (
+              <div key={task.id} className="task-card">
+                <div className="task-card__header">
+                  <div>
+                    <h3 className="script-card__name">{task.name}</h3>
+                    <p className="muted-text">
+                      v{task.version} · {task.entryPoint}
+                    </p>
+                  </div>
+                  <span
+                    className={`task-status task-status--${status}`}
+                  >
+                    {TASK_STATUS_LABELS[status] || status}
+                  </span>
+                </div>
+                {status === 'running' ? (
+                  <div className="progress-track">
+                    <div className="progress-fill" style={{ width: `${percent}%` }} />
+                  </div>
+                ) : null}
+                <div className="task-card__actions">
+                  {status === 'running' ? (
+                    <button type="button" className="btn btn--small btn--danger" onClick={() => void stopTask(task)}>
+                      停止
+                    </button>
+                  ) : (
+                    <button type="button" className="btn btn--small btn--primary" onClick={() => setConfigTask(task)}>
+                      运行
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn--small btn--ghost"
+                    onClick={() => setLogTask(task)}
+                  >
+                    日志 {logs[task.id] ? `(${logs[task.id].length})` : ''}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--small btn--ghost"
+                    onClick={() => void removeTask(task)}
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {configTask ? (
+        <TaskConfigSheet
+          task={configTask}
+          onClose={() => setConfigTask(null)}
+          onStarted={(taskId) => {
+            setStatuses((previous) => ({ ...previous, [taskId]: 'running' }))
+          }}
+          notify={notify}
+        />
+      ) : null}
+
+      {logTask ? (
+        <Sheet
+          title={`日志：${logTask.name}`}
+          onClose={() => setLogTask(null)}
+          footer={
+            <button
+              type="button"
+              className="btn btn--ghost btn--block"
+              onClick={() => setLogs((previous) => ({ ...previous, [logTask.id]: [] }))}
+            >
+              清空日志
+            </button>
+          }
+        >
+          {logs[logTask.id] && logs[logTask.id].length > 0 ? (
+            <div className="task-log">
+              {logs[logTask.id].map((entry, index) => (
+                <div key={`${entry.timestamp}-${index}`} className={`task-log__line task-log__line--${entry.level}`}>
+                  <span className="task-log__time">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                  <span className="task-log__level">{entry.level.toUpperCase()}</span>
+                  <span className="task-log__message">{entry.message}</span>
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
+          ) : (
+            <p className="muted-text">暂无日志。运行任务后日志会实时显示在这里。</p>
+          )}
+        </Sheet>
+      ) : null}
+    </div>
+  )
+}
 
 function ProfilePage({
   user,
@@ -1212,6 +1708,15 @@ function TabIcon({ tab, active }: { tab: Tab; active: boolean }): React.JSX.Elem
       </svg>
     )
   }
+  if (tab === 'tasks') {
+    return (
+      <svg {...common}>
+        <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+        <path d="M8 3v4M16 3v4M3.5 10h17" />
+        <path d="M8 14l2 2 4-4" />
+      </svg>
+    )
+  }
   return (
     <svg {...common}>
       <circle cx="12" cy="8" r="3.5" />
@@ -1307,7 +1812,7 @@ export default function App(): React.JSX.Element {
   }
 
   const banner =
-    showInstall && !isStandalone() ? (
+    !isNativeApp && showInstall && !isStandalone() ? (
       <InstallBanner
         event={installEvent}
         onDismiss={() => setShowInstall(false)}
@@ -1327,10 +1832,10 @@ export default function App(): React.JSX.Element {
 
       <header className="app-header">
         <div className="app-header__brand">
-          <img src="/app/icons/icon-192.png" alt="" className="app-header__logo" />
+          <img src={`${ICON_BASE}icon-192.png`} alt="" className="app-header__logo" />
           <div>
             <span className="app-header__name">TASKFORGE</span>
-            <span className="app-header__sub">移动端</span>
+            <span className="app-header__sub">{isNativeApp ? 'Android App' : '移动端'}</span>
           </div>
         </div>
         <span className={`role-pill role-pill--${user.role}`}>{roleLabel(user.role)}</span>
@@ -1338,9 +1843,17 @@ export default function App(): React.JSX.Element {
 
       <main className="app-main">
         {tab === 'market' ? (
-          <MarketPage notify={notify} online={online} banner={banner} />
+          <MarketPage
+            notify={notify}
+            online={online}
+            banner={banner}
+            native={isNativeApp}
+            onInstalled={() => setTab('tasks')}
+          />
         ) : tab === 'templates' ? (
           <TemplatesPage notify={notify} />
+        ) : tab === 'tasks' ? (
+          <TasksPage notify={notify} goMarket={() => setTab('market')} />
         ) : (
           <ProfilePage
             user={user}
@@ -1357,6 +1870,7 @@ export default function App(): React.JSX.Element {
           [
             { key: 'market' as Tab, label: '市场' },
             { key: 'templates' as Tab, label: '模板' },
+            ...(isNativeApp ? [{ key: 'tasks' as Tab, label: '任务' }] : []),
             { key: 'profile' as Tab, label: '我的' }
           ] as const
         ).map((item) => (

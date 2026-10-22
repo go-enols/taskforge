@@ -135,3 +135,20 @@ curl -sI https://task.likecloud.top/app/sw.js
 > （允许 www-data 穿越但不列目录）；当前已按此配置。
 
 ![移动端登录页](screenshots/mobile-login.png)
+
+## Android App（APK 分发）
+
+Android App 构建说明见 [`mobile/README.md`](../mobile/README.md)。APK 由 nginx 静态提供下载：
+
+```nginx
+location = /download/TaskForge.apk {
+    alias /home/ubuntu/taskforge/mobile/TaskForge.apk;
+    default_type application/vnd.android.package-archive;
+    add_header Content-Disposition 'attachment; filename="TaskForge-1.0.0.apk"';
+    expires -1;
+}
+```
+
+- 下载地址：<https://task.likecloud.top/download/TaskForge.apk>
+- 服务器路径：`/home/ubuntu/taskforge/mobile/TaskForge.apk`（更新 APK 时覆盖该文件即可，无需 reload nginx）
+- 当前为 debug 签名（可侧载安装）；上架/长期分发建议配置正式签名
