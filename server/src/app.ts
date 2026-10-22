@@ -44,6 +44,12 @@ const DEFAULT_CORS_WHITELIST = [
 export function createApp(options: CreateAppOptions = {}): express.Express {
   const app = express();
 
+  // 生产部署位于 nginx / Cloudflare 之后：信任一层反向代理（nginx 已通过
+  // set_real_ip_from + CF-Connecting-IP 还原真实客户端 IP 到 X-Forwarded-For），
+  // 否则 express-rate-limit 无法识别用户且会持续打印 ERR_ERL_UNEXPECTED_X_FORWARDED_FOR。
+  app.set("trust proxy", 1);
+  app.disable("x-powered-by");
+
   const extraOrigins =
     options.corsOrigins ??
     (process.env.CORS_ORIGINS || "")
