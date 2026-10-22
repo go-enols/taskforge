@@ -8,6 +8,8 @@
 
 - `client/` — Electron 桌面应用（主程序）
 - `server/` — Marketplace 服务端（Express + SQLite）
+- `mobile/` — 移动端 PWA（可安装到手机桌面，线上地址 `https://task.likecloud.top/app/`）
+- `deploy/` — 生产部署配置（systemd / nginx）
 
 ## 推荐 IDE 配置
 

@@ -100,3 +100,38 @@ curl -s https://task.likecloud.top/api/health
 - 上传：nginx `client_max_body_size 60m`，服务端 multer 限制单文件 50MB。
 - `.env`（JWT_SECRET / MARKETPLACE_API_KEY）首次启动自动生成，权限 0600。
 - legacy 全局 admin key 默认关闭（需 `ALLOW_LEGACY_ADMIN_KEY=1` 才启用）。
+
+## 移动端 PWA（https://task.likecloud.top/app/）
+
+仓库 `mobile/` 是独立的 Vite + React 移动端 PWA，复用同一域名下的 `/api`（同源，无 CORS），
+由 nginx 静态托管，可添加到手机主屏幕（iOS Safari：分享 → 添加到主屏幕；Android Chrome：安装应用）。
+
+### 部署/更新
+
+```bash
+cd mobile && npm install && npm run build        # 产物 mobile/app/
+# 更新时先删除远程旧产物目录（DSH 远程同步对已存在文件覆盖会失败，且 hash 文件名会残留）
+ssh ubuntu@43.167.208.57 'rm -rf /home/ubuntu/taskforge/mobile/app'
+# 通过 DSH 远程同步推送 mobile/app -> /home/ubuntu/taskforge/mobile/app
+# 若远程目录不存在，先 mkdir -p /home/ubuntu/taskforge/mobile/app/{assets,icons}
+```
+
+nginx 相关配置见 `deploy/server/nginx-task.likecloud.top.conf`：
+
+- `/app/` → 静态文件（`root /home/ubuntu/taskforge/mobile`，SPA 回退 `/app/index.html`）
+- `/app/assets/` → 30 天强缓存；`/app/index.html`、`/app/sw.js` → 不缓存
+- `/` → 302 到 `/app/`
+- `/api/*` 及其余路径 → `127.0.0.1:8268`
+
+### 验证
+
+```bash
+curl -s https://task.likecloud.top/app/ | head -5
+curl -sI https://task.likecloud.top/app/manifest.json
+curl -sI https://task.likecloud.top/app/sw.js
+```
+
+> 注意：nginx 需要能读取部署目录。若放在 `/home/ubuntu` 下，`/home/ubuntu` 需为 `711`
+> （允许 www-data 穿越但不列目录）；当前已按此配置。
+
+![移动端登录页](screenshots/mobile-login.png)

@@ -53,6 +53,14 @@ jobs:
         working-directory: ./client
         run: node scripts/sync-shared-schemas.cjs --check
 
+      - name: Install mobile dependencies
+        working-directory: ./mobile
+        run: npm ci --no-audit --no-fund
+
+      - name: Build mobile PWA
+        working-directory: ./mobile
+        run: npm run build
+
       - name: Setup Node.js (server)
         uses: actions/setup-node@v4
         with:
