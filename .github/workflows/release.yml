@@ -137,7 +137,8 @@ jobs:
       - name: Upload yml and blockmap files
         shell: bash
         run: |
-          for f in $(find . -name '*.yml' -o -name '*.blockmap' | sort); do
+          # 只上传构建产物目录中的 updater 元数据，避免把仓库里的 workflow/配置 yml 也传成 release asset
+          for f in $(find . -maxdepth 2 -path '*-build/*' \( -name '*.yml' -o -name '*.blockmap' \) | sort); do
             echo "Uploading $f"
             gh release upload ${{ github.ref_name }} "$f" --repo ${{ github.repository }} --clobber
           done
