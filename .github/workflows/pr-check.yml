@@ -60,7 +60,7 @@ jobs:
 
       - name: Install server dependencies
         working-directory: ./server
-        run: npm install
+        run: npm ci
 
       - name: Type check (server)
         working-directory: ./server

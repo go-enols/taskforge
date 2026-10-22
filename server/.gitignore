@@ -4,4 +4,3 @@ dist/
 data/*.db
 data/*.db-shm
 data/*.db-wal
-package-lock.json

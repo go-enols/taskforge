@@ -886,3 +886,8 @@ ensure-electron --check
 | 客户端测试 | 324/343 通过；**19 个失败为上游既有测试漂移**（settings 分区、transport 强制模式、store 统计/分析、空投旧字段），上游 CI 原本即用 `continue-on-error` 标记为非阻塞，本次保持该策略 |
 
 > 备注：后续可单独用一批"测试漂移清理"把 19 个历史用例与上游新实现对齐后再解除 `continue-on-error`。
+
+### H.3 v0.5.1 发布修复（2026-10-22）
+
+v0.5.0 的 Release workflow 在 3 个 runner 的 `Install server dependencies` 步骤失败（npm 10 解析无 lockfile 的 server 依赖时触发 arborist `edgesOut` 错误）。
+修复：提交 `server/package-lock.json`（npm 11 生成），CI 改为 `npm ci`（release + pr-check），版本号升至 **v0.5.1**，重新打 tag 触发发布。
