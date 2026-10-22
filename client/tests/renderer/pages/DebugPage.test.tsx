@@ -39,20 +39,20 @@ const mocks = vi.hoisted(() => ({
     delete: vi.fn()
   },
   fileApi: { selectFolder: vi.fn(), readFile: vi.fn() },
-  accountApi: { list: vi.fn() },
+  scriptParamApi: { list: vi.fn() },
   dialogApi: { saveFile: vi.fn() }
 }))
 
 vi.mock('../../../src/renderer/src/api', () => ({
   taskApi: mocks.taskApi,
   fileApi: mocks.fileApi,
-  accountApi: mocks.accountApi,
+  scriptParamApi: mocks.scriptParamApi,
   dialogApi: mocks.dialogApi
 }))
 
 const mockTaskApi = mocks.taskApi
 const mockFileApi = mocks.fileApi
-const mockAccountApi = mocks.accountApi
+const mockScriptParamApi = mocks.scriptParamApi
 
 /** 生成示例账户数据 */
 const sampleAccount = (id: string, templateId: string) => ({
@@ -105,7 +105,7 @@ describe('DebugPage (interactive)', () => {
     document.body.appendChild(container)
     mockFileApi.selectFolder.mockResolvedValue({ canceled: false, folderPath: 'D:\\scripts\\mybot' })
     mockFileApi.readFile.mockResolvedValue({ success: true, content: '' })
-    mockAccountApi.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 9999, totalPages: 1 })
+    mockScriptParamApi.list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 9999, totalPages: 1 })
     mockTaskApi.create.mockResolvedValue({
       id: 'task-1',
       scriptFolder: 'D:\\scripts\\mybot',
@@ -142,13 +142,13 @@ describe('DebugPage (interactive)', () => {
             name: 'My Bot',
             version: '1.0.0',
             entryPoint: 'main.js',
-            requiredAccountTemplateIds: ['tpl-evm']
+            dataRequirements: [{ key: 'accounts', source: 'script_param', templateType: 'tpl-evm' }]
           })
         }
       }
       return { success: false }
     })
-    mockAccountApi.list.mockResolvedValue({
+    mockScriptParamApi.list.mockResolvedValue({
       items: [sampleAccount('a1', 'tpl-evm'), sampleAccount('a2', 'tpl-evm'), sampleAccount('a3', 'tpl-other')],
       total: 3,
       page: 1,
@@ -195,9 +195,9 @@ describe('DebugPage (interactive)', () => {
   it('run button is enabled only when a folder is selected and an account is chosen', async () => {
     mockFileApi.readFile.mockResolvedValue({
       success: true,
-      content: JSON.stringify({ name: 'X', requiredAccountTemplateIds: ['tpl'] })
+      content: JSON.stringify({ name: 'X', dataRequirements: [{ key: 'accounts', source: 'script_param', templateType: 'tpl' }] })
     })
-    mockAccountApi.list.mockResolvedValue({
+    mockScriptParamApi.list.mockResolvedValue({
       items: [sampleAccount('a1', 'tpl')],
       total: 1,
       page: 1,
@@ -220,9 +220,9 @@ describe('DebugPage (interactive)', () => {
   it('clicking run calls taskApi.create with sandbox + selected account, then taskApi.start', async () => {
     mockFileApi.readFile.mockResolvedValue({
       success: true,
-      content: JSON.stringify({ name: 'X', requiredAccountTemplateIds: ['tpl'] })
+      content: JSON.stringify({ name: 'X', dataRequirements: [{ key: 'accounts', source: 'script_param', templateType: 'tpl' }] })
     })
-    mockAccountApi.list.mockResolvedValue({
+    mockScriptParamApi.list.mockResolvedValue({
       items: [sampleAccount('a1', 'tpl')],
       total: 1,
       page: 1,
@@ -251,9 +251,9 @@ describe('DebugPage (interactive)', () => {
   it('toggling sandbox off sends isSandbox: false', async () => {
     mockFileApi.readFile.mockResolvedValue({
       success: true,
-      content: JSON.stringify({ name: 'X', requiredAccountTemplateIds: ['tpl'] })
+      content: JSON.stringify({ name: 'X', dataRequirements: [{ key: 'accounts', source: 'script_param', templateType: 'tpl' }] })
     })
-    mockAccountApi.list.mockResolvedValue({
+    mockScriptParamApi.list.mockResolvedValue({
       items: [sampleAccount('a1', 'tpl')],
       total: 1,
       page: 1,
@@ -285,9 +285,9 @@ describe('DebugPage (interactive)', () => {
   it('shows the LogViewer once a task is running', async () => {
     mockFileApi.readFile.mockResolvedValue({
       success: true,
-      content: JSON.stringify({ name: 'X', requiredAccountTemplateIds: ['tpl'] })
+      content: JSON.stringify({ name: 'X', dataRequirements: [{ key: 'accounts', source: 'script_param', templateType: 'tpl' }] })
     })
-    mockAccountApi.list.mockResolvedValue({
+    mockScriptParamApi.list.mockResolvedValue({
       items: [sampleAccount('a1', 'tpl')],
       total: 1,
       page: 1,
@@ -313,9 +313,9 @@ describe('DebugPage (interactive)', () => {
   it('stop button is only enabled while running', async () => {
     mockFileApi.readFile.mockResolvedValue({
       success: true,
-      content: JSON.stringify({ name: 'X', requiredAccountTemplateIds: ['tpl'] })
+      content: JSON.stringify({ name: 'X', dataRequirements: [{ key: 'accounts', source: 'script_param', templateType: 'tpl' }] })
     })
-    mockAccountApi.list.mockResolvedValue({
+    mockScriptParamApi.list.mockResolvedValue({
       items: [sampleAccount('a1', 'tpl')],
       total: 1,
       page: 1,
@@ -347,9 +347,9 @@ describe('DebugPage (interactive)', () => {
   it('clear logs button is wired and fires taskApi.clearLogs when a task is active', async () => {
     mockFileApi.readFile.mockResolvedValue({
       success: true,
-      content: JSON.stringify({ name: 'X', requiredAccountTemplateIds: ['tpl'] })
+      content: JSON.stringify({ name: 'X', dataRequirements: [{ key: 'accounts', source: 'script_param', templateType: 'tpl' }] })
     })
-    mockAccountApi.list.mockResolvedValue({
+    mockScriptParamApi.list.mockResolvedValue({
       items: [sampleAccount('a1', 'tpl')],
       total: 1,
       page: 1,

@@ -11,7 +11,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import ClassificationSection from '../../../../src/renderer/src/components/airdrops/AirdropFormSections/ClassificationSection'
 import type { AirdropFormData, TaskTemplateOption } from '../../../../src/renderer/src/components/airdrops/airdrop-defaults'
-import type { TaskTemplate } from '../../../../../src/shared/types'
+import type { TaskTemplate } from '../../../../src/shared/types'
 
 // 模拟 react-i18next，返回 key 作为翻译结果
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
@@ -20,7 +20,6 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }
 const baseForm = (overrides: Partial<AirdropFormData> = {}): AirdropFormData => ({
   name: 'Hyperliquid',
   website: 'https://app.hyperliquid.xyz',
-  chain: 'Hyperliquid L1',
   description: '',
   scriptTemplateId: 'script-1',
   accountPool: 'main',
@@ -32,6 +31,8 @@ const baseForm = (overrides: Partial<AirdropFormData> = {}): AirdropFormData => 
   eligibilityCriteria: [],
   tasks: [],
   earnings: [],
+  templateId: '',
+  customFields: {},
   ...overrides
 })
 

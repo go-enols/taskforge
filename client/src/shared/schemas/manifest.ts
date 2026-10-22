@@ -1,7 +1,7 @@
 /**
- * @file Script manifest zod schema — single source of truth
+ * @file Script manifest zod schema — single source of truth for client + server
  * @description Validates manifest.json structure per AGENTS.md §6.1.
- *              Used by both client (pre-upload validation) and server (API validation).
+ *              Shared between client/ and server/ to eliminate duplicate definitions.
  *
  *              Mandatory: id, name, version, description, entryPoint, runtime, schema
  *              Optional:  dataRequirements, permissions, tags, changelog
@@ -67,7 +67,7 @@ const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$/
 
 /** Script manifest schema — exact contract per AGENTS.md §6.1 */
 export const ScriptManifestSchema = z.object({
-  /** 脚本唯一标识（UUID v4 或自定义 ID） */
+  /** 脚本唯一标识 */
   id: z.string().min(1, 'id is required'),
   /** 脚本显示名称 */
   name: z.string().min(1, 'name is required'),
@@ -84,7 +84,7 @@ export const ScriptManifestSchema = z.object({
   runtime: z.literal('node'),
   /** 任务配置表单的 JSON Schema */
   schema: jsonSchemaSchema,
-  /** 脚本需要的数据模板声明（替代旧的 requiredAccountTemplateIds） */
+  /** 脚本需要的数据模板声明 */
   dataRequirements: z.array(dataRequirementSchema).optional(),
   /** （可选）权限声明 */
   permissions: z.array(z.enum(['network', 'filesystem'])).optional(),

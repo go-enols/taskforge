@@ -1,8 +1,7 @@
 /**
- * @file Script manifest zod schema — synced copy for server
- * @description CANONICAL SOURCE: ../../../../shared/schemas/manifest.ts
- *              Keep this file in sync with the root shared copy.
- *              Validates manifest.json structure per AGENTS.md §6.1.
+ * @file Script manifest zod schema — single source of truth for client + server
+ * @description Validates manifest.json structure per AGENTS.md §6.1.
+ *              Shared between client/ and server/ to eliminate duplicate definitions.
  *
  *              Mandatory: id, name, version, description, entryPoint, runtime, schema
  *              Optional:  dataRequirements, permissions, tags, changelog
@@ -68,21 +67,33 @@ const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$/
 
 /** Script manifest schema — exact contract per AGENTS.md §6.1 */
 export const ScriptManifestSchema = z.object({
+  /** 脚本唯一标识 */
   id: z.string().min(1, 'id is required'),
+  /** 脚本显示名称 */
   name: z.string().min(1, 'name is required'),
+  /** 语义化版本（如 1.0.0） */
   version: z
     .string()
     .min(1, 'version is required')
     .regex(semverRegex, 'version must be valid semver (e.g. 1.0.0)'),
+  /** 脚本用途说明 */
   description: z.string().min(1, 'description is required'),
+  /** 入口文件名（相对脚本目录） */
   entryPoint: z.string().min(1, 'entryPoint is required'),
+  /** 运行时（当前仅支持 "node"） */
   runtime: z.literal('node'),
+  /** 任务配置表单的 JSON Schema */
   schema: jsonSchemaSchema,
+  /** 脚本需要的数据模板声明 */
   dataRequirements: z.array(dataRequirementSchema).optional(),
+  /** （可选）权限声明 */
   permissions: z.array(z.enum(['network', 'filesystem'])).optional(),
+  /** （可选）分类标签 */
   tags: z.array(z.string()).optional(),
+  /** （可选）更新日志 */
   changelog: z.string().optional(),
-  dependencies: z.record(z.string(), z.string()).optional(),
+  /** （可选）npm 依赖声明：包名 → 版本范围 */
+  dependencies: z.record(z.string(), z.string()).optional()
 })
 
 /** 推断的 manifest 类型 */

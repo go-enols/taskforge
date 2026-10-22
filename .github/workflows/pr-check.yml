@@ -27,7 +27,6 @@ jobs:
       - name: Type check (client)
         working-directory: ./client
         run: npm run typecheck
-        continue-on-error: true # 预存 web typecheck 问题（renderer airdrop 组件字段名不匹配），非阻塞直到修复
 
       - name: Lint (client)
         working-directory: ./client
@@ -37,21 +36,27 @@ jobs:
         working-directory: ./client
         run: npm run i18n:check
 
-      - name: Rebuild native modules (node, for tests)
-        working-directory: ./client
-        run: npm rebuild better-sqlite3 bufferutil utf-8-validate
-
       - name: Test (client)
         working-directory: ./client
-        continue-on-error: true # 预存测试失败（store.test 建表问题），非阻塞直到修复
-        run: npx vitest run
+        continue-on-error: true # 预存上游测试漂移（settings/transport/analytics 等历史用例），非阻塞
+        run: npm test
+
+      - name: Build (client)
+        working-directory: ./client
+        run: npx electron-vite build
+
+      - name: Verify build artifacts (sandbox enforcer etc.)
+        working-directory: ./client
+        run: npm run verify:artifacts
+
+      - name: Verify shared schema copies are in sync
+        working-directory: ./client
+        run: node scripts/sync-shared-schemas.cjs --check
 
       - name: Setup Node.js (server)
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: server/package-lock.json
 
       - name: Install server dependencies
         working-directory: ./server
@@ -60,3 +65,7 @@ jobs:
       - name: Type check (server)
         working-directory: ./server
         run: npx tsc --noEmit --skipLibCheck
+
+      - name: Test (server)
+        working-directory: ./server
+        run: npm test

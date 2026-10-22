@@ -9,11 +9,12 @@ import Database from 'better-sqlite3'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 
-/** 数据目录：server/data/ */
-const dataDir = join(process.cwd(), 'data')
+/** 数据目录：默认 server/data/，测试/自定义部署可用 MARKETPLACE_DATA_DIR 覆盖 */
+const dataDir = process.env.MARKETPLACE_DATA_DIR || join(process.cwd(), 'data')
 if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true })
 }
+export { dataDir }
 
 /** 数据库文件路径 */
 const dbPath = join(dataDir, 'marketplace.db')

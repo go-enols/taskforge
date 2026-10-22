@@ -342,6 +342,32 @@
   #root {
     min-height: 100vh;
   }
+
+  /* 统一细滚动条（Chromium + Firefox），与主题边框色保持一致 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-hover) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-border-hover);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+    background-clip: content-box;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-primary) 32%, transparent);
+  }
 }
 
 @layer utilities {
@@ -507,6 +533,128 @@
       opacity: 1 !important;
       transform: none !important;
     }
+  }
+}
+
+/* ------------------------------------------------------------------
+ * UI polish utilities (2026-10 UI pass)
+ * 统一的卡片/表格/状态徽章/图标块样式，供各页面复用，避免每页重复手写。
+ * ------------------------------------------------------------------ */
+@layer utilities {
+  /* 基础卡片：比纯 bg-bg-card 多一层极弱高光，深色下更立体 */
+  .surface-card {
+    @apply bg-bg-card border border-border-light rounded-xl;
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-text-primary) 2.5%, transparent),
+      transparent 46%
+    );
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, #ffffff 3%, transparent);
+  }
+
+  .surface-card-hover {
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+  .surface-card-hover:hover {
+    border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-border-light));
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  /* KPI 数字：等宽数字 + 紧凑字距，避免刷新时抖动 */
+  .kpi-value {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* 图标块：Dashboard/QuickAction/空状态共用 */
+  .icon-tile {
+    @apply inline-flex items-center justify-center rounded-xl;
+    width: 44px;
+    height: 44px;
+  }
+
+  /* 页面进入动画（路由首次挂载时播放一次） */
+  .page-enter {
+    animation: page-spring 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes page-spring {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* 标题栏/分区标题上的小写英文标签 */
+  .section-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  /* 数据表格统一表头：更小的字 + 宽字距，弱化视觉噪音 */
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table thead th {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding-bottom: 0.65rem;
+  }
+  .data-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  .data-table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  }
+
+  /* 状态徽章统一底座；颜色由各页面按状态 token 追加 */
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap;
+  }
+  .status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  /* 表单控件统一底座（登录页/设置页等局部使用） */
+  .input-base {
+    @apply w-full rounded-lg border border-border-light bg-bg-card px-3 py-2 text-sm text-text-primary placeholder:text-text-muted transition-colors outline-none;
+  }
+  .input-base:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 22%, transparent);
+  }
+
+  /*
+   * 日志行轻量虚拟化：content-visibility 让浏览器跳过屏外行的渲染/布局，
+   * 无需引入 react-window 即可让数百上千行日志的滚动保持流畅；
+   * contain-intrinsic-size 保证滚动条高度稳定（不跳动）。
+   */
+  .log-line {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none !important;
   }
 }
 

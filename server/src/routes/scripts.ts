@@ -187,7 +187,7 @@ router.post(
     const m = validation.manifest;
     const id = uuidv4();
     const checksum = createHash("sha256").update(zipBuffer).digest("hex");
-    const filename = `${Date.now()}-${m.name || "script"}.zip`;
+    const filename = `${uuidv4()}.zip`;
     const filePath = join(getScriptsDir(), filename);
     try { writeFileSync(filePath, zipBuffer); } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -240,6 +240,14 @@ router.put(
       }
     }
     const { name, description, entryPoint, tags, changelog, visible, reviewStatus, reviewComment } = req.body;
+    const isAdmin = req.user?.role === "admin";
+    if (
+      reviewStatus !== undefined &&
+      !["pending", "approved", "rejected"].includes(String(reviewStatus))
+    ) {
+      res.status(400).json({ error: { message: "reviewStatus 值非法", code: "VALIDATION_ERROR" } });
+      return;
+    }
     const now = new Date().toISOString();
     let fileName = existing.file_path as string;
     let checksum = existing.checksum as string;
@@ -255,7 +263,7 @@ router.put(
         manifestVersion = m.version as string;
         checksum = createHash("sha256").update(zipBuffer).digest("hex");
         schemaStr = JSON.stringify(validation.scriptSchema);
-        fileName = `${Date.now()}-${m.name || "script"}.zip`;
+        fileName = `${uuidv4()}.zip`;
         const newPath = join(getScriptsDir(), fileName);
         try { writeFileSync(newPath, zipBuffer); } catch (err) {
           manifestErr = `文件保存失败: ${err instanceof Error ? err.message : String(err)}`;
@@ -266,10 +274,16 @@ router.put(
       res.status(400).json({ error: { message: manifestErr, code: "VALIDATION_ERROR" } });
       return;
     }
-    // 非 admin 用户上传文件时强制进入待审核状态
-    const isAdmin = req.user?.role === "admin";
-    const effectiveReviewStatus = (req.file && !isAdmin) ? "pending" : (reviewStatus !== undefined ? reviewStatus : existing.review_status);
-    const effectiveVisible = (req.file && !isAdmin) ? 0 : (visible !== undefined ? (visible ? 1 : 0) : existing.visible);
+    // 审核字段仅管理员可设置；开发者上传文件时强制进入待审核 + 不可见（P0-5）
+    const effectiveReviewStatus = (req.file && !isAdmin)
+      ? "pending"
+      : (isAdmin && reviewStatus !== undefined ? reviewStatus : existing.review_status);
+    const effectiveVisible = (req.file && !isAdmin)
+      ? 0
+      : (isAdmin && visible !== undefined ? (visible ? 1 : 0) : existing.visible);
+    const effectiveReviewComment = isAdmin && reviewComment !== undefined
+      ? reviewComment
+      : (existing.review_comment || "");
     // 上传文件时版本号强制从 manifest.json 读取，不允许通过请求体修改
     const effectiveVersion = req.file ? (manifestVersion || existing.version) : existing.version;
     try {
@@ -285,7 +299,7 @@ router.put(
         changelog !== undefined ? changelog : existing.changelog,
         effectiveVisible,
         effectiveReviewStatus,
-        reviewComment !== undefined ? reviewComment : existing.review_comment || "",
+        effectiveReviewComment,
         now,
         req.params.id
       );
@@ -387,12 +401,12 @@ router.post(
       res.status(400).json({ error: { message: validation.error, code: "VALIDATION_ERROR" } });
       return;
     }
-    const oldPath = join(getScriptsDir(), existing.file_path as string);
-    if (existsSync(oldPath)) rmSync(oldPath, { force: true });
     const m = validation.manifest;
     const checksum = createHash("sha256").update(zipBuffer).digest("hex");
-    const fileName = `${Date.now()}-${m.name || "script"}.zip`;
+    // uuid 文件名：避免 manifest.name 路径字符与并发覆盖
+    const fileName = `${uuidv4()}.zip`;
     const newPath = join(getScriptsDir(), fileName);
+    const oldPath = join(getScriptsDir(), existing.file_path as string);
     try { writeFileSync(newPath, zipBuffer); } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       res.status(500).json({ error: { message: `文件保存失败: ${msg}`, code: "IO_ERROR" } });
@@ -404,15 +418,25 @@ router.post(
     // 非 admin 重新上传后设为不可见，等待重新审核
     const effectiveVisible = reviewStatus === "pending" ? 0 : existing.visible;
     try {
+      // 元数据 + 版本记录同事务；失败时清理新文件
       stmts.scriptUpdate.run(
         m.name, m.version, m.description || "", schemaStr, m.entryPoint,
         fileName, checksum, JSON.stringify(m.tags || []), m.changelog || "",
         effectiveVisible, reviewStatus, existing.review_comment || "", now, req.params.id
       );
+      stmts.versionInsert.run(
+        uuidv4(), req.params.id, m.version, m.changelog || "",
+        checksum, fileName, schemaStr, req.user?.id || (existing.created_by as string) || null, now
+      );
     } catch (dbErr) {
+      try { rmSync(newPath, { force: true }); } catch {}
       const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
       res.status(500).json({ error: { message: `数据库更新失败: ${msg}`, code: "DB_ERROR" } });
       return;
+    }
+    // 新包成功入库后再删除旧包
+    if (oldPath !== newPath && existsSync(oldPath)) {
+      try { rmSync(oldPath, { force: true }); } catch {}
     }
     const row = stmts.scriptGetById.get(req.params.id) as Record<string, unknown>;
     res.json({ data: rowToScript(row) });
@@ -466,12 +490,13 @@ router.patch(
         return;
       }
     }
-    const { name, description, tags, changelog, visible } = req.body;
+    const { name, description, tags, changelog } = req.body;
+    const isAdmin = req.user?.role === "admin";
+    const visible = isAdmin ? (req.body as Record<string, unknown>).visible : undefined;
     const now = new Date().toISOString();
-    stmts.scriptPatch.run(
-      visible !== undefined ? (visible ? 1 : 0) : existing.visible,
-      req.params.id
-    );
+    if (visible !== undefined) {
+      stmts.scriptPatch.run(visible ? 1 : 0, req.params.id);
+    }
     // If other fields are being updated, run a full update with existing values
     if (name || description !== undefined || tags || changelog) {
       stmts.scriptUpdate.run(
@@ -507,6 +532,13 @@ router.patch(
       return;
     }
     const { reviewStatus, reviewComment, visible } = req.body;
+    if (
+      reviewStatus !== undefined &&
+      !["pending", "approved", "rejected"].includes(String(reviewStatus))
+    ) {
+      res.status(400).json({ error: { message: "reviewStatus 值非法", code: "VALIDATION_ERROR" } });
+      return;
+    }
     const now = new Date().toISOString();
     stmts.scriptUpdate.run(
       existing.name, existing.version, existing.description,

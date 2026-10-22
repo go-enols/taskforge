@@ -18,7 +18,6 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }
 const baseForm = (overrides: Partial<AirdropFormData> = {}): AirdropFormData => ({
   name: '',
   website: '',
-  chain: '',
   description: '',
   scriptTemplateId: '',
   accountPool: '',
@@ -30,6 +29,8 @@ const baseForm = (overrides: Partial<AirdropFormData> = {}): AirdropFormData => 
   eligibilityCriteria: [],
   tasks: [],
   earnings: [],
+  templateId: '',
+  customFields: {},
   ...overrides
 })
 

@@ -7,7 +7,7 @@
  */
 
 import { app } from 'electron'
-import { join } from 'path'
+import { join, resolve as resolvePath, sep } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'fs'
 import { createWriteStream } from 'fs'
 import { tmpdir } from 'os'
@@ -18,6 +18,8 @@ import { createHash } from 'crypto'
 import JSON5 from 'json5'
 import { createLogger } from '../utils/logger'
 import { extractZip } from '../utils/zipExtractor'
+import { ScriptManifestSchema } from '../../shared/schemas/manifest'
+import { resolveScriptEntryPoint } from './script-entry'
 import type { RemoteScript, InstalledScript, PermissionSet } from '../../shared/types'
 import type { StoreService } from './store'
 
@@ -146,6 +148,20 @@ export class ScriptFetcher {
       await this.extractArchive(tmpPath, scriptDir, ext)
 
       const manifest = this.readManifest(scriptDir)
+
+      // 安装时校验 manifest（与服务端同一份 zod schema）：
+      // 不合法/入口越界直接拒绝，避免坏包落盘后才在启动任务时失败。
+      const parsedManifest = ScriptManifestSchema.safeParse(manifest)
+      if (!parsedManifest.success) {
+        const issue = parsedManifest.error.issues[0]
+        const field = issue.path.join('.') || 'manifest'
+        throw new Error(`脚本 manifest 校验失败（${field}）：${issue.message}`)
+      }
+      const entryPointAbsolute = resolveScriptEntryPoint(scriptDir, manifest.entryPoint)
+      if (!existsSync(entryPointAbsolute)) {
+        throw new Error(`脚本入口文件不存在: ${String(manifest.entryPoint)}`)
+      }
+
       const permissions = this.extractPermissions(manifest)
 
       const installed: InstalledScript = {
@@ -300,7 +316,15 @@ export class ScriptFetcher {
    * @param scriptId - 脚本 UUID
    */
   removeScript(scriptId: string): void {
-    const scriptDir = join(this.scriptsDir, scriptId)
+    // 安全：scriptId 来自渲染层，必须收敛在 scriptsDir 内，防止 rmSync 路径穿越
+    const scriptsRoot = resolvePath(this.scriptsDir)
+    const scriptDir = resolvePath(this.scriptsDir, scriptId)
+    if (scriptDir === scriptsRoot || !scriptDir.startsWith(scriptsRoot + sep)) {
+      throw Object.assign(new Error('Invalid script id'), {
+        code: 'FORBIDDEN',
+        category: 'SECURITY'
+      })
+    }
     const tmpl = this.store.getTaskTemplate(scriptId)
     if (tmpl) {
       const installPath = tmpl.installPath

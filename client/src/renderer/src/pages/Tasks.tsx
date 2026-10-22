@@ -20,7 +20,8 @@ import {
   Trash,
   RefreshCw,
   Download,
-  Globe
+  Globe,
+  AlertCircle
 } from 'lucide-react'
 import {
   taskApi,
@@ -50,7 +51,7 @@ import {
   unflattenDotNotation
 } from '../../../shared/schemas/task-params'
 import { usePaginatedList } from '../hooks'
-import { SearchInput, Pagination, Modal, DynamicForm } from '../components/common'
+import { SearchInput, Pagination, Modal, DynamicForm, ConfirmDialog, EmptyState } from '../components/common'
 import DataRequirementPanel, {
   type RequirementSelection,
   type DataForRequirement
@@ -62,12 +63,24 @@ import { DataViewer } from '../components/common/DataViewer'
 /** 每页显示任务数 */
 const PAGE_SIZE = 20
 
-/** 日志级别对应的文字颜色样式 */
-const LOG_LEVEL_STYLES: Record<TaskLog['level'], string> = {
-  info: 'text-success',
-  warn: 'text-warning',
-  error: 'text-danger',
-  debug: 'text-text-muted'
+/** 日志级别徽章（折叠日志面板内使用） */
+const LOG_LEVEL_BADGES: Record<TaskLog['level'], string> = {
+  info: 'bg-success/10 text-success',
+  warn: 'bg-warning/10 text-warning',
+  error: 'bg-danger/10 text-danger',
+  debug: 'bg-bg-tertiary text-text-muted'
+}
+
+/**
+ * 任务状态 → 徽章样式（静态类名，避免 Tailwind 无法生成 `bg-status-${x}-bg` 这类动态类）
+ */
+const TASK_STATUS_STYLES: Record<Task['status'], string> = {
+  idle: 'bg-status-idle-bg text-status-idle-text border-status-idle-border',
+  running: 'bg-status-running-bg text-status-running-text border-status-running-border',
+  paused: 'bg-status-paused-bg text-status-paused-text border-status-paused-border',
+  stopped: 'bg-status-stopped-bg text-status-stopped-text border-status-stopped-border',
+  complete: 'bg-status-complete-bg text-status-complete-text border-status-complete-border',
+  error: 'bg-status-error-bg text-status-error-text border-status-error-border'
 }
 
 /**
@@ -78,7 +91,7 @@ const LOG_LEVEL_STYLES: Record<TaskLog['level'], string> = {
  */
 const Tasks: React.FC = () => {
   const { t } = useTranslation()
-  const { items, totalPages, page, loading, setPage, setSearch, search, refresh } =
+  const { items, totalPages, page, loading, error, setPage, setSearch, search, refresh } =
     usePaginatedList(taskApi.list, PAGE_SIZE)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logs, setLogs] = useState<TaskLog[]>([])
@@ -92,6 +105,10 @@ const Tasks: React.FC = () => {
   const [editConfig, setEditConfig] = useState('{}')
   const [editing, setEditing] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // 删除是永久操作（任务配置与日志一并删除）：单条与批量都必须二次确认。
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [progressMap, setProgressMap] = useState<
     Record<string, { percent: number; message: string } | null>
   >({})
@@ -728,6 +745,11 @@ const Tasks: React.FC = () => {
   const handleBatchAction = async (action: 'start' | 'stop' | 'delete'): Promise<void> => {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
+    // 删除不可恢复，先弹确认；启动/停止直接执行。
+    if (action === 'delete') {
+      setShowBatchDeleteConfirm(true)
+      return
+    }
     const results = await Promise.allSettled(ids.map((id) => taskApi[action](id)))
     const succeeded = results.filter((r) => r.status === 'fulfilled').length
     const failed = results.filter((r) => r.status === 'rejected').length
@@ -739,6 +761,49 @@ const Tasks: React.FC = () => {
       showError(t('tasks.batchPartial', { succeeded, failed }))
     } else {
       showError(t('tasks.batchFailed', { count: failed }))
+    }
+  }
+
+  /** 确认删除单个任务 */
+  const handleConfirmDelete = async (): Promise<void> => {
+    if (!deleteTargetId) return
+    setDeleting(true)
+    try {
+      await taskApi.delete(deleteTargetId)
+      setDeleteTargetId(null)
+      refresh()
+      showSuccess(t('tasks.deleteSuccess'))
+    } catch (e: unknown) {
+      showError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  /** 确认批量删除选中任务 */
+  const handleConfirmBatchDelete = async (): Promise<void> => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) {
+      setShowBatchDeleteConfirm(false)
+      return
+    }
+    setDeleting(true)
+    try {
+      const results = await Promise.allSettled(ids.map((id) => taskApi.delete(id)))
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length
+      const failed = results.filter((r) => r.status === 'rejected').length
+      setSelectedIds(new Set())
+      setShowBatchDeleteConfirm(false)
+      refresh()
+      if (failed === 0) {
+        showSuccess(t('tasks.batchSuccess', { count: succeeded }))
+      } else if (succeeded > 0) {
+        showError(t('tasks.batchPartial', { succeeded, failed }))
+      } else {
+        showError(t('tasks.batchFailed', { count: failed }))
+      }
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -791,7 +856,7 @@ const Tasks: React.FC = () => {
   }
 
   const renderActionButtons = (task: Task): React.JSX.Element => {
-    const btnBase = 'p-1.5 rounded-lg transition-colors '
+    const btnBase = 'p-1.5 rounded-lg transition-all duration-150 active:scale-90 '
     const s = task.status
 
     if (s === 'running') {
@@ -802,7 +867,7 @@ const Tasks: React.FC = () => {
               e.stopPropagation()
               handleAction('pause', task.id)
             }}
-            className={btnBase + 'text-warning hover:bg-warning-light'}
+            className={btnBase + 'text-text-muted hover:bg-warning/10 hover:text-warning'}
             title={t('tasks.pause')}
             aria-label={t('tasks.pause')}
           >
@@ -813,7 +878,7 @@ const Tasks: React.FC = () => {
               e.stopPropagation()
               handleAction('stop', task.id)
             }}
-            className={btnBase + 'text-orange hover:bg-orange-light'}
+            className={btnBase + 'text-text-muted hover:bg-orange/10 hover:text-orange'}
             title={t('tasks.stop')}
             aria-label={t('tasks.stop')}
           >
@@ -831,7 +896,7 @@ const Tasks: React.FC = () => {
               e.stopPropagation()
               handleAction('resume', task.id)
             }}
-            className={btnBase + 'text-success hover:bg-success-light'}
+            className={btnBase + 'text-text-muted hover:bg-success/10 hover:text-success'}
             title={t('tasks.resume')}
             aria-label={t('tasks.resume')}
           >
@@ -842,7 +907,7 @@ const Tasks: React.FC = () => {
               e.stopPropagation()
               handleAction('stop', task.id)
             }}
-            className={btnBase + 'text-orange hover:bg-orange-light'}
+            className={btnBase + 'text-text-muted hover:bg-orange/10 hover:text-orange'}
             title={t('tasks.stop')}
             aria-label={t('tasks.stop')}
           >
@@ -859,7 +924,7 @@ const Tasks: React.FC = () => {
             e.stopPropagation()
             handleAction('start', task.id)
           }}
-          className={btnBase + 'text-primary hover:bg-primary-light'}
+          className={btnBase + 'text-text-muted hover:bg-primary/10 hover:text-primary'}
           title={t('tasks.start')}
           aria-label={t('tasks.start')}
         >
@@ -870,7 +935,7 @@ const Tasks: React.FC = () => {
             e.stopPropagation()
             handleOpenEdit(task)
           }}
-          className={btnBase + 'text-text-secondary hover:bg-bg-tertiary'}
+          className={btnBase + 'text-text-muted hover:bg-bg-tertiary hover:text-text-primary'}
           title={t('tasks.editTask')}
           aria-label={t('tasks.editTask')}
         >
@@ -879,9 +944,9 @@ const Tasks: React.FC = () => {
         <button
           onClick={(e) => {
             e.stopPropagation()
-            handleAction('delete', task.id)
+            setDeleteTargetId(task.id)
           }}
-          className={btnBase + 'text-danger hover:bg-danger-light'}
+          className={btnBase + 'text-text-muted hover:bg-danger/10 hover:text-danger'}
           title={t('common.delete')}
           aria-label={t('common.delete')}
         >
@@ -896,19 +961,25 @@ const Tasks: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* 页面标题与操作按钮 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-text-primary">{t('tasks.title')}</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="section-eyebrow">{t('nav.tasks')}</span>
+            <span className="h-px w-8 bg-gradient-to-r from-primary/60 to-transparent" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary">{t('tasks.title')}</h1>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={refresh}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-light text-sm hover:bg-bg-card-hover transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-border-light bg-bg-card px-3 py-1.5 text-sm text-text-secondary shadow-sm transition-colors hover:border-primary/40 hover:text-text-primary"
           >
             <RefreshCw size={14} />
             {t('common.refresh')}
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors"
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-white shadow-sm shadow-primary/25 transition-all hover:bg-primary-hover active:scale-[0.98]"
           >
             <Plus size={16} />
             {t('tasks.createTask')}
@@ -916,13 +987,13 @@ const Tasks: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex min-h-[38px] items-center gap-3">
         <SearchInput
           value={search}
           onChange={setSearch}
           placeholder={t('tasks.searchPlaceholder')}
-          className="flex-1 max-w-sm"
-          inputClassName="w-full pl-9 pr-3 py-2 rounded-lg border border-border-light bg-bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="max-w-sm flex-1"
+          inputClassName="w-full rounded-lg border border-border-light bg-bg-card py-2 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/30"
         />
         {selectedIds.size > 0 && (
           <div
@@ -958,15 +1029,44 @@ const Tasks: React.FC = () => {
         )}
       </div>
 
-      {loading && items.length === 0 ? (
-        <div className="text-center py-12 text-text-muted">{t('common.loading')}</div>
+      {error && items.length === 0 ? (
+        <div className="surface-card flex flex-col items-center gap-3 p-10 text-center">
+          <AlertCircle size={26} className="text-danger" />
+          <p className="text-sm text-text-secondary">{t('common.loadFailed')}</p>
+          <button
+            onClick={() => refresh()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border-light bg-bg-card px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-card-hover hover:text-text-primary"
+          >
+            <RefreshCw size={14} />
+            {t('common.retry')}
+          </button>
+        </div>
+      ) : loading && items.length === 0 ? (
+        <div className="surface-card space-y-2 p-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-11 animate-pulse rounded-lg bg-bg-tertiary/60" />
+          ))}
+        </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-12 text-text-muted">{t('tasks.noTasks')}</div>
+        <EmptyState
+          icon={FileText}
+          title={t('tasks.noTasks')}
+          description={t('tasks.selectScriptHint')}
+          action={
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-hover"
+            >
+              <Plus size={15} />
+              {t('tasks.createTask')}
+            </button>
+          }
+        />
       ) : (
-        <div className="rounded-xl border border-border-light overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="surface-card overflow-hidden">
+          <table className="data-table">
             <thead>
-              <tr className="bg-bg-tertiary">
+              <tr className="border-b border-border-light bg-bg-tertiary/60">
                 <th className="px-4 py-3 w-10 text-center">
                   <button
                     onClick={toggleSelectAll}
@@ -976,23 +1076,23 @@ const Tasks: React.FC = () => {
                     {allSelected ? <CheckSquareIcon size={16} /> : <SquareIcon size={16} />}
                   </button>
                 </th>
-                <th className="px-4 py-3 font-medium text-text-muted text-center w-[100px]">{t('common.status')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted text-center w-[120px]">{t('tasks.scriptName')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted text-center min-w-[120px]">{t('tasks.configSummary')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted text-center w-[160px]">{t('tasks.startTime')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted text-center w-[160px]">{t('tasks.endTime')}</th>
-                <th className="px-4 py-3 font-medium text-text-muted text-center flex-1">
+                <th className="px-4 py-3 text-center w-[100px]">{t('common.status')}</th>
+                <th className="px-4 py-3 text-center w-[120px]">{t('tasks.scriptName')}</th>
+                <th className="px-4 py-3 text-center min-w-[120px]">{t('tasks.configSummary')}</th>
+                <th className="px-4 py-3 text-center w-[160px]">{t('tasks.startTime')}</th>
+                <th className="px-4 py-3 text-center w-[160px]">{t('tasks.endTime')}</th>
+                <th className="px-4 py-3 text-center flex-1">
                   {t('tasks.actions')}
                 </th>
               </tr>
             </thead>
             <tbody>
               {items.map((task) => (
-                <tr key={task.id} className="border-b border-border-light/50">
+                <tr key={task.id} className="group border-b border-border-light/50 transition-colors last:border-0">
                     <td colSpan={7} className="p-0">
                     <div
                       onClick={() => handleToggleExpand(task.id)}
-                      className="flex items-center cursor-pointer hover:bg-bg-card-hover transition-colors"
+                      className="flex cursor-pointer items-center transition-colors hover:bg-primary/[0.045]"
                     >
                       <div
                         className="px-4 py-3 w-10 shrink-0 flex items-center justify-center"
@@ -1011,12 +1111,10 @@ const Tasks: React.FC = () => {
                         </button>
                       </div>
                       <div className="px-4 py-3 w-[100px] shrink-0 flex items-center justify-center">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-status-${task.status}-bg text-status-${task.status}-text`}
-                        >
-                          {task.status === 'running' && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                          )}
+                        <span className={`status-pill ${TASK_STATUS_STYLES[task.status]}`}>
+                          <span
+                            className={`status-dot ${task.status === 'running' ? 'animate-pulse' : ''}`}
+                          />
                           {t(`tasks.status.${task.status}`)}
                         </span>
                       </div>
@@ -1045,9 +1143,9 @@ const Tasks: React.FC = () => {
                           <span className="text-xs text-text-muted shrink-0">
                             {t('tasks.progress')}
                           </span>
-                          <div className="flex-1 h-2 bg-bg-card rounded-full overflow-hidden">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-sunken">
                             <div
-                              className="h-full bg-primary rounded-full transition-all duration-500"
+                              className="h-full rounded-full bg-gradient-to-r from-primary to-brand-2 transition-all duration-500"
                               style={{
                                 width: `${Math.min(100, Math.max(0, progressMap[task.id]!.percent))}%`
                               }}
@@ -1126,11 +1224,11 @@ const Tasks: React.FC = () => {
                                   {logs
                                     .filter((log) => logFilter === 'all' || log.level === logFilter)
                                     .map((log, idx) => (
-                                      <div key={log.id ?? idx} className="flex gap-3">
+                                      <div key={log.id ?? idx} className="log-line flex gap-3">
                                         <span className="text-text-muted shrink-0">
                                           {new Date(log.timestamp).toLocaleTimeString()}
                                         </span>
-                                        <span className={`shrink-0 w-10 ${LOG_LEVEL_STYLES[log.level]}`}>
+                                        <span className={`shrink-0 w-10 ${LOG_LEVEL_BADGES[log.level]}`}>
                                           [{log.level.toUpperCase()}]
                                         </span>
                                         <span className="text-text-secondary break-all">
@@ -1405,6 +1503,32 @@ const Tasks: React.FC = () => {
           )}
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={deleteTargetId !== null}
+        onClose={() => {
+          if (!deleting) setDeleteTargetId(null)
+        }}
+        onConfirm={handleConfirmDelete}
+        title={t('common.delete')}
+        message={t('tasks.confirmDelete')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        loading={deleting}
+      />
+
+      <ConfirmDialog
+        open={showBatchDeleteConfirm}
+        onClose={() => {
+          if (!deleting) setShowBatchDeleteConfirm(false)
+        }}
+        onConfirm={handleConfirmBatchDelete}
+        title={t('tasks.batchDelete')}
+        message={t('tasks.confirmBatchDelete', { count: selectedIds.size })}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        loading={deleting}
+      />
     </div>
   )
 }

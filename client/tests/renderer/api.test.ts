@@ -56,7 +56,7 @@ describe('api', () => {
 
     it('walletApi.create calls call with wallet:create and data', async () => {
       // 用例：walletApi.create 调用 transport.call('wallet:create', [data])
-      const data = { name: 'test', type: 'evm' } as unknown
+      const data = {} as Parameters<typeof walletApi.create>[0]
       mockCall.mockResolvedValueOnce({} as unknown)
       await walletApi.create(data)
       expect(mockCall).toHaveBeenCalledWith('wallet:create', [data])
@@ -67,13 +67,6 @@ describe('api', () => {
       mockCall.mockResolvedValueOnce({} as unknown)
       await walletApi.delete('id1')
       expect(mockCall).toHaveBeenCalledWith('wallet:delete', ['id1'])
-    })
-
-    it('walletApi.generateMnemonic calls call with wallet:generateMnemonic', async () => {
-      // 用例：walletApi.generateMnemonic 调用 transport.call('wallet:generateMnemonic')
-      mockCall.mockResolvedValueOnce('' as unknown)
-      await walletApi.generateMnemonic()
-      expect(mockCall).toHaveBeenCalledWith('wallet:generateMnemonic')
     })
   })
 

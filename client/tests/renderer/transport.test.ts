@@ -7,6 +7,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+// 测试中使用的 electronAPI 桩类型（preload 声明的 window.electronAPI 结构）
+type TestElectronAPI = NonNullable<Window['electronAPI']>
 
 // describe: 双传输层通信测试
 describe('transport', () => {
@@ -20,7 +22,7 @@ describe('transport', () => {
   beforeEach(async () => {
     vi.resetModules()
     localStorage.clear()
-    ;(window as unknown as { electronAPI?: ElectronAPI }).electronAPI = undefined
+    ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = undefined
     const mod = await import('../../src/renderer/src/transport')
     call = mod.call
     checkHTTPHealth = mod.checkHTTPHealth
@@ -33,8 +35,9 @@ describe('transport', () => {
   describe('callIPC success', () => {
     it('returns data and sets activeTransport to ipc', async () => {
       // 用例：IPC 调用成功时返回数据并将传输层设为 ipc
-      ;(window as unknown as { electronAPI?: ElectronAPI }).electronAPI = {
-        invoke: vi.fn().mockResolvedValue({ data: 'test' })
+      ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = {
+        invoke: vi.fn().mockResolvedValue({ data: 'test' }),
+        on: vi.fn()
       }
       const result = await call<string>('test:channel')
       expect(result).toBe('test')
@@ -46,7 +49,7 @@ describe('transport', () => {
   describe('callIPC fail → callHTTP success', () => {
     it('falls back to HTTP and sets activeTransport to http', async () => {
       // 用例：IPC 不可用时自动降级到 HTTP 并将传输层设为 http
-      ;(window as unknown as { electronAPI?: ElectronAPI }).electronAPI = undefined
+      ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = undefined
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ data: 'test' })
@@ -55,6 +58,25 @@ describe('transport', () => {
       const result = await call<string>('test:channel')
       expect(result).toBe('test')
       expect(getActiveTransport()).toBe('http')
+      vi.unstubAllGlobals()
+    })
+  })
+
+  // describe: IPC 业务错误不应触发 HTTP 降级
+  describe('IPC business error → no HTTP fallback', () => {
+    it('throws the handler error without probing HTTP ports', async () => {
+      // 用例：handler 正常返回 {error} 属于业务错误，直接抛出，不能再走 HTTP 重试
+      const invoke = vi
+        .fn()
+        .mockResolvedValue({ error: { message: 'Task not found', code: 'NOT_FOUND' } })
+      ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = {
+        invoke,
+        on: vi.fn()
+      }
+      const mockFetch = vi.fn()
+      vi.stubGlobal('fetch', mockFetch)
+      await expect(call('task:get')).rejects.toThrow('Task not found')
+      expect(mockFetch).not.toHaveBeenCalled()
       vi.unstubAllGlobals()
     })
   })
@@ -69,14 +91,15 @@ describe('transport', () => {
         json: () => Promise.resolve({ data: 'http-data' })
       })
       vi.stubGlobal('fetch', mockFetch)
-      ;(window as unknown as { electronAPI?: ElectronAPI }).electronAPI = {
-        invoke: vi.fn().mockResolvedValue({ data: 'ipc-data' })
+      ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = {
+        invoke: vi.fn().mockResolvedValue({ data: 'ipc-data' }),
+        on: vi.fn()
       }
       const result = await call<string>('test:channel')
       expect(result).toBe('http-data')
       expect(getActiveTransport()).toBe('http')
       expect(
-        (window as unknown as { electronAPI?: ElectronAPI }).electronAPI.invoke
+        (window as unknown as { electronAPI: TestElectronAPI }).electronAPI.invoke
       ).not.toHaveBeenCalled()
       vi.unstubAllGlobals()
     })
@@ -87,8 +110,9 @@ describe('transport', () => {
     it('uses IPC when localStorage has transport=ipc', async () => {
       // 用例：localStorage 设置 transport=ipc 时强制使用 IPC
       localStorage.setItem('app-transport', 'ipc')
-      ;(window as unknown as { electronAPI?: ElectronAPI }).electronAPI = {
-        invoke: vi.fn().mockResolvedValue({ data: 'ipc-data' })
+      ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = {
+        invoke: vi.fn().mockResolvedValue({ data: 'ipc-data' }),
+        on: vi.fn()
       }
       const result = await call<string>('test:channel')
       expect(result).toBe('ipc-data')
@@ -100,8 +124,9 @@ describe('transport', () => {
   describe('both channels fail', () => {
     it('throws the IPC error', async () => {
       // 用例：IPC 和 HTTP 都失败时抛出 IPC 错误
-      ;(window as unknown as { electronAPI?: ElectronAPI }).electronAPI = {
-        invoke: vi.fn().mockRejectedValue(new Error('IPC error'))
+      ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = {
+        invoke: vi.fn().mockRejectedValue(new Error('IPC error')),
+        on: vi.fn()
       }
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
@@ -145,13 +170,14 @@ describe('transport', () => {
   describe('checkIPCHealth', () => {
     it('returns true when electronAPI is available', () => {
       // 用例：electronAPI 可用时 checkIPCHealth 返回 true
-      ;(window as unknown as { electronAPI?: ElectronAPI }).electronAPI = { invoke: vi.fn() }
+      ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = { invoke: vi.fn(),
+        on: vi.fn() }
       expect(checkIPCHealth()).toBe(true)
     })
 
     it('returns false when electronAPI is not available', () => {
       // 用例：electronAPI 不可用时 checkIPCHealth 返回 false
-      ;(window as unknown as { electronAPI?: ElectronAPI }).electronAPI = undefined
+      ;(window as unknown as { electronAPI?: TestElectronAPI }).electronAPI = undefined
       expect(checkIPCHealth()).toBe(false)
     })
   })

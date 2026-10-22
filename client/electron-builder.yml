@@ -5,19 +5,18 @@ directories:
 files:
   - '!**/.vscode/*'
   - '!src/*'
+  - '!tests/**'
+  - '!scripts/**'
+  - '!{build,resources}/**/*.{md,map}'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 extraResources:
-  - from: ../server
-    to: server
-    filter:
-      - dist/**
-      - package.json
-      - package-lock.json
-      - node_modules/**
-      - data/uploads/scripts/**
+  # 安全关键：任务子进程以 NODE_OPTIONS=--require 加载该文件，必须放在 asar 之外
+  # （asar 内部路径外部 node 进程不可读）。task.ts 会优先从 process.resourcesPath 查找。
+  - from: src/main/services/sandbox-enforcer.cjs
+    to: sandbox-enforcer.cjs
 asarUnpack:
   - resources/**
 win:

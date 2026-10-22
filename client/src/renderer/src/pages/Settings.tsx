@@ -370,7 +370,7 @@ const PasswordChangeModal: React.FC<{ open: boolean; onClose: () => void }> = ({
       toast.error(t('login.requiredPassword'))
       return
     }
-    if (next.length < 4) {
+    if (next.length < 8) {
       toast.error(t('login.passwordTooShort'))
       return
     }

@@ -3,7 +3,9 @@
  * @description 包含 handlerMap、注册函数、类型定义等，供 index.ts 和各 handler 文件共享使用。
  *              避免 index.ts 与 handler 文件之间的循环依赖。
  */
-import { ipcMain, IpcMainInvokeEvent, BrowserWindow } from 'electron'
+import { app, ipcMain, IpcMainInvokeEvent, BrowserWindow } from 'electron'
+import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { StoreService } from '../services/store'
 import { TaskService } from '../services/task'
 import { ScriptFetcher } from '../services/script-fetcher'
@@ -13,6 +15,46 @@ import { TaskRepository } from '../services/repositories/task'
 import { createLogger } from '../utils/logger'
 
 const logger = createLogger('ipc')
+
+/**
+ * 判断 IPC 发送页面是否为受信任的应用渲染层。
+ *
+ * 允许两种来源：
+ * 1. 打包后的 `file://.../out/renderer/...`（应用自身页面）
+ * 2. 开发模式下 electron-vite 的 dev server URL（`ELECTRON_RENDERER_URL`）
+ *
+ * 拒绝来源不明的 frame（例如窗口被导航到远端页面后注入的 preload）。
+ *
+ * @param frameUrl - event.senderFrame.url
+ * @param devUrl - process.env.ELECTRON_RENDERER_URL
+ * @returns 是否受信任
+ */
+export function isTrustedSenderUrl(frameUrl: string | undefined, devUrl: string | undefined): boolean {
+  if (!frameUrl) return false
+  if (devUrl && (frameUrl === devUrl || frameUrl.startsWith(devUrl))) return true
+  if (frameUrl.startsWith('file://')) {
+    try {
+      const rendererBase = pathToFileURL(join(app.getAppPath(), 'out', 'renderer')).href
+      return frameUrl === rendererBase || frameUrl.startsWith(rendererBase + '/')
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
+/**
+ * 校验 IPC 事件来源（供直接使用 ipcMain.handle 的 handler 复用）。
+ * @param event - IPC invoke 事件
+ * @returns 来源是否受信任
+ */
+export function isTrustedIpcEvent(event: IpcMainInvokeEvent): boolean {
+  try {
+    return isTrustedSenderUrl(event.senderFrame?.url, process.env['ELECTRON_RENDERER_URL'])
+  } catch {
+    return false
+  }
+}
 
 /** 所有需要注入到 IPC 处理器的服务与仓库实例集合 */
 export interface Services {
@@ -121,7 +163,24 @@ export function register(channel: string, handler: ApiHandler): void {
   handlerMap.set(channel, handler)
   ipcMain.handle(
     channel,
-    async (_event: IpcMainInvokeEvent, ...args: unknown[]): Promise<ApiResult> => {
+    async (event: IpcMainInvokeEvent, ...args: unknown[]): Promise<ApiResult> => {
+      // 防御纵深：只接受应用自身渲染页面的 IPC 调用。
+      // HTTP 传输层不经过这里（由 httpapi 的令牌鉴权保护）。
+      if (!isTrustedIpcEvent(event)) {
+        logger.warn('Rejected IPC call from untrusted sender', {
+          channel,
+          url: (() => {
+            try {
+              return event.senderFrame?.url
+            } catch {
+              return '(unavailable)'
+            }
+          })()
+        })
+        return {
+          error: { message: 'Untrusted IPC sender', code: 'UNAUTHORIZED', category: 'SECURITY' }
+        }
+      }
       return executeHandler(channel, args)
     }
   )

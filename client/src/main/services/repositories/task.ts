@@ -68,6 +68,10 @@ export class TaskRepository extends BaseRepository<Task> {
       )
     )
     this.setStmt('task.delete', this.db.prepare('DELETE FROM tasks WHERE id = ?'))
+    this.setStmt(
+      'taskLog.deleteByTaskId',
+      this.db.prepare('DELETE FROM task_logs WHERE task_id = ?')
+    )
     this.setStmt('task.count', this.db.prepare('SELECT COUNT(*) as cnt FROM tasks'))
     this.setStmt(
       'task.countByStatus',
@@ -292,12 +296,20 @@ export class TaskRepository extends BaseRepository<Task> {
 
   /**
    * 删除单个任务
+   *
+   * 在同一事务内先删除其全部 task_logs，再删除任务本身，避免产生无法再查询的
+   * 永久孤儿日志（task_logs 表未声明外键级联）。
+   *
    * @param id - 任务 UUID
    * @returns 是否删除成功
    */
   deleteTask(id: string): boolean {
-    const result = this.stmt('task.delete').run(id)
-    return result.changes > 0
+    const removeTaskWithLogs = this.db.transaction((taskId: string): boolean => {
+      this.stmt('taskLog.deleteByTaskId').run(taskId)
+      const result = this.stmt('task.delete').run(taskId)
+      return result.changes > 0
+    })
+    return removeTaskWithLogs(id)
   }
 
   /**

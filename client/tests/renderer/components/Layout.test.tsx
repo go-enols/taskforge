@@ -36,6 +36,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k })
 }))
 
+// Layout 内的 ThemeToggle 依赖 useTheme；测试中提供最小 ThemeContext 桩
+vi.mock('../../../src/renderer/src/hooks/useTheme', () => ({
+  useTheme: () => ({ theme: 'dark', pref: 'auto', setPref: vi.fn() })
+}))
+
 /** Layout 默认导出组件（动态 import） */
 const Layout = (await import('../../../src/renderer/src/components/Layout')).default
 
@@ -74,99 +79,37 @@ describe('Layout — nav visibility by role', () => {
   })
 
   // 用例：admin 角色可见所有 admin 专属导航项（验证明细角色过滤配置正确）
-  it('admin sees all other admin-only nav items (sanity check that the role filter is wired correctly)', () => {
+  // 注意：admin 中心与 data 是折叠分组，未展开时只渲染父级 key，子项按需展开渲染。
+  it('admin sees all admin nav items (sanity check that the role filter is wired correctly)', () => {
     const html = renderAs('admin')
     expect(html).toContain('nav.dashboard')
-    expect(html).toContain('nav.templates')
+    expect(html).toContain('nav.marketplace')
     expect(html).toContain('nav.settings')
-    expect(html).toContain('nav.adminReview')
-    expect(html).toContain('nav.users')
+    expect(html).toContain('nav.adminCenter')
     expect(html).toContain('nav.logs')
+    expect(html).toContain('nav.stats')
   })
 
   // 用例：developer 角色可见开发者专属项，但不可见 admin 专属项
   it('developer sees developer-only nav items but NOT admin-only ones', () => {
     const html = renderAs('developer')
-    expect(html).toContain('nav.quickDev')
-    expect(html).toContain('nav.developerPending')
+    expect(html).toContain('nav.developerCenter')
     expect(html).toContain('nav.debug')
-    expect(html).not.toContain('nav.adminReview')
-    expect(html).not.toContain('nav.users')
+    expect(html).not.toContain('nav.adminCenter')
     expect(html).not.toContain('nav.logs')
+    expect(html).not.toContain('nav.stats')
   })
 
   // 用例：user 角色可见运营导航项，但不可见 admin/developer 专属项
   it('user sees operational nav but NOT admin or developer-only items', () => {
     const html = renderAs('user')
-    expect(html).toContain('nav.wallets')
-    expect(html).toContain('nav.accounts')
+    expect(html).toContain('nav.data')
     expect(html).toContain('nav.tasks')
     expect(html).toContain('nav.scheduler')
+    expect(html).toContain('nav.airdrops')
     expect(html).not.toContain('nav.debug')
-    expect(html).not.toContain('nav.quickDev')
-    expect(html).not.toContain('nav.adminReview')
+    expect(html).not.toContain('nav.developerCenter')
+    expect(html).not.toContain('nav.adminCenter')
   })
 })
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (k: string) => k })
-}))
-
-// Import after mocks
-const Layout = (await import('../../../src/renderer/src/components/Layout')).default
-
-function renderAs(role: UserRole | null): string {
-  mockRole = role
-  return renderToString(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route path="*" element={<Layout>{<div>page</div>}</Layout>} />
-      </Routes>
-    </MemoryRouter>
-  )
-}
-
-describe('Layout — nav visibility by role', () => {
-  it('admin sees /debug in the sidebar', () => {
-    expect(renderAs('admin')).toContain('nav.debug')
-  })
-
-  it('developer sees /debug in the sidebar (its primary use case: local script debugging)', () => {
-    expect(renderAs('developer')).toContain('nav.debug')
-  })
-
-  it('user does NOT see /debug in the sidebar', () => {
-    expect(renderAs('user')).not.toContain('nav.debug')
-  })
-
-  it('admin sees all other admin-only nav items (sanity check that the role filter is wired correctly)', () => {
-    const html = renderAs('admin')
-    expect(html).toContain('nav.dashboard')
-    expect(html).toContain('nav.templates')
-    expect(html).toContain('nav.settings')
-    expect(html).toContain('nav.adminReview')
-    expect(html).toContain('nav.users')
-    expect(html).toContain('nav.logs')
-  })
-
-  it('developer sees developer-only nav items but NOT admin-only ones', () => {
-    const html = renderAs('developer')
-    expect(html).toContain('nav.quickDev')
-    expect(html).toContain('nav.developerPending')
-    expect(html).toContain('nav.debug')
-    expect(html).not.toContain('nav.adminReview')
-    expect(html).not.toContain('nav.users')
-    expect(html).not.toContain('nav.logs')
-  })
-
-  it('user sees operational nav but NOT admin or developer-only items', () => {
-    const html = renderAs('user')
-    expect(html).toContain('nav.wallets')
-    expect(html).toContain('nav.accounts')
-    expect(html).toContain('nav.tasks')
-    expect(html).toContain('nav.scheduler')
-    expect(html).not.toContain('nav.debug')
-    expect(html).not.toContain('nav.quickDev')
-    expect(html).not.toContain('nav.adminReview')
-  })
-})

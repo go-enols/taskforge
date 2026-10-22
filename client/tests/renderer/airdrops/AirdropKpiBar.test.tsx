@@ -20,6 +20,7 @@ const sample = (overrides: Partial<AirdropAnalytics> = {}): AirdropAnalytics => 
   ongoingCount: 5,
   completedCount: 3,
   claimedCount: 2,
+  cancelledCount: 0,
   totalEarningsValueUsd: 1234.56,
   tokenEarnings: [
     { token: 'ARB', totalAmount: 200, totalValueUsd: 400 },
@@ -59,6 +60,7 @@ describe('AirdropKpiBar', () => {
           ongoingCount: 0,
           completedCount: 0,
           claimedCount: 0,
+          cancelledCount: 0,
           totalEarningsValueUsd: 0,
           tokenEarnings: [],
           upcomingDeadlines: []

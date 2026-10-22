@@ -2,15 +2,16 @@
  * @file 系统级 IPC 处理器
  * @description 包含更新、对话框、文件系统、压缩、窗口、Shell 等直接使用 Electron API 的处理器。
  */
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import fs from 'fs'
 import path from 'path'
 import JSON5 from 'json5'
 import AdmZip from 'adm-zip'
 import { readZipEntry } from '../../utils/zipExtractor'
-import { handlerMap, register, restoreWindowAfterDialog, Services } from '../registry'
+import { handlerMap, isTrustedIpcEvent, register, restoreWindowAfterDialog, Services } from '../registry'
 import { createLogger } from '../../utils/logger'
+import { authorizeDir, authorizePath, isExistingDirectory, isPathAuthorized } from '../../services/path-allowlist'
 
 const logger = createLogger('ipc')
 
@@ -54,17 +55,42 @@ export function registerSystemHandlers(services: Services): void {
     broadcastUpdateStatus({ status: 'error', data: err?.message ?? String(err) })
   })
 
-  register('update:check', () => {
-    autoUpdater.checkForUpdates()
-    return null
+  /** 自动更新是否可用：必须是打包环境且存在 app-update.yml */
+  const isUpdaterConfigured = (): boolean => {
+    if (!app.isPackaged) return false
+    try {
+      return fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))
+    } catch {
+      return false
+    }
+  }
+
+  register('update:check', async () => {
+    if (!isUpdaterConfigured()) return { available: false, skipped: 'not-packaged' }
+    try {
+      const result = await autoUpdater.checkForUpdates()
+      return { available: !!result?.updateInfo, version: result?.updateInfo?.version ?? null }
+    } catch (err) {
+      logger.warn('update:check failed', { error: err instanceof Error ? err.message : String(err) })
+      return { available: false, error: err instanceof Error ? err.message : String(err) }
+    }
   })
-  register('update:download', () => {
-    autoUpdater.downloadUpdate()
-    return null
+  register('update:download', async () => {
+    if (!isUpdaterConfigured()) return { downloaded: false, skipped: 'not-packaged' }
+    try {
+      await autoUpdater.downloadUpdate()
+      return { downloaded: true }
+    } catch (err) {
+      logger.warn('update:download failed', {
+        error: err instanceof Error ? err.message : String(err)
+      })
+      return { downloaded: false, error: err instanceof Error ? err.message : String(err) }
+    }
   })
   register('update:install', () => {
+    if (!isUpdaterConfigured()) return { installed: false, skipped: 'not-packaged' }
     autoUpdater.quitAndInstall()
-    return null
+    return { installed: true }
   })
 
   /* ────────── 对话框 ────────── */
@@ -80,6 +106,8 @@ export function registerSystemHandlers(services: Services): void {
       })
       if (result.canceled || result.filePaths.length === 0)
         return { canceled: true, filePath: null, content: null }
+      // 记录用户本次会话显式选择的路径，后续 fs:* 才允许访问
+      authorizePath(result.filePaths[0])
       const content = fs.readFileSync(result.filePaths[0], 'utf-8')
       return { canceled: false, filePath: result.filePaths[0], content }
     } finally {
@@ -98,6 +126,8 @@ export function registerSystemHandlers(services: Services): void {
         filters: [{ name: 'JSON', extensions: ['json'] }]
       })
       if (result.canceled || !result.filePath) return { canceled: true, filePath: null }
+      // 记录用户选择的保存路径，后续 fs:* 才允许写入
+      authorizePath(result.filePath)
       fs.writeFileSync(result.filePath, _content, 'utf-8')
       return { canceled: false, filePath: result.filePath }
     } finally {
@@ -114,6 +144,8 @@ export function registerSystemHandlers(services: Services): void {
       })
       if (result.canceled || result.filePaths.length === 0)
         return { canceled: true, folderPath: null }
+      // 目录级授权：该目录及其子路径在本次会话内允许 fs:* / zip:* / shell:openPath
+      authorizeDir(result.filePaths[0])
       return { canceled: false, folderPath: result.filePaths[0] }
     } finally {
       restoreWindowAfterDialog(win)
@@ -124,6 +156,9 @@ export function registerSystemHandlers(services: Services): void {
 
   register('fs:readFile', async (...args: unknown[]) => {
     const _path = args[0] as string
+    if (!isPathAuthorized(_path)) {
+      return { success: false, content: null, error: 'Path not authorized' }
+    }
     try {
       const content = fs.readFileSync(_path, 'utf-8')
       return { success: true, content }
@@ -135,6 +170,9 @@ export function registerSystemHandlers(services: Services): void {
   register('fs:writeFile', async (...args: unknown[]) => {
     const _path = args[0] as string
     const _content = args[1] as string
+    if (!isPathAuthorized(_path)) {
+      return { success: false, error: 'Path not authorized' }
+    }
     try {
       fs.writeFileSync(_path, _content, 'utf-8')
       return { success: true }
@@ -145,6 +183,7 @@ export function registerSystemHandlers(services: Services): void {
 
   register('fs:exists', async (...args: unknown[]) => {
     const _path = args[0] as string
+    if (!isPathAuthorized(_path)) return false
     try {
       return fs.existsSync(_path)
     } catch (err) {
@@ -158,14 +197,17 @@ export function registerSystemHandlers(services: Services): void {
   register('zip:create', async (...args: unknown[]) => {
     const zipPath = args[0] as string
     const sourceDir = args[1] as string
+    if (!isPathAuthorized(zipPath) || !isPathAuthorized(sourceDir)) {
+      return { success: false, error: 'Path not authorized' }
+    }
+    if (!isExistingDirectory(sourceDir)) {
+      return { success: false, error: `源目录不存在: ${sourceDir}` }
+    }
     try {
       const resolvedZip = path.resolve(zipPath)
       const resolvedSource = path.resolve(sourceDir)
       if (!/^[^;|&`$\n\r]+$/.test(resolvedZip) || !/^[^;|&`$\n\r]+$/.test(resolvedSource)) {
         return { success: false, error: 'Invalid characters in path' }
-      }
-      if (!fs.existsSync(resolvedSource)) {
-        return { success: false, error: `源目录不存在: ${resolvedSource}` }
       }
 
       const zip = new AdmZip()
@@ -179,6 +221,9 @@ export function registerSystemHandlers(services: Services): void {
 
   register('zip:extractManifest', async (...args: unknown[]) => {
     const sourcePath = args[0] as string
+    if (!isPathAuthorized(sourcePath)) {
+      return { success: false, manifest: null, error: 'Path not authorized' }
+    }
     try {
       const resolved = path.resolve(sourcePath)
       if (!/^[^;|&`$\n\r]+$/.test(resolved)) {
@@ -260,11 +305,31 @@ export function registerSystemHandlers(services: Services): void {
     }
   }
 
+  /**
+   * 校验服务端上传的目标 URL 与本地源文件。
+   * 仅允许 http/https URL，且源文件必须位于应用目录或用户本次会话选择过的路径。
+   */
+  function validateUploadTarget(url: unknown, zipPath: unknown): string | null {
+    if (typeof url !== 'string' || typeof zipPath !== 'string') return 'Invalid upload arguments'
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return 'Only http(s) upload URLs are allowed'
+      }
+    } catch {
+      return 'Invalid upload URL'
+    }
+    if (!isPathAuthorized(zipPath)) return 'Source file path not authorized'
+    return null
+  }
+
   // HTTP 通道（无进度事件）
   // arg 4: optional HTTP method — 'POST' (default, new script) or 'PUT' (script update with ZIP)
   handlerMap.set('server:upload', async (...args: unknown[]) => {
     const url = args[0] as string
     const zipPath = args[1] as string
+    const invalid = validateUploadTarget(url, zipPath)
+    if (invalid) return { success: false, status: 0, error: invalid }
     const headers = args[2] as Record<string, string>
     const formFields = (args[3] as Record<string, string>) || {}
     const method = (args[4] as 'POST' | 'PUT' | undefined) ?? 'POST'
@@ -272,8 +337,13 @@ export function registerSystemHandlers(services: Services): void {
   })
   // IPC 通道（带 upload:progress 事件）
   ipcMain.handle('server:upload', async (event, ...args: unknown[]) => {
+    if (!isTrustedIpcEvent(event)) {
+      return { success: false, status: 0, error: 'Untrusted IPC sender' }
+    }
     const url = args[0] as string
     const zipPath = args[1] as string
+    const invalid = validateUploadTarget(url, zipPath)
+    if (invalid) return { success: false, status: 0, error: invalid }
     const headers = args[2] as Record<string, string>
     const formFields = (args[3] as Record<string, string>) || {}
     const method = (args[4] as 'POST' | 'PUT' | undefined) ?? 'POST'
@@ -311,6 +381,9 @@ export function registerSystemHandlers(services: Services): void {
     const p = args[0]
     if (typeof p !== 'string' || !p) {
       return { success: false, error: 'Invalid path' }
+    }
+    if (!isPathAuthorized(p)) {
+      return { success: false, error: 'Path not authorized' }
     }
     try {
       const errMsg = await shell.openPath(p)

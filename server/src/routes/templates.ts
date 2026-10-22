@@ -28,6 +28,38 @@ function safeJsonParse(value: unknown, defaultVal: unknown): unknown {
   return defaultVal
 }
 
+/** schema 体积上限（防止超大 JSON 写入公开列表接口） */
+const MAX_SCHEMA_BYTES = 256 * 1024
+
+/**
+ * 校验并序列化模板 schema。
+ * 接受 undefined/null（使用 fallback）、JSON 字符串、普通对象；非法输入返回 400 错误。
+ * @param input - 请求体中的 schema
+ * @param fallbackJson - 缺省时使用的已有 schema JSON 字符串
+ */
+function normalizeSchema(
+  input: unknown,
+  fallbackJson: string,
+): { ok: true; json: string } | { ok: false; error: string } {
+  if (input === undefined || input === null) return { ok: true, json: fallbackJson }
+  let value: unknown = input
+  if (typeof input === 'string') {
+    try {
+      value = JSON.parse(input)
+    } catch {
+      return { ok: false, error: 'schema 不是有效的 JSON' }
+    }
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { ok: false, error: 'schema 必须是 JSON 对象' }
+  }
+  const json = JSON.stringify(value)
+  if (json.length > MAX_SCHEMA_BYTES) {
+    return { ok: false, error: 'schema 过大（上限 256KB）' }
+  }
+  return { ok: true, json }
+}
+
 function rowToTemplate(row: Record<string, unknown>) {
   const createdBy = (row.created_by as string) || undefined
   let createdByName: string | undefined
@@ -133,10 +165,15 @@ router.post(
       return;
     }
 
-    const id = req.body.id || uuidv4();
+    // ID 始终由服务端生成，不接受客户端指定（避免覆盖/冲突）
+    const id = uuidv4();
     const now = new Date().toISOString();
-    const schemaJson =
-      typeof schema === "string" ? schema : JSON.stringify(schema || {});
+    const schemaResult = normalizeSchema(schema, "{}");
+    if (!schemaResult.ok) {
+      res.status(400).json({ error: { message: schemaResult.error, code: "VALIDATION_ERROR" } });
+      return;
+    }
+    const schemaJson = schemaResult.json;
 
     const visible = req.user?.role === "admin" ? 1 : 0
     const createdBy = req.user?.id || null
@@ -188,10 +225,12 @@ router.put(
 
     const { name, type, version, description, schema } = req.body;
     const now = new Date().toISOString();
-    const schemaJson =
-      typeof schema === "string"
-        ? schema
-        : JSON.stringify(schema || existing.schema);
+    const schemaResult = normalizeSchema(schema, (existing.schema as string) || "{}");
+    if (!schemaResult.ok) {
+      res.status(400).json({ error: { message: schemaResult.error, code: "VALIDATION_ERROR" } });
+      return;
+    }
+    const schemaJson = schemaResult.json;
 
     stmts.templateUpdate.run(
       name || existing.name,
@@ -234,7 +273,9 @@ router.patch(
       return;
     }
 
-    const { visible, name, type, version, description, schema } = req.body;
+    const { name, type, version, description, schema } = req.body;
+    // 可见性只允许管理员修改（开发者不能自行上架未审核模板）
+    const visible = req.user?.role === "admin" ? (req.body as Record<string, unknown>).visible : undefined;
 
     if (visible !== undefined) {
       stmts.templatePatch.run(visible ? 1 : 0, req.params.id);
@@ -248,12 +289,12 @@ router.patch(
       schema !== undefined
     ) {
       const now = new Date().toISOString();
-      const schemaJson =
-        typeof schema === "string"
-          ? schema
-          : JSON.stringify(
-              schema ?? safeJsonParse(existing.schema, {}),
-            );
+      const schemaResult = normalizeSchema(schema, (existing.schema as string) || "{}");
+      if (!schemaResult.ok) {
+        res.status(400).json({ error: { message: schemaResult.error, code: "VALIDATION_ERROR" } });
+        return;
+      }
+      const schemaJson = schemaResult.json;
       stmts.templateUpdate.run(
         name ?? existing.name,
         type ?? existing.type,

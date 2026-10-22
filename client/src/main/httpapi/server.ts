@@ -64,18 +64,44 @@ export class HttpApiServer {
     return `http://127.0.0.1:${this.getPort()}`
   }
 
+  /**
+   * 判断请求 Origin 是否为受信任的本机来源。
+   *
+   * - 无 Origin：非浏览器请求（curl / 主进程内部），允许
+   * - `null`：Electron 打包后 file:// 页面的 Origin，允许（配合 Bearer token 鉴权）
+   * - http(s)://localhost | 127.0.0.1 | [::1]（任意端口）：开发服务器，允许
+   *
+   * 拒绝 `http://localhost.evil.com` 这类前缀伪造来源。
+   */
+  private isAllowedOrigin(origin: string): boolean {
+    if (!origin) return true
+    if (origin === 'null') return true
+    try {
+      const parsed = new URL(origin)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+      return ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)
+    } catch {
+      return false
+    }
+  }
+
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     res.setHeader('Content-Type', 'application/json')
     const origin = req.headers.origin || ''
-    if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1') || origin.startsWith('file://')) {
+    const allowedOrigin = this.isAllowedOrigin(origin)
+    if (allowedOrigin) {
       res.setHeader('Access-Control-Allow-Origin', origin || '*')
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', 'http://localhost')
+      res.setHeader('Vary', 'Origin')
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
     if (req.method === 'OPTIONS') {
+      if (!allowedOrigin) {
+        res.writeHead(403)
+        res.end(JSON.stringify({ error: { message: 'Origin not allowed', code: 'FORBIDDEN' } }))
+        return
+      }
       res.writeHead(204)
       res.end()
       return

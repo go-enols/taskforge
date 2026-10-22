@@ -187,7 +187,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
                 key={log.id}
                 data-testid="log-row"
                 data-level={log.level}
-                className="flex items-start gap-2 hover:bg-bg-card-hover/50 px-1.5 py-0.5 rounded"
+                className="log-line flex items-start gap-2 hover:bg-bg-card-hover/50 px-1.5 py-0.5 rounded"
               >
                 {/* 时间戳 */}
                 <span className="text-text-muted shrink-0 tabular-nums select-none">

@@ -67,18 +67,21 @@ function StatCard({
   loading?: boolean
 }): React.JSX.Element {
   return (
-    <div className="bg-bg-card rounded-xl p-6 border border-border-light hover:border-primary/30 transition-all duration-300">
-      <div className="flex items-center gap-3">
-        <div className={`p-3 rounded-lg ${color}`}>
-          <Icon className="w-6 h-6" />
+    <div className="surface-card surface-card-hover group relative overflow-hidden p-5">
+      {/* 右上角品牌光晕，hover 时更明显 */}
+      <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition-opacity duration-300 group-hover:opacity-100 opacity-60" />
+      <div className="relative flex items-center justify-between">
+        <div className={`icon-tile ${color}`}>
+          <Icon className="h-5 w-5" />
         </div>
+        <span className="h-1 w-8 rounded-full bg-gradient-to-r from-brand-1/70 to-brand-2/70 opacity-70" />
       </div>
-      <div className="mt-4">
-        <p className="text-text-muted text-sm">{label}</p>
+      <div className="relative mt-4">
+        <p className="text-[13px] text-text-muted">{label}</p>
         {loading ? (
-          <Skeleton className="h-8 w-16 mt-1" />
+          <Skeleton className="mt-2 h-9 w-20" />
         ) : (
-          <p className="text-2xl font-bold mt-1 text-text-primary">
+          <p className="kpi-value mt-1 text-3xl font-semibold text-text-primary">
             {typeof value === 'number' ? value.toLocaleString() : value}
           </p>
         )}
@@ -133,10 +136,10 @@ function QuickActionButton({
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-3 p-5 bg-bg-card border border-border-light rounded-xl hover:border-primary/40 hover:bg-bg-hover transition-all duration-200 group"
+      className="surface-card surface-card-hover group flex flex-col items-center gap-3 p-5"
     >
-      <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-        <Icon className="w-5 h-5 text-primary" />
+      <div className="icon-tile bg-primary/10 text-primary transition-colors duration-200 group-hover:bg-primary/15">
+        <Icon className="h-5 w-5" />
       </div>
       <span className="text-sm font-medium text-text-primary">{label}</span>
     </button>
@@ -373,31 +376,46 @@ export default function Dashboard(): React.JSX.Element {
   return (
     <div className="space-y-6">
       {/* ────── 页头 ────── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">{t('dashboard.title')}</h1>
-          <p className="text-text-muted text-sm mt-1">{t('dashboard.refresh.title')}</p>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="section-eyebrow">{t('dashboard.title')}</span>
+            <span className="h-px w-8 bg-gradient-to-r from-primary/60 to-transparent" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+            {t('dashboard.greeting', { name: user?.displayName || user?.username || '' })}
+          </h1>
+          <p className="mt-1 text-sm text-text-muted">
+            {new Date().toLocaleDateString('zh-CN', {
+              month: 'long',
+              day: 'numeric',
+              weekday: 'long'
+            })}
+            <span className="mx-2 text-border-hover">·</span>
+            {t('dashboard.refresh.title')}
+          </p>
         </div>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border-light rounded-lg hover:border-primary/40 transition-colors text-sm text-text-secondary disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg border border-border-light bg-bg-card px-4 py-2 text-sm text-text-secondary shadow-sm transition-all hover:border-primary/40 hover:text-text-primary disabled:opacity-50"
         >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           {t('common.refresh')}
         </button>
       </div>
 
       {/* ────── 用户角色横幅 ────── */}
       {user && (
-        <div className="bg-bg-card border border-border-light rounded-xl p-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <User className="w-5 h-5 text-primary" />
+        <div className="surface-card relative flex items-center gap-3 overflow-hidden p-4">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-72 bg-gradient-to-l from-primary/10 via-primary/5 to-transparent" />
+          <div className="icon-tile bg-gradient-to-br from-primary/20 to-brand-2/10 text-primary">
+            <User className="h-5 w-5" />
           </div>
-          <div>
-            <p className="font-medium text-text-primary">
+          <div className="relative min-w-0">
+            <p className="truncate font-medium text-text-primary">
               {user.displayName || user.username}
-              <span className="text-text-muted font-normal ml-1">
+              <span className="ml-1 font-normal text-text-muted">
                 — {t(`dashboard.roleMessage.${user.role}`)}
               </span>
             </p>
@@ -445,9 +463,9 @@ export default function Dashboard(): React.JSX.Element {
           {/* 区域 2 & 3：待审核列表 + 系统日志 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* 待审核列表 */}
-            <div className="lg:col-span-2 bg-bg-card border border-border-light rounded-xl p-6">
+            <div className="lg:col-span-2 surface-card p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight text-text-primary">
                   <Shield className="w-5 h-5 text-amber-500" />
                   {t('dashboard.pendingReviews')}
                 </h2>
@@ -465,7 +483,7 @@ export default function Dashboard(): React.JSX.Element {
                 </div>
               ) : (
                 <div className="max-h-[400px] overflow-y-auto space-y-0">
-                  <table className="w-full text-sm">
+                  <table className="data-table">
                     <thead className="text-text-muted border-b border-border-light sticky top-0 bg-bg-card z-10">
                       <tr>
                         <th className="text-left pb-2 font-medium">{t('templates.name')}</th>
@@ -476,7 +494,7 @@ export default function Dashboard(): React.JSX.Element {
                     </thead>
                     <tbody className="divide-y divide-border-light">
                       {pendingReviews.map((item) => (
-                        <tr key={item.id} className="hover:bg-bg-hover transition-colors">
+                        <tr key={item.id} className="transition-colors">
                           <td className="py-3 pr-2 font-medium text-text-primary">
                             {item.name}
                             {item.author && (
@@ -503,9 +521,9 @@ export default function Dashboard(): React.JSX.Element {
             </div>
 
             {/* 系统日志摘要 */}
-            <div className="bg-bg-card border border-border-light rounded-xl p-6">
+            <div className="surface-card p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight text-text-primary">
                   <ScrollText className="w-5 h-5 text-danger/70" />
                   {t('dashboard.errorLogSummary')}
                 </h2>
@@ -545,7 +563,7 @@ export default function Dashboard(): React.JSX.Element {
 
           {/* 区域 4：治理快捷入口 */}
           <div>
-            <h2 className="text-lg font-semibold text-text-primary mb-4">{t('dashboard.quickActions')}</h2>
+            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold tracking-tight text-text-primary"><span className="section-eyebrow">{t('dashboard.quickActions')}</span></h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <QuickActionButton
                 icon={Shield}
@@ -612,9 +630,9 @@ export default function Dashboard(): React.JSX.Element {
           {/* 区域 2 & 3：任务时间线 + 市场更新 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* 任务时间线 */}
-            <div className="lg:col-span-2 bg-bg-card border border-border-light rounded-xl p-6">
+            <div className="lg:col-span-2 surface-card p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight text-text-primary">
                   <Clock className="w-5 h-5 text-primary" />
                   {t('dashboard.taskTimeline')}
                 </h2>
@@ -632,7 +650,7 @@ export default function Dashboard(): React.JSX.Element {
                 </div>
               ) : (
                 <div className="max-h-[400px] overflow-y-auto space-y-0">
-                  <table className="w-full text-sm">
+                  <table className="data-table">
                     <thead className="text-text-muted border-b border-border-light sticky top-0 bg-bg-card z-10">
                       <tr>
                         <th className="text-left pb-2 font-medium">{t('tasks.scriptFolder')}</th>
@@ -643,7 +661,7 @@ export default function Dashboard(): React.JSX.Element {
                     </thead>
                     <tbody className="divide-y divide-border-light">
                       {timelineTasks.map((task) => (
-                        <tr key={task.id} className="hover:bg-bg-hover transition-colors">
+                        <tr key={task.id} className="transition-colors">
                           <td className="py-3 pr-2 font-medium text-text-primary">
                             {getTaskName(task)}
                           </td>
@@ -668,9 +686,9 @@ export default function Dashboard(): React.JSX.Element {
             </div>
 
             {/* 市场更新 */}
-            <div className="bg-bg-card border border-border-light rounded-xl p-6">
+            <div className="surface-card p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight text-text-primary">
                   <ShoppingBag className="w-5 h-5 text-violet-500" />
                   {t('dashboard.marketUpdates')}
                 </h2>
@@ -713,7 +731,7 @@ export default function Dashboard(): React.JSX.Element {
           {/* ═══════════ 区域 4：快捷操作 — 按角色区分 ═══════════ */}
           {user?.role === 'developer' && (
             <div>
-              <h2 className="text-lg font-semibold text-text-primary mb-4">{t('dashboard.quickActions')}</h2>
+              <h2 className="mb-4 flex items-center gap-2 text-base font-semibold tracking-tight text-text-primary"><span className="section-eyebrow">{t('dashboard.quickActions')}</span></h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <QuickActionButton
                   icon={Code}
@@ -741,7 +759,7 @@ export default function Dashboard(): React.JSX.Element {
 
           {user?.role === 'user' && (
             <div>
-              <h2 className="text-lg font-semibold text-text-primary mb-4">{t('dashboard.quickActions')}</h2>
+              <h2 className="mb-4 flex items-center gap-2 text-base font-semibold tracking-tight text-text-primary"><span className="section-eyebrow">{t('dashboard.quickActions')}</span></h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <QuickActionButton
                   icon={User}

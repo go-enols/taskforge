@@ -143,7 +143,7 @@ router.get("/:id", (req: AuthenticatedRequest, res: Response) => {
 });
 
 /** 创建项目模板 (需要登录, 需审核除非 admin) */
-router.post("/", (req: AuthenticatedRequest, res: Response) => {
+router.post("/", requireRole("admin", "developer"), (req: AuthenticatedRequest, res: Response) => {
   const body = req.body as Record<string, unknown>;
   if (typeof body.name !== "string" || body.name.trim().length === 0) {
     res.status(400).json({ error: { message: "name is required", code: "VALIDATION_ERROR" } });
@@ -184,7 +184,7 @@ router.post("/", (req: AuthenticatedRequest, res: Response) => {
 });
 
 /** 更新项目模板 (仅创建者或 admin) */
-router.put("/:id", (req: AuthenticatedRequest, res: Response) => {
+router.put("/:id", requireRole("admin", "developer"), (req: AuthenticatedRequest, res: Response) => {
   const existing = stmts.projectTemplateGetById.get(req.params.id) as Record<string, unknown> | undefined;
   if (!existing) {
     res.status(404).json({ error: { message: "Project template not found", code: "NOT_FOUND" } });
@@ -255,7 +255,7 @@ router.post("/:id/review", requireRole("admin"), (req: AuthenticatedRequest, res
 });
 
 /** 删除项目模板 (admin 或创建者) */
-router.delete("/:id", (req: AuthenticatedRequest, res: Response) => {
+router.delete("/:id", requireRole("admin", "developer"), (req: AuthenticatedRequest, res: Response) => {
   const existing = stmts.projectTemplateGetById.get(req.params.id) as Record<string, unknown> | undefined;
   if (!existing) {
     res.status(404).json({ error: { message: "Project template not found", code: "NOT_FOUND" } });

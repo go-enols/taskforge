@@ -47,8 +47,9 @@ const Pagination: React.FC<PaginationProps> = ({
   const { t } = useTranslation()
   /** 翻页按钮共用样式 */
   const btnClass =
-    'p-2 rounded-lg border border-border-light hover:bg-bg-card-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
-  const textClass = 'text-sm text-text-muted min-w-[80px] text-center'
+    'flex h-8 w-8 items-center justify-center rounded-lg border border-border-light bg-bg-card text-text-secondary transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:border-border-light disabled:hover:text-text-secondary focus-ring'
+  const textClass =
+    'min-w-[64px] rounded-md bg-bg-tertiary/60 px-2 py-1 text-center text-xs font-medium tabular-nums text-text-secondary'
 
   // 带总数计数的布局：左计数 + 右翻页
   if (totalCountText) {

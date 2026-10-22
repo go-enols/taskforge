@@ -69,7 +69,6 @@ describe('emptyForm', () => {
     const f = emptyForm()
     expect(f.name).toBe('')
     expect(f.website).toBe('')
-    expect(f.chain).toBe('')
     expect(f.scriptTemplateId).toBe('')
     expect(f.accountPool).toBe('')
     expect(f.status).toBe('ongoing')
@@ -88,7 +87,6 @@ describe('toFormData', () => {
   it('converts AirdropProject to FormData with string splits', () => {
     const fd = toFormData(sampleAirdrop())
     expect(fd.name).toBe('Hyperliquid')
-    expect(fd.chain).toBe('Hyperliquid L1')
     expect(fd.website).toBe('https://app.hyperliquid.xyz')
     expect(fd.scriptTemplateId).toBe('script-uuid-1')
     expect(fd.accountPool).toBe('main-pool')
@@ -121,7 +119,6 @@ describe('fromFormData', () => {
     const payload = fromFormData(fd)
     expect(payload.name).toBe('Hyperliquid')
     expect(payload.website).toBe('https://app.hyperliquid.xyz')
-    expect(payload.chain).toBe('Hyperliquid L1')
     expect(payload.scriptTemplateId).toBe('script-uuid-1')
     expect(payload.accountPool).toBe('main-pool')
     expect(payload.status).toBe('ongoing')
@@ -132,17 +129,18 @@ describe('fromFormData', () => {
     expect(payload.tasks).toEqual(sampleAirdrop().tasks)
     expect(payload.earnings).toEqual(sampleAirdrop().earnings)
     expect(payload.eligibilityCriteria).toEqual(sampleAirdrop().eligibilityCriteria)
-    expect(payload.id).toBeUndefined()
-    expect(payload.createdAt).toBeUndefined()
-    expect(payload.updatedAt).toBeUndefined()
+    // chain 已废弃：fromFormData 始终写空字符串以兼容旧数据
+    expect(payload.chain).toBe('')
+    expect(payload).not.toHaveProperty('id')
+    expect(payload).not.toHaveProperty('createdAt')
+    expect(payload).not.toHaveProperty('updatedAt')
   })
 
   it('trims whitespace from string fields', () => {
-    const fd = { ...toFormData(sampleAirdrop()), name: '  Trimmed Name  ', website: '  https://x.com  ', chain: '  ETH  ' }
+    const fd = { ...toFormData(sampleAirdrop()), name: '  Trimmed Name  ', website: '  https://x.com  ' }
     const payload = fromFormData(fd)
     expect(payload.name).toBe('Trimmed Name')
     expect(payload.website).toBe('https://x.com')
-    expect(payload.chain).toBe('ETH')
   })
 
   it('splits tags/labels by comma, trims, filters empty', () => {
@@ -162,7 +160,6 @@ describe('fromFormData', () => {
     const original = sampleAirdrop()
     const payload = fromFormData(toFormData(original))
     expect(payload.name).toBe(original.name)
-    expect(payload.chain).toBe(original.chain)
     expect(payload.website).toBe(original.website)
     expect(payload.accountPool).toBe(original.accountPool)
     expect(payload.status).toBe(original.status)
@@ -184,23 +181,17 @@ describe('validateBasic', () => {
 
   it('fails when name is empty', () => {
     const fd = { ...toFormData(sampleAirdrop()), name: '  ' }
-    const result = validateBasic(fd)
-    expect(result.valid).toBe(false)
-    expect(result.field).toBe('name')
+    expect(validateBasic(fd)).toEqual({ valid: false, field: 'name' })
   })
 
   it('fails when website is empty', () => {
     const fd = { ...toFormData(sampleAirdrop()), website: '' }
-    const result = validateBasic(fd)
-    expect(result.valid).toBe(false)
-    expect(result.field).toBe('website')
+    expect(validateBasic(fd)).toEqual({ valid: false, field: 'website' })
   })
 
   it('fails when accountPool is empty', () => {
     const fd = { ...toFormData(sampleAirdrop()), accountPool: '' }
-    const result = validateBasic(fd)
-    expect(result.valid).toBe(false)
-    expect(result.field).toBe('accountPool')
+    expect(validateBasic(fd)).toEqual({ valid: false, field: 'accountPool' })
   })
 })
 

@@ -30,7 +30,7 @@ const sample = (overrides: Partial<AirdropProject> = {}): AirdropProject => ({
   projectType: 'testnet',
   description: 'Testnet points farming',
   website: 'https://app.hyperliquid.xyz',
-  scriptTemplateId: null,
+  scriptTemplateId: undefined,
   accountPool: 'main',
   links: [
     { label: 'Docs', url: 'https://docs.hyperliquid.xyz' },
@@ -72,10 +72,10 @@ describe('AirdropCard (server render)', () => {
     expect(html).toContain('target="_blank"')
   })
 
-  // 用例：渲染链信息在元数据行中
-  it('renders the chain in the meta row', () => {
+  // 用例：chain 字段已从 UI 移除（改用项目模板自定义字段），不应出现在卡片中
+  it('does not render the deprecated chain field', () => {
     const html = renderToString(<AirdropCard project={sample()} onEdit={() => {}} onDelete={() => {}} onView={() => {}} />)
-    expect(html).toContain('Hyperliquid L1')
+    expect(html).not.toContain('Hyperliquid L1')
   })
 
   // 用例：当 accountPool 非空时渲染账号池信息

@@ -10,7 +10,6 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { StoreService } from '../../../src/main/services/store'
-import { WalletService } from '../../../src/main/services/wallet'
 import { TaskService } from '../../../src/main/services/task'
 import { registerIpcHandlers, handlerMap } from '../../../src/main/ipc'
 import { HttpApiServer } from '../../../src/main/httpapi/server'
@@ -18,7 +17,16 @@ import { HttpApiServer } from '../../../src/main/httpapi/server'
 /** 模拟 Electron 模块，避免真实环境依赖 */
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
-  app: { getVersion: () => '0.0.1', getPath: () => '/tmp' }
+  app: {
+    getVersion: () => '0.0.1',
+    getPath: () => '/tmp',
+    getAppPath: () => process.cwd()
+  },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+    encryptString: (plaintext: string) => Buffer.from(plaintext),
+    decryptString: (cipher: Buffer) => cipher.toString()
+  }
 }))
 
 // describe: HttpApiServer HTTP API 服务端测试
@@ -33,11 +41,9 @@ describe('HttpApiServer', () => {
     handlerMap.clear()
     const dbPath = join(tmpdir(), `test-httpapi-${randomUUID()}.db`)
     store = new StoreService(dbPath)
-    const walletService = new WalletService(store)
     const taskService = new TaskService(store)
     registerIpcHandlers({
       store,
-      walletService,
       taskService,
       scriptFetcher: null as unknown as import('../../../src/main/services/script-fetcher').ScriptFetcher,
       walletRepo: store.walletRepo,

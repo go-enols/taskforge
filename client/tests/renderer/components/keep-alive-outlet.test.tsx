@@ -28,7 +28,9 @@ function PageA(): React.ReactElement {
   const [counter, setCounter] = useState(0)
   useEffect(() => {
     mountLog.push('A:mount')
-    return () => mountLog.push('A:unmount')
+    return () => {
+      mountLog.push('A:unmount')
+    }
   }, [])
   return (
     <div data-testid="page-a">
@@ -45,7 +47,9 @@ function PageB(): React.ReactElement {
   const [counter, setCounter] = useState(100)
   useEffect(() => {
     mountLog.push('B:mount')
-    return () => mountLog.push('B:unmount')
+    return () => {
+      mountLog.push('B:unmount')
+    }
   }, [])
   return (
     <div data-testid="page-b">

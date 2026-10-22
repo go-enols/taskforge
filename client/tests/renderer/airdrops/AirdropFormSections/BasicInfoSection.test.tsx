@@ -19,7 +19,6 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }
 const baseForm = (overrides: Partial<AirdropFormData> = {}): AirdropFormData => ({
   name: 'Hyperliquid',
   website: 'https://app.hyperliquid.xyz',
-  chain: 'Hyperliquid L1',
   description: 'Testnet points',
   scriptTemplateId: '',
   accountPool: 'main',
@@ -31,6 +30,8 @@ const baseForm = (overrides: Partial<AirdropFormData> = {}): AirdropFormData => 
   eligibilityCriteria: [],
   tasks: [],
   earnings: [],
+  templateId: '',
+  customFields: {},
   ...overrides
 })
 
@@ -46,13 +47,12 @@ function change(el: HTMLInputElement | HTMLTextAreaElement, value: string): void
 // describe: 服务端渲染测试 — 验证 BasicInfoSection 的渲染输出
 describe('BasicInfoSection (server render)', () => {
   // 用例：渲染名称、网站、链和描述字段
-  it('renders name, website, chain, description fields', () => {
+  it('renders name, website and description fields', () => {
     const html = renderToString(
       <BasicInfoSection form={baseForm()} onChange={() => {}} errors={{}} />
     )
     expect(html).toContain('Hyperliquid')
     expect(html).toContain('https://app.hyperliquid.xyz')
-    expect(html).toContain('Hyperliquid L1')
     expect(html).toContain('Testnet points')
   })
 
@@ -81,12 +81,12 @@ describe('BasicInfoSection (server render)', () => {
     expect(html).toMatch(/<textarea/i)
   })
 
-  // 用例：显示 Markdown 格式提示
+  // 用例：显示 Markdown 支持提示（MarkdownEditor 自带提示，旧的 descriptionMarkdownHint 已移除）
   it('shows markdown hint', () => {
     const html = renderToString(
       <BasicInfoSection form={baseForm()} onChange={() => {}} errors={{}} />
     )
-    expect(html).toContain('descriptionMarkdownHint')
+    expect(html).toContain('markdownEditor.markdownSupported')
   })
 
   // 用例：name 字段显示错误信息

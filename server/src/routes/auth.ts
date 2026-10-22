@@ -11,6 +11,7 @@ import { stmts } from "../db";
 import { AuthenticatedRequest, UserRecord } from "../types";
 import { authMiddleware, requireRole } from "../middleware/auth";
 import { generateApiKey, hashApiKey } from "../utils/keys";
+import { isUniqueConstraintError } from "../utils/async-handler";
 import { validateBody } from "../middleware/validate";
 import { loginSchema, registerSchema, setupSchema } from "../schemas/auth-user";
 import { createLogger } from "../utils/logger";
@@ -98,17 +99,26 @@ router.post("/register", validateBody(registerSchema), async (req: Authenticated
   const apiKeyPlaceholder = uuidv4()
   const now = new Date().toISOString()
 
-  stmts.userInsert.run(
-    id,
-    username,
-    passwordHash,
-    displayName || username,
-    "user",
-    apiKeyPlaceholder,
-    apiKeyHash,
-    now,
-    now,
-  );
+  try {
+    stmts.userInsert.run(
+      id,
+      username,
+      passwordHash,
+      displayName || username,
+      "user",
+      apiKeyPlaceholder,
+      apiKeyHash,
+      now,
+      now,
+    );
+  } catch (err) {
+    // 并发注册同名用户时“先查后插”会失效，由 UNIQUE 约束兜底
+    if (isUniqueConstraintError(err)) {
+      res.status(409).json({ error: { message: "用户名已存在", code: "CONFLICT" } });
+      return;
+    }
+    throw err;
+  }
 
   const created = stmts.userGetById.get(id) as UserRecord;
   const token = jwt.sign(
@@ -159,17 +169,25 @@ router.post("/setup", validateBody(setupSchema), async (req: AuthenticatedReques
   const apiKeyPlaceholder = uuidv4()
   const now = new Date().toISOString()
 
-  stmts.userInsert.run(
-    id,
-    username,
-    passwordHash,
-    displayName || username,
-    "admin",
-    apiKeyPlaceholder,
-    apiKeyHash,
-    now,
-    now,
-  )
+  try {
+    stmts.userInsert.run(
+      id,
+      username,
+      passwordHash,
+      displayName || username,
+      "admin",
+      apiKeyPlaceholder,
+      apiKeyHash,
+      now,
+      now,
+    )
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      res.status(409).json({ error: { message: "初始化冲突，请重试登录", code: "CONFLICT" } });
+      return;
+    }
+    throw err;
+  }
 
   const created = stmts.userGetById.get(id) as UserRecord
   const token = jwt.sign(

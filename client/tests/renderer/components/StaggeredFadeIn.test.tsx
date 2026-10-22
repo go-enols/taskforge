@@ -5,6 +5,7 @@
  * @module tests/renderer/components
  */
 
+import { describe, it, expect } from 'vitest'
 import { renderToString } from 'react-dom/server'
 import StaggeredFadeIn from '../../../src/renderer/src/components/common/StaggeredFadeIn'
 

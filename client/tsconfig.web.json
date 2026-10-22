@@ -11,6 +11,7 @@
     "composite": true,
     "noImplicitAny": true,
     "jsx": "react-jsx",
+    "types": ["vite/client", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
       "@renderer/*": ["src/renderer/src/*"],

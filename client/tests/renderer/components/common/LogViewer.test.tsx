@@ -11,7 +11,7 @@ import { renderToString } from 'react-dom/server'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import LogViewer from '../../../../src/renderer/src/components/common/LogViewer'
-import type { TaskLog } from '../../../../../src/shared/types'
+import type { TaskLog } from '../../../../src/shared/types'
 
 /** 模拟 react-i18next */
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }))

@@ -3,6 +3,7 @@
  */
 import { Task } from '../../../shared/types'
 import { register, Services } from '../registry'
+import { isPathAuthorized } from '../../services/path-allowlist'
 
 export function registerTaskHandlers(services: Services): void {
   const { taskRepo, taskService } = services
@@ -17,8 +18,17 @@ export function registerTaskHandlers(services: Services): void {
   register('task:get', (id) => taskRepo.getTask(id as string))
   register('task:create', (data) => {
     const input = data as Partial<Omit<Task, 'id'>>
+    const scriptFolder = input.scriptFolder ?? ''
+    // 安全：任务脚本目录只能指向已安装脚本目录或用户本次会话选择过的目录，
+    // 防止渲染层（或注入的页面代码）借 task:create 执行任意路径下的脚本。
+    if (!scriptFolder || !isPathAuthorized(scriptFolder)) {
+      throw Object.assign(new Error('Script folder is not authorized'), {
+        code: 'FORBIDDEN',
+        category: 'SECURITY'
+      })
+    }
     return taskRepo.createTask({
-      scriptFolder: input.scriptFolder ?? '',
+      scriptFolder,
       config: input.config ?? {},
       status: input.status ?? 'idle',
       workerId: input.workerId ?? null,

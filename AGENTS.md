@@ -8,7 +8,7 @@
 
 基于 Electron 的全栈桌面应用，**核心定位是"脚本分发 + 沙箱执行平台"**。React + Tailwind CSS 渲染层，Node.js 主进程。所有业务逻辑在 TypeScript 中实现，附带独立的 Express 服务端子项目作为脚本与账户模板的分发后端。
 
-> **重要**：本仓库的原始名称是 airdrop-farm，已重命名为 TaskForge。所有"空投"业务（airdrop tracking、airdrop projects）只是脚本可执行的众多垂直场景之一，不是产品主线。重构已完成：脚本市场（Marketplace）+ 沙箱执行作为导航/产品文案的一等公民，空投业务（Airdrops）降级为次要模块。客户端当前版本 **v0.3.9**（见 `client/package.json`）。
+> **重要**：本仓库的原始名称是 airdrop-farm，已重命名为 TaskForge。所有"空投"业务（airdrop tracking、airdrop projects）只是脚本可执行的众多垂直场景之一，不是产品主线。重构已完成：脚本市场（Marketplace）+ 沙箱执行作为导航/产品文案的一等公民，空投业务（Airdrops）降级为次要模块。客户端当前版本 **v0.5.0**（见 `client/package.json`）。
 
 ### 子项目
 
@@ -23,8 +23,10 @@
 - 客户端构建：`cd client && npm run build`（全平台 `build:win` / `build:mac` / `build:linux`）
 - 客户端 Typecheck：`cd client && npm run typecheck`
 - 客户端 Lint：`cd client && npm run lint`
+- Electron 环境检查：`cd client && npm run electron:verify`（缺失/不完整时用 `npm run electron:install` 自动修复，`npm install` 后也会自动检查）
 - 服务端开发：`cd server && npm run dev`
 - 服务端构建：`cd server && npm run build`
+- 服务端测试：`cd server && npm test`（vitest + supertest，使用临时数据目录，不会污染 `server/data`）
 
 ---
 

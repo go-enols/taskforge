@@ -18,7 +18,9 @@ import {
   Edit3,
   Copy,
   CheckSquare,
-  Square
+  Square,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react'
 import { statusLabel } from '../utils/i18n-status'
 import { toast } from '../utils/toast'
@@ -51,13 +53,14 @@ const emptyForm = {
  * 支持多种代理格式（manual/api/ip/ws）和协议，提供分页列表、
  * 批量选择/删除、地址一键复制、标签管理和搜索筛选。
  */
-const Proxies: React.FC = () => {
+const Proxies: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation()
   const [data, setData] = useState<ListResponse<Proxy> | null>(null)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [listError, setListError] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [editingProxy, setEditingProxy] = useState<Proxy | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -81,11 +84,13 @@ const Proxies: React.FC = () => {
 
   const fetchData = useCallback(async (): Promise<void> => {
     setLoading(true)
+    setListError(false)
     try {
       const res = await proxyApi.list(page, PAGE_SIZE, debouncedSearch)
       setData(res)
     } catch {
       setData(null)
+      setListError(true)
     } finally {
       setLoading(false)
     }
@@ -360,8 +365,12 @@ const Proxies: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t('proxies.title')}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {embedded ? (
+          <span className="section-eyebrow">{t('proxies.title')}</span>
+        ) : (
+          <h1 className="text-2xl font-bold tracking-tight">{t('proxies.title')}</h1>
+        )}
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search
@@ -396,7 +405,19 @@ const Proxies: React.FC = () => {
         </div>
       </div>
 
-      {loading ? (
+      {listError ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <AlertCircle size={26} className="text-danger" />
+          <p className="text-sm text-text-secondary">{t('common.loadFailed')}</p>
+          <button
+            onClick={() => fetchData()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border-light bg-bg-card px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-card-hover hover:text-text-primary"
+          >
+            <RefreshCw size={14} />
+            {t('common.retry')}
+          </button>
+        </div>
+      ) : loading ? (
         <div className="text-center py-12 text-text-muted">{t('common.loading')}</div>
       ) : !data?.items.length ? (
         <div className="text-center py-12 text-text-muted">{t('proxies.noProxies')}</div>

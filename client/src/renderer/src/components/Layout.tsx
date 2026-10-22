@@ -115,11 +115,11 @@ const roleLabelKeys: Record<UserRole, string> = {
   user: 'roles.user'
 }
 
-/** 角色徽章颜色映射 */
+/** 角色徽章颜色映射（柔和描边风格，避免大面积高饱和色块） */
 const roleColors: Record<UserRole, string> = {
-  admin: 'bg-danger text-white',
-  developer: 'bg-primary text-white',
-  user: 'bg-success text-white'
+  admin: 'bg-warning/10 text-warning border border-warning/25',
+  developer: 'bg-primary/10 text-primary border border-primary/25',
+  user: 'bg-success/10 text-success border border-success/25'
 }
 
 /**
@@ -195,8 +195,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="flex flex-1 overflow-hidden">
         {/* 左侧导航侧边栏 */}
         <aside
-          className={`${collapsed ? 'w-16' : 'w-52'} flex flex-col border-r border-border-light bg-bg-card transition-all duration-200`}
+          className={`${collapsed ? 'w-16' : 'w-52'} relative flex flex-col border-r border-border-light bg-bg-card transition-all duration-200`}
         >
+          {/* 侧边栏顶部极弱品牌光晕，避免大面积纯色显得扁平 */}
+          <div className="pointer-events-none absolute -top-16 left-1/2 h-32 w-40 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
           {/* 侧边栏顶栏：折叠/展开按钮 */}
           <div
             className={`relative flex items-center h-11 px-2.5 border-b border-border-light/60 ${
@@ -221,27 +223,38 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
 
           {/* 导航菜单列表 */}
-          <nav className="flex-1 py-2 space-y-0.5 px-2 overflow-y-auto">
+          <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto">
             {NAV_ITEMS.map((item) => {
               const hasChildren = !!item.children
               const active = isItemActive(item.path, location.pathname)
               const expanded = expandedGroups[item.path] ?? false
               const Icon = item.icon
 
+              /** 激活态左侧高亮条 */
+              const activeBar = active ? (
+                <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary shadow-[0_0_8px_rgba(167,139,250,0.55)]" />
+              ) : null
+
               if (!hasChildren) {
                 return (
                   <button
                     key={item.path}
                     onClick={() => navigate(item.path)}
-                    className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm transition-colors focus-ring ${
+                    className={`group relative flex items-center gap-2.5 w-full rounded-lg pl-3 pr-2.5 py-2 text-sm transition-all duration-150 focus-ring ${
+                      collapsed ? 'justify-center px-2' : ''
+                    } ${
                       active
                         ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-text-secondary hover:bg-bg-tertiary'
+                        : 'text-text-secondary hover:bg-bg-tertiary/80 hover:text-text-primary'
                     }`}
                     title={t(item.key)}
                   >
-                    <Icon size={18} />
-                    {!collapsed && <span>{t(item.key)}</span>}
+                    {activeBar}
+                    <Icon
+                      size={18}
+                      className="shrink-0 transition-transform duration-150 group-hover:scale-105"
+                    />
+                    {!collapsed && <span className="truncate">{t(item.key)}</span>}
                   </button>
                 )
               }
@@ -265,18 +278,23 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         toggleGroup(item.path)
                       }
                     }}
-                    className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm transition-colors focus-ring ${
-                      active
+                    className={`group relative flex items-center gap-2.5 w-full rounded-lg pl-3 pr-2.5 py-2 text-sm transition-all duration-150 focus-ring ${
+                      collapsed ? 'justify-center px-2' : ''
+                    } ${                      active
                         ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-text-secondary hover:bg-bg-tertiary'
+                        : 'text-text-secondary hover:bg-bg-tertiary/80 hover:text-text-primary'
                     }`}
                     title={t(item.key)}
                     aria-expanded={collapsed ? false : expanded}
                   >
-                    <Icon size={18} />
+                    {activeBar}
+                    <Icon
+                      size={18}
+                      className="shrink-0 transition-transform duration-150 group-hover:scale-105"
+                    />
                     {!collapsed && (
                       <>
-                        <span className="flex-1 text-left">{t(item.key)}</span>
+                        <span className="flex-1 truncate text-left">{t(item.key)}</span>
                         <ChevronDown
                           size={14}
                           className={`transition-transform duration-200 ${expanded ? 'rotate-0' : '-rotate-90'}`}
@@ -286,7 +304,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   </button>
                   {/* 侧边栏展开时：行内子项列表 */}
                   {!collapsed && expanded && (
-                    <div className="ml-4 pl-2 border-l border-border-light/60 space-y-0.5">
+                    <div className="ml-5 pl-2 border-l border-border-light/70 space-y-0.5">
                       {childItems.map((child) => {
                         const childActive = location.pathname === child.path
                         const ChildIcon = child.icon
@@ -297,12 +315,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             className={`flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-xs transition-colors focus-ring ${
                               childActive
                                 ? 'bg-primary/10 text-primary font-medium'
-                                : 'text-text-secondary hover:bg-bg-tertiary'
+                                : 'text-text-secondary hover:bg-bg-tertiary/80 hover:text-text-primary'
                             }`}
                             title={t(child.key)}
                           >
-                            <ChildIcon size={14} />
-                            <span>{t(child.key)}</span>
+                            <ChildIcon size={14} className="shrink-0" />
+                            <span className="truncate">{t(child.key)}</span>
                           </button>
                         )
                       })}
@@ -339,16 +357,25 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {/* 底部用户信息 + 登出按钮 */}
           <div className="border-t border-border-light p-3">
             {!collapsed && (
-              <div className="mb-2">
+              <div className="mb-2 rounded-lg bg-bg-tertiary/50 p-2">
                 <div className="flex items-center gap-2">
-                  <Shield size={14} className="text-text-muted" />
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColors[userRole]}`}
-                  >
-                    {t(roleLabelKeys[userRole])}
-                  </span>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-1/80 to-primary/80 text-[11px] font-semibold text-white shadow-sm">
+                    {(user?.displayName || user?.username || '?').slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-text-primary">
+                      {user?.displayName || user?.username}
+                    </p>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <Shield size={11} className="text-text-muted" />
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${roleColors[userRole]}`}
+                      >
+                        {t(roleLabelKeys[userRole])}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-text-secondary mt-1 truncate">{user?.displayName}</p>
               </div>
             )}
             <button
@@ -366,13 +393,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <OfflineBanner />
 
         {/* 右侧主内容区 */}
-        <main className="flex-1 overflow-auto p-6 bg-bg-page">
+        <main className="flex-1 overflow-auto bg-bg-page px-6 py-5">
           {/*
             这里不使用 key={pathname} 的原因是页面切换由 <KeepAliveOutlet /> 在 App.tsx 中处理，
             页面组件被缓存而非卸载/重新挂载。因此整个 <main> 不应因 URL 变化而重新挂载。
             每个页面的淡入动画由 KeepAliveOutlet 内部的活跃页面包装器控制。
           */}
-          {children}
+          <div className="page-enter mx-auto min-h-full max-w-[1600px]">{children}</div>
         </main>
       </div>
     </div>

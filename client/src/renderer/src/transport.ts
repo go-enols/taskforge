@@ -89,9 +89,11 @@ async function callIPC<T>(channel: string, args: unknown[]): Promise<T> {
   if (result.error) {
     // UNAUTHORIZED code 触发全局清空 user + token + 跳转登录
     if (result.error.code === 'UNAUTHORIZED') notifyAuthFailure()
+    // 标记为业务错误：调用方不应把它当作 IPC 传输故障再做 HTTP 降级重试
     throw Object.assign(new Error(result.error.message), {
       code: result.error.code,
-      category: result.error.category
+      category: result.error.category,
+      isBusinessError: true
     })
   }
   return result.data as T
@@ -210,6 +212,12 @@ export async function call<T>(channel: string, args: unknown[] = []): Promise<T>
     activeTransport = 'ipc'
     return result
   } catch (ipcErr) {
+    // 业务错误（handler 正常返回 {error}）不是传输故障：
+    // 直接抛出，避免再走一次 HTTP 造成重复探测/重复请求，也避免掩盖真实错误。
+    if ((ipcErr as { isBusinessError?: boolean }).isBusinessError) {
+      activeTransport = 'ipc'
+      throw ipcErr
+    }
     try {
       const result = await callHTTP<T>(channel, args)
       activeTransport = 'http'

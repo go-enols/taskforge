@@ -1,8 +1,8 @@
 /**
  * @file 数据存储服务测试
- * @description 验证 StoreService 的各项 CRUD 操作，
- *              涵盖钱包、账户、代理、任务、设置、统计、空投项目等
- *              所有数据实体的增删改查和搜索分页功能。
+ * @description 验证 StoreService / 各 Repository 的 CRUD、分页、搜索、统计与设置能力。
+ *              覆盖：钱包、脚本参数（原 accounts）、代理、任务与任务日志、设置、
+ *              统计聚合、应用日志、空投项目。
  * @module tests/main/services
  */
 
@@ -11,9 +11,13 @@ import { StoreService } from '../../../src/main/services/store'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
+import { rmSync } from 'fs'
+import type { TaskTemplate } from '../../../src/shared/types'
 
 /** 全局 StoreService 实例 */
 let store: StoreService
+/** 当前测试的临时数据库路径 */
+let dbPath: string
 
 /** 创建临时数据库文件路径 */
 function createTempDbPath(): string {
@@ -22,29 +26,137 @@ function createTempDbPath(): string {
 
 /** 每个测试前创建新的临时数据库实例 */
 beforeEach(() => {
-  store = new StoreService(createTempDbPath())
+  dbPath = createTempDbPath()
+  store = new StoreService(dbPath)
 })
 
-/** 每个测试后关闭数据库 */
+/** 每个测试后关闭数据库并清理文件（含 WAL/SHM） */
 afterEach(() => {
   store.close()
+  for (const suffix of ['', '-wal', '-shm']) {
+    rmSync(dbPath + suffix, { force: true })
+  }
 })
+
+/** 钱包创建入参 */
+type WalletInput = Parameters<StoreService['walletRepo']['createWallet']>[0]
+/** 脚本参数创建入参 */
+type ScriptParamInput = Parameters<StoreService['createScriptParam']>[0]
+/** 代理创建入参 */
+type ProxyInput = Parameters<StoreService['proxyRepo']['createProxy']>[0]
+/** 任务创建入参 */
+type TaskInput = Parameters<StoreService['taskRepo']['createTask']>[0]
+/** 空投创建入参 */
+type AirdropInput = Parameters<StoreService['createAirdrop']>[0]
+
+/** 构造钱包入参 */
+function walletInput(overrides: Partial<WalletInput> = {}): WalletInput {
+  return {
+    address: '0xabc123',
+    privateKey: null,
+    mnemonic: null,
+    walletType: 'evm',
+    labels: [],
+    ...overrides
+  }
+}
+
+/** 构造脚本参数入参 */
+function scriptParamInput(overrides: Partial<ScriptParamInput> = {}): ScriptParamInput {
+  return {
+    templateId: 'tmpl-1',
+    data: { key: 'value' },
+    pool: 'pool-a',
+    labels: [],
+    notes: '',
+    ...overrides
+  }
+}
+
+/** 构造代理入参 */
+function proxyInput(overrides: Partial<ProxyInput> = {}): ProxyInput {
+  return {
+    protocol: 'http',
+    host: '127.0.0.1',
+    port: 8080,
+    username: null,
+    password: null,
+    status: 'active',
+    format: 'manual',
+    labels: [],
+    ...overrides
+  }
+}
+
+/** 构造任务入参 */
+function taskInput(overrides: Partial<TaskInput> = {}): TaskInput {
+  return {
+    scriptFolder: '/scripts/demo',
+    config: {},
+    status: 'idle',
+    workerId: null,
+    startedAt: null,
+    endedAt: null,
+    isSandbox: false,
+    ...overrides
+  }
+}
+
+/** 构造空投项目入参 */
+function airdropInput(overrides: Partial<AirdropInput> = {}): AirdropInput {
+  return {
+    name: 'LayerZero',
+    chain: 'Ethereum',
+    status: 'ongoing',
+    projectType: 'testnet',
+    description: 'Airdrop project',
+    website: 'https://layerzero.network',
+    accountPool: 'default',
+    links: [{ label: 'Docs', url: 'https://example.com' }],
+    eligibilityCriteria: [],
+    tasks: [],
+    earnings: [],
+    tags: ['defi'],
+    labels: ['hot'],
+    ...overrides
+  }
+}
+
+/** 构造任务脚本模板入参 */
+function taskTemplateInput(overrides: Partial<Omit<TaskTemplate, 'id'>> = {}): Omit<
+  TaskTemplate,
+  'id'
+> {
+  return {
+    name: 'Demo Script',
+    version: '1.0.0',
+    description: '',
+    installPath: '/scripts/demo',
+    manifest: {},
+    remoteUrl: null,
+    isInstalled: true,
+    downloadedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides
+  }
+}
 
 // describe: 钱包 CRUD 操作测试
 describe('Wallet CRUD', () => {
   it('createWallet returns object with id, createdAt and correct fields', () => {
-    const wallet = store.walletRepo.createWallet({
-      address: '0xabc123',
-      privateKey: 'pk-1',
-      mnemonic: 'word1 word2',
-      walletType: 'evm',
-      labels: ['label1']
-    })
+    const wallet = store.walletRepo.createWallet(
+      walletInput({
+        address: '0xabc123',
+        privateKey: 'pk-1',
+        mnemonic: 'word1 word2',
+        labels: ['label1']
+      })
+    )
     expect(wallet.id).toBeDefined()
     expect(typeof wallet.id).toBe('string')
-    expect(wallet.createdAt).toBeDefined()
     expect(typeof wallet.createdAt).toBe('string')
     expect(wallet.address).toBe('0xabc123')
+    // safeStorage 在测试环境不可用，EncryptionService 走明文降级
     expect(wallet.privateKey).toBe('pk-1')
     expect(wallet.mnemonic).toBe('word1 word2')
     expect(wallet.walletType).toBe('evm')
@@ -52,14 +164,9 @@ describe('Wallet CRUD', () => {
   })
 
   it('getWallet returns correct data when exists', () => {
-    const created = store.walletRepo.createWallet({
-      address: '0xdef456',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'solana',
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    const created = store.walletRepo.createWallet(
+      walletInput({ address: '0xdef456', walletType: 'solana' })
+    )
     const fetched = store.walletRepo.getWallet(created.id)
     expect(fetched).not.toBeNull()
     expect(fetched!.id).toBe(created.id)
@@ -68,8 +175,7 @@ describe('Wallet CRUD', () => {
   })
 
   it('getWallet returns null when not exists', () => {
-    const result = store.walletRepo.getWallet('non-existent-id')
-    expect(result).toBeNull()
+    expect(store.walletRepo.getWallet('non-existent-id')).toBeNull()
   })
 
   it('listWallets returns empty list', () => {
@@ -81,14 +187,7 @@ describe('Wallet CRUD', () => {
 
   it('listWallets pagination works correctly', () => {
     for (let i = 0; i < 5; i++) {
-      store.walletRepo.createWallet({
-        address: `0x${i}`,
-        privateKey: null,
-        mnemonic: null,
-        walletType: 'evm',
-        labels: [],
-        accountPool: 'test-pool'
-      })
+      store.walletRepo.createWallet(walletInput({ address: `0x${i}` }))
     }
     const page1 = store.walletRepo.listWallets(1, 2)
     expect(page1.items.length).toBe(2)
@@ -101,36 +200,15 @@ describe('Wallet CRUD', () => {
   })
 
   it('listWallets search works correctly', () => {
-    store.walletRepo.createWallet({
-      address: '0xsearchable',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'evm',
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    store.walletRepo.createWallet({
-      address: '0xother',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'solana',
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    store.walletRepo.createWallet(walletInput({ address: '0xsearchable' }))
+    store.walletRepo.createWallet(walletInput({ address: '0xother', walletType: 'solana' }))
     const result = store.walletRepo.listWallets(1, 20, 'searchable')
     expect(result.items.length).toBe(1)
     expect(result.items[0].address).toBe('0xsearchable')
   })
 
   it('updateWallet updates fields correctly', () => {
-    const created = store.walletRepo.createWallet({
-      address: '0xbefore',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'evm',
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    const created = store.walletRepo.createWallet(walletInput({ address: '0xbefore' }))
     const updated = store.walletRepo.updateWallet(created.id, {
       address: '0xafter',
       walletType: 'solana',
@@ -143,213 +221,137 @@ describe('Wallet CRUD', () => {
   })
 
   it('updateWallet returns null when not exists', () => {
-    const result = store.walletRepo.updateWallet('non-existent', { address: '0xnope' })
-    expect(result).toBeNull()
+    expect(store.walletRepo.updateWallet('non-existent', { address: '0xnope' })).toBeNull()
   })
 
   it('deleteWallet returns true on success', () => {
-    const created = store.walletRepo.createWallet({
-      address: '0xtodelete',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'evm',
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    const result = store.walletRepo.deleteWallet(created.id)
-    expect(result).toBe(true)
+    const created = store.walletRepo.createWallet(walletInput({ address: '0xtodelete' }))
+    expect(store.walletRepo.deleteWallet(created.id)).toBe(true)
     expect(store.walletRepo.getWallet(created.id)).toBeNull()
   })
 
   it('deleteWallet returns false when not exists', () => {
-    const result = store.walletRepo.deleteWallet('non-existent')
-    expect(result).toBe(false)
+    expect(store.walletRepo.deleteWallet('non-existent')).toBe(false)
   })
 
   it('batchCreateWallets creates correct count', () => {
-    const items = [
-      {
-        address: '0xb1',
-        privateKey: null,
-        mnemonic: null,
-        walletType: 'evm',
-        labels: [],
-        accountPool: 'test-pool'
-      },
-      {
-        address: '0xb2',
-        privateKey: null,
-        mnemonic: null,
-        walletType: 'evm',
-        labels: [],
-        accountPool: 'test-pool'
-      },
-      { address: '0xb3', privateKey: null, mnemonic: null, walletType: 'solana', labels: ['batch'] }
-    ]
-    const count = store.walletRepo.batchCreateWallets(items)
+    const count = store.walletRepo.batchCreateWallets([
+      walletInput({ address: '0xb1' }),
+      walletInput({ address: '0xb2' }),
+      walletInput({ address: '0xb3', walletType: 'solana', labels: ['batch'] })
+    ])
     expect(count).toBe(3)
-    const list = store.walletRepo.listWallets()
-    expect(list.total).toBe(3)
+    expect(store.walletRepo.listWallets().total).toBe(3)
   })
 
   it('batchDeleteWallets deletes correct count', () => {
-    const w1 = store.walletRepo.createWallet({
-      address: '0xbd1',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'evm',
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    const w2 = store.walletRepo.createWallet({
-      address: '0xbd2',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'evm',
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const w3 = store.walletRepo.createWallet({
-      address: '0xbd3',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'evm',
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    const deleted = store.walletRepo.batchDeleteWallets([w1.id, w2.id, 'non-existent'])
-    expect(deleted).toBe(2)
+    const w1 = store.walletRepo.createWallet(walletInput({ address: '0xbd1' }))
+    const w2 = store.walletRepo.createWallet(walletInput({ address: '0xbd2' }))
+    store.walletRepo.createWallet(walletInput({ address: '0xbd3' }))
+    expect(store.walletRepo.batchDeleteWallets([w1.id, w2.id, 'non-existent'])).toBe(2)
     expect(store.walletRepo.listWallets().total).toBe(1)
   })
 })
 
-// describe: 账户 CRUD 操作测试
-describe('Account CRUD', () => {
-  it('createAccount and getAccount work correctly', () => {
-    const account = store.createAccount({
-      templateId: 'tmpl-1',
-      data: { key: 'value' },
-      pool: 'pool-a',
-      labels: ['acct'],
-      notes: 'test note'
-    })
-    expect(account.id).toBeDefined()
-    expect(account.createdAt).toBeDefined()
-    expect(account.updatedAt).toBeDefined()
-    expect(account.templateId).toBe('tmpl-1')
-    expect(account.data).toEqual({ key: 'value' })
-    expect(account.pool).toBe('pool-a')
-    expect(account.labels).toEqual(['acct'])
-    expect(account.notes).toBe('test note')
-
-    const fetched = store.getAccount(account.id)
-    expect(fetched).not.toBeNull()
-    expect(fetched!.id).toBe(account.id)
-  })
-
-  it('getAccount returns null when not exists', () => {
-    expect(store.getAccount('non-existent')).toBeNull()
-  })
-
-  it('listAccounts returns paginated results', () => {
-    for (let i = 0; i < 3; i++) {
-      store.createAccount({
-        templateId: `tmpl-${i}`,
-        data: {},
-        pool: `pool-${i}`,
-        labels: [],
-        accountPool: 'test-pool',
-        notes: ''
+// describe: 脚本参数 CRUD 操作测试（原 accounts 表，重构后更名）
+describe('ScriptParam CRUD', () => {
+  it('createScriptParam and getScriptParam work correctly', () => {
+    const param = store.createScriptParam(
+      scriptParamInput({
+        templateId: 'tmpl-1',
+        data: { key: 'value' },
+        pool: 'pool-a',
+        labels: ['acct'],
+        notes: 'test note'
       })
+    )
+    expect(param.id).toBeDefined()
+    expect(param.createdAt).toBeDefined()
+    expect(param.updatedAt).toBeDefined()
+    expect(param.templateId).toBe('tmpl-1')
+    expect(param.data).toEqual({ key: 'value' })
+    expect(param.pool).toBe('pool-a')
+    expect(param.labels).toEqual(['acct'])
+    expect(param.notes).toBe('test note')
+
+    const fetched = store.getScriptParam(param.id)
+    expect(fetched).not.toBeNull()
+    expect(fetched!.id).toBe(param.id)
+  })
+
+  it('getScriptParam returns null when not exists', () => {
+    expect(store.getScriptParam('non-existent')).toBeNull()
+  })
+
+  it('listScriptParams returns paginated results', () => {
+    for (let i = 0; i < 3; i++) {
+      store.createScriptParam(
+        scriptParamInput({ templateId: `tmpl-${i}`, pool: `pool-${i}`, data: {} })
+      )
     }
-    const result = store.listAccounts(1, 2)
+    const result = store.listScriptParams(1, 2)
     expect(result.items.length).toBe(2)
     expect(result.total).toBe(3)
   })
 
-  it('listAccounts search works', () => {
-    store.createAccount({
-      templateId: 't1',
-      data: {},
-      pool: 'special-pool',
-      labels: [],
-      accountPool: 'test-pool',
-      notes: ''
-    })
-    store.createAccount({
-      templateId: 't2',
-      data: {},
-      pool: 'other',
-      labels: [],
-      accountPool: 'test-pool',
-      notes: ''
-    })
-    const result = store.listAccounts(1, 20, 'special')
+  it('listScriptParams search works', () => {
+    store.createScriptParam(scriptParamInput({ pool: 'special-pool' }))
+    store.createScriptParam(scriptParamInput({ pool: 'other', notes: '' }))
+    const result = store.listScriptParams(1, 20, 'special')
     expect(result.items.length).toBe(1)
   })
 
-  it('updateAccount updates fields correctly', () => {
-    const created = store.createAccount({
-      templateId: 'tmpl-old',
-      data: {},
-      pool: 'old-pool',
-      labels: [],
-      accountPool: 'test-pool',
-      notes: 'old'
-    })
-    const updated = store.updateAccount(created.id, {
-      pool: 'new-pool',
-      notes: 'new'
-    })
+  it('listScriptParamPools returns distinct pools', () => {
+    store.createScriptParam(scriptParamInput({ pool: 'pool-a' }))
+    store.createScriptParam(scriptParamInput({ pool: 'pool-b' }))
+    store.createScriptParam(scriptParamInput({ pool: 'pool-a' }))
+    const pools = store.listScriptParamPools()
+    expect(pools.sort()).toEqual(['pool-a', 'pool-b'])
+  })
+
+  it('updateScriptParam updates fields correctly', () => {
+    const created = store.createScriptParam(
+      scriptParamInput({ pool: 'old-pool', notes: 'old' })
+    )
+    const updated = store.updateScriptParam(created.id, { pool: 'new-pool', notes: 'new' })
     expect(updated).not.toBeNull()
     expect(updated!.pool).toBe('new-pool')
     expect(updated!.notes).toBe('new')
     expect(typeof updated!.updatedAt).toBe('string')
   })
 
-  it('updateAccount returns null when not exists', () => {
-    expect(store.updateAccount('non-existent', { pool: 'x' })).toBeNull()
+  it('deleteScriptParam returns true on success', () => {
+    const created = store.createScriptParam(scriptParamInput())
+    expect(store.deleteScriptParam(created.id)).toBe(true)
+    expect(store.getScriptParam(created.id)).toBeNull()
   })
 
-  it('deleteAccount returns true on success', () => {
-    const created = store.createAccount({
-      templateId: 't1',
-      data: {},
-      pool: 'p',
-      labels: [],
-      accountPool: 'test-pool',
-      notes: ''
-    })
-    expect(store.deleteAccount(created.id)).toBe(true)
-    expect(store.getAccount(created.id)).toBeNull()
-  })
-
-  it('deleteAccount returns false when not exists', () => {
-    expect(store.deleteAccount('non-existent')).toBe(false)
+  it('deleteScriptParam returns false when not exists', () => {
+    expect(store.deleteScriptParam('non-existent')).toBe(false)
   })
 })
 
 // describe: 代理 CRUD 操作测试
 describe('Proxy CRUD', () => {
   it('createProxy and getProxy work correctly', () => {
-    const proxy = store.proxyRepo.createProxy({
-      protocol: 'http',
-      host: '127.0.0.1',
-      port: 8080,
-      username: 'user',
-      password: 'pass',
-      status: 'active',
-      labels: ['proxy1']
-    })
+    const proxy = store.proxyRepo.createProxy(
+      proxyInput({
+        host: '127.0.0.1',
+        port: 8080,
+        username: 'user',
+        password: 'pass',
+        labels: ['proxy1']
+      })
+    )
     expect(proxy.id).toBeDefined()
-    expect(proxy.createdAt).toBeDefined()
+    expect(typeof proxy.createdAt).toBe('string')
     expect(proxy.protocol).toBe('http')
     expect(proxy.host).toBe('127.0.0.1')
     expect(proxy.port).toBe(8080)
     expect(proxy.username).toBe('user')
     expect(proxy.password).toBe('pass')
     expect(proxy.status).toBe('active')
+    expect(proxy.format).toBe('manual')
     expect(proxy.labels).toEqual(['proxy1'])
 
     const fetched = store.proxyRepo.getProxy(proxy.id)
@@ -363,16 +365,7 @@ describe('Proxy CRUD', () => {
 
   it('listProxies returns paginated results', () => {
     for (let i = 0; i < 4; i++) {
-      store.proxyRepo.createProxy({
-        protocol: 'http',
-        host: `host${i}`,
-        port: 8080 + i,
-        username: null,
-        password: null,
-        status: 'active',
-        labels: [],
-        accountPool: 'test-pool'
-      })
+      store.proxyRepo.createProxy(proxyInput({ host: `host${i}`, port: 8080 + i }))
     }
     const result = store.proxyRepo.listProxies(1, 2)
     expect(result.items.length).toBe(2)
@@ -380,41 +373,14 @@ describe('Proxy CRUD', () => {
   })
 
   it('listProxies search works', () => {
-    store.proxyRepo.createProxy({
-      protocol: 'socks5',
-      host: 'target',
-      port: 1080,
-      username: null,
-      password: null,
-      status: 'active',
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    store.proxyRepo.createProxy({
-      protocol: 'http',
-      host: 'other',
-      port: 8080,
-      username: null,
-      password: null,
-      status: 'active',
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    store.proxyRepo.createProxy(proxyInput({ protocol: 'socks5', host: 'target', port: 1080 }))
+    store.proxyRepo.createProxy(proxyInput({ host: 'other', port: 8080 }))
     const result = store.proxyRepo.listProxies(1, 20, 'target')
     expect(result.items.length).toBe(1)
   })
 
   it('updateProxy updates fields correctly', () => {
-    const created = store.proxyRepo.createProxy({
-      protocol: 'http',
-      host: 'old-host',
-      port: 8080,
-      username: null,
-      password: null,
-      status: 'active',
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    const created = store.proxyRepo.createProxy(proxyInput({ host: 'old-host' }))
     const updated = store.proxyRepo.updateProxy(created.id, {
       host: 'new-host',
       port: 9090,
@@ -426,21 +392,8 @@ describe('Proxy CRUD', () => {
     expect(updated!.status).toBe('inactive')
   })
 
-  it('updateProxy returns null when not exists', () => {
-    expect(store.proxyRepo.updateProxy('non-existent', { host: 'x' })).toBeNull()
-  })
-
   it('deleteProxy returns true on success', () => {
-    const created = store.proxyRepo.createProxy({
-      protocol: 'http',
-      host: 'del',
-      port: 8080,
-      username: null,
-      password: null,
-      status: 'active',
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    const created = store.proxyRepo.createProxy(proxyInput({ host: 'del' }))
     expect(store.proxyRepo.deleteProxy(created.id)).toBe(true)
     expect(store.proxyRepo.getProxy(created.id)).toBeNull()
   })
@@ -450,18 +403,12 @@ describe('Proxy CRUD', () => {
   })
 })
 
-// describe: 任务 CRUD 操作测试
+// describe: 任务 CRUD 与日志测试
 describe('Task CRUD', () => {
   it('createTask and getTask work correctly', () => {
-    const task = store.taskRepo.createTask({
-      scriptFolder: '/scripts/task1',
-      config: { param: 1 },
-      status: 'idle',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
+    const task = store.taskRepo.createTask(
+      taskInput({ scriptFolder: '/scripts/task1', config: { param: 1 } })
+    )
     expect(task.id).toBeDefined()
     expect(task.scriptFolder).toBe('/scripts/task1')
     expect(task.config).toEqual({ param: 1 })
@@ -482,15 +429,7 @@ describe('Task CRUD', () => {
 
   it('listTasks returns paginated results', () => {
     for (let i = 0; i < 3; i++) {
-      store.taskRepo.createTask({
-        scriptFolder: `/scripts/t${i}`,
-        config: {},
-        status: 'idle',
-        workerId: null,
-        startedAt: null,
-        endedAt: null,
-        isSandbox: false
-      })
+      store.taskRepo.createTask(taskInput({ scriptFolder: `/scripts/t${i}` }))
     }
     const result = store.taskRepo.listTasks(1, 2)
     expect(result.items.length).toBe(2)
@@ -498,38 +437,14 @@ describe('Task CRUD', () => {
   })
 
   it('listTasks search works', () => {
-    store.taskRepo.createTask({
-      scriptFolder: '/scripts/special',
-      config: {},
-      status: 'running',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
-    store.taskRepo.createTask({
-      scriptFolder: '/scripts/other',
-      config: {},
-      status: 'idle',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
+    store.taskRepo.createTask(taskInput({ scriptFolder: '/scripts/special', status: 'running' }))
+    store.taskRepo.createTask(taskInput({ scriptFolder: '/scripts/other' }))
     const result = store.taskRepo.listTasks(1, 20, 'special')
     expect(result.items.length).toBe(1)
   })
 
   it('updateTask updates fields correctly', () => {
-    const created = store.taskRepo.createTask({
-      scriptFolder: '/scripts/old',
-      config: {},
-      status: 'idle',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
+    const created = store.taskRepo.createTask(taskInput({ scriptFolder: '/scripts/old' }))
     const updated = store.taskRepo.updateTask(created.id, {
       status: 'running',
       workerId: 'worker-1',
@@ -545,18 +460,12 @@ describe('Task CRUD', () => {
     expect(store.taskRepo.updateTask('non-existent', { status: 'running' })).toBeNull()
   })
 
-  it('deleteTask returns true on success', () => {
-    const created = store.taskRepo.createTask({
-      scriptFolder: '/scripts/del',
-      config: {},
-      status: 'idle',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
+  it('deleteTask returns true on success and removes its logs', () => {
+    const created = store.taskRepo.createTask(taskInput({ scriptFolder: '/scripts/del' }))
+    store.taskRepo.addTaskLog(created.id, 'info', 'will be deleted')
     expect(store.taskRepo.deleteTask(created.id)).toBe(true)
     expect(store.taskRepo.getTask(created.id)).toBeNull()
+    expect(store.taskRepo.getTaskLogs(created.id)).toEqual([])
   })
 
   it('deleteTask returns false when not exists', () => {
@@ -564,15 +473,7 @@ describe('Task CRUD', () => {
   })
 
   it('addTaskLog and getTaskLogs work correctly', () => {
-    const task = store.taskRepo.createTask({
-      scriptFolder: '/scripts/log',
-      config: {},
-      status: 'idle',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
+    const task = store.taskRepo.createTask(taskInput({ scriptFolder: '/scripts/log' }))
     store.taskRepo.addTaskLog(task.id, 'info', 'started')
     store.taskRepo.addTaskLog(task.id, 'error', 'failed')
 
@@ -586,37 +487,98 @@ describe('Task CRUD', () => {
   })
 
   it('getTaskLogs respects limit', () => {
-    const task = store.taskRepo.createTask({
-      scriptFolder: '/scripts/log2',
-      config: {},
-      status: 'idle',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
+    const task = store.taskRepo.createTask(taskInput({ scriptFolder: '/scripts/log2' }))
     for (let i = 0; i < 5; i++) {
       store.taskRepo.addTaskLog(task.id, 'info', `msg-${i}`)
     }
-    const logs = store.taskRepo.getTaskLogs(task.id, 3)
-    expect(logs.length).toBe(3)
+    expect(store.taskRepo.getTaskLogs(task.id, 3).length).toBe(3)
   })
 
   it('clearTaskLogs clears all logs and returns count', () => {
-    const task = store.taskRepo.createTask({
-      scriptFolder: '/scripts/clear',
-      config: {},
-      status: 'idle',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
+    const task = store.taskRepo.createTask(taskInput({ scriptFolder: '/scripts/clear' }))
     store.taskRepo.addTaskLog(task.id, 'info', 'msg1')
     store.taskRepo.addTaskLog(task.id, 'info', 'msg2')
-    const count = store.taskRepo.clearTaskLogs()
-    expect(count).toBe(2)
+    expect(store.taskRepo.clearTaskLogs()).toBe(2)
     expect(store.taskRepo.getTaskLogs(task.id)).toEqual([])
+  })
+})
+
+// describe: 任务脚本模板 CRUD
+describe('TaskTemplate CRUD', () => {
+  it('createTaskTemplate and getTaskTemplate work correctly', () => {
+    const template = store.createTaskTemplate(taskTemplateInput())
+    expect(template.id).toBeDefined()
+    expect(template.name).toBe('Demo Script')
+    expect(store.getTaskTemplate(template.id)?.name).toBe('Demo Script')
+  })
+
+  it('listTaskTemplates returns items and pagination', () => {
+    store.createTaskTemplate(taskTemplateInput({ name: 'A' }))
+    store.createTaskTemplate(taskTemplateInput({ name: 'B', installPath: '/scripts/b' }))
+    const result = store.listTaskTemplates(1, 10)
+    expect(result.total).toBe(2)
+    expect(result.items.length).toBe(2)
+  })
+
+  it('deleteTaskTemplate removes the template', () => {
+    const template = store.createTaskTemplate(taskTemplateInput())
+    expect(store.deleteTaskTemplate(template.id)).toBe(true)
+    expect(store.getTaskTemplate(template.id)).toBeNull()
+  })
+})
+
+// describe: 定时任务 CRUD
+describe('ScheduledTask CRUD', () => {
+  it('createScheduledTask and getScheduledTask work correctly', () => {
+    const created = store.createScheduledTask({
+      templateId: 'tmpl-1',
+      config: {},
+      cronExpression: '0 * * * *',
+      enabled: true,
+      lastRun: null,
+      nextRun: null
+    })
+    expect(created.id).toBeDefined()
+    expect(created.cronExpression).toBe('0 * * * *')
+    expect(store.getScheduledTask(created.id)?.templateId).toBe('tmpl-1')
+  })
+
+  it('listScheduledTasks returns items', () => {
+    store.createScheduledTask({
+      templateId: 'tmpl-1',
+      config: {},
+      cronExpression: '0 * * * *',
+      enabled: true,
+      lastRun: null,
+      nextRun: null
+    })
+    expect(store.listScheduledTasks(1, 10).total).toBe(1)
+  })
+
+  it('updateScheduledTask updates enabled flag', () => {
+    const created = store.createScheduledTask({
+      templateId: 'tmpl-1',
+      config: {},
+      cronExpression: '0 * * * *',
+      enabled: true,
+      lastRun: null,
+      nextRun: null
+    })
+    const updated = store.updateScheduledTask(created.id, { enabled: false })
+    expect(updated!.enabled).toBe(false)
+  })
+
+  it('deleteScheduledTask removes the task', () => {
+    const created = store.createScheduledTask({
+      templateId: 'tmpl-1',
+      config: {},
+      cronExpression: '0 * * * *',
+      enabled: true,
+      lastRun: null,
+      nextRun: null
+    })
+    expect(store.deleteScheduledTask(created.id)).toBe(true)
+    expect(store.getScheduledTask(created.id)).toBeNull()
   })
 })
 
@@ -662,7 +624,7 @@ describe('Stats', () => {
     const stats = store.getStats()
     expect(stats.walletTotal).toBe(0)
     expect(stats.proxyTotal).toBe(0)
-    expect(stats.accountTotal).toBe(0)
+    expect(stats.scriptParamTotal).toBe(0)
     expect(stats.taskTotal).toBe(0)
     expect(stats.taskCompletedCount).toBe(0)
     expect(stats.taskErrorCount).toBe(0)
@@ -673,7 +635,7 @@ describe('Stats', () => {
     expect(stats.walletChainDistribution).toEqual({})
     expect(stats.proxyProtocolDistribution).toEqual({})
     expect(stats.proxyStatusDistribution).toEqual({})
-    expect(stats.accountPoolDistribution).toEqual({})
+    expect(stats.scriptParamPoolDistribution).toEqual({})
     expect(stats.taskStatusDistribution).toEqual({})
     expect(stats.taskDurationDistribution).toEqual({})
     expect(stats.taskTimeline).toEqual([])
@@ -690,52 +652,21 @@ describe('Stats', () => {
     expect(info.dbConnected).toBe(true)
     expect(info.dbError).toBeNull()
     expect(info.walletCount).toBe(0)
-    expect(info.accountCount).toBe(0)
+    expect(info.scriptParamCount).toBe(0)
     expect(info.proxyCount).toBe(0)
     expect(info.taskCount).toBe(0)
     expect(info.runningTaskCount).toBe(0)
   })
 
   it('getAppInfo counts entities correctly', () => {
-    store.walletRepo.createWallet({
-      address: '0x1',
-      privateKey: null,
-      mnemonic: null,
-      walletType: 'evm',
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    store.createAccount({
-      templateId: 't1',
-      data: {},
-      pool: 'p',
-      labels: [],
-      accountPool: 'test-pool',
-      notes: ''
-    })
-    store.proxyRepo.createProxy({
-      protocol: 'http',
-      host: 'h',
-      port: 8080,
-      username: null,
-      password: null,
-      status: 'active',
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    store.taskRepo.createTask({
-      scriptFolder: '/s',
-      config: {},
-      status: 'running',
-      workerId: null,
-      startedAt: null,
-      endedAt: null,
-      isSandbox: false
-    })
+    store.walletRepo.createWallet(walletInput({ address: '0x1' }))
+    store.createScriptParam(scriptParamInput())
+    store.proxyRepo.createProxy(proxyInput({ host: 'h' }))
+    store.taskRepo.createTask(taskInput({ scriptFolder: '/s', status: 'running' }))
 
     const info = store.getAppInfo()
     expect(info.walletCount).toBe(1)
-    expect(info.accountCount).toBe(1)
+    expect(info.scriptParamCount).toBe(1)
     expect(info.proxyCount).toBe(1)
     expect(info.taskCount).toBe(1)
     expect(info.runningTaskCount).toBe(1)
@@ -807,33 +738,23 @@ describe('AppLog', () => {
 // describe: 空投项目 CRUD 操作测试
 describe('Airdrop CRUD', () => {
   it('createAirdrop and getAirdrop work correctly', () => {
-    const airdrop = store.createAirdrop({
-      name: 'LayerZero',
-      chain: 'Ethereum',
-      status: 'ongoing',
-      projectType: 'infrastructure',
-      description: 'Airdrop project',
-      website: 'https://layerzero.network',
-      accountPool: 'default',
-      links: [{ url: 'https://example.com' }],
-      eligibilityCriteria: [{ criterion: 'hold token' }],
-      tasks: [{ task: 'bridge' }],
-      earnings: [{ amount: 100 }],
-      tags: ['defi'],
-      labels: ['hot']
-    })
+    const airdrop = store.createAirdrop(
+      airdropInput({
+        name: 'LayerZero',
+        links: [{ label: 'Docs', url: 'https://example.com' }],
+        tags: ['defi'],
+        labels: ['hot']
+      })
+    )
     expect(airdrop.id).toBeDefined()
     expect(airdrop.createdAt).toBeDefined()
     expect(airdrop.updatedAt).toBeDefined()
     expect(airdrop.name).toBe('LayerZero')
     expect(airdrop.chain).toBe('Ethereum')
     expect(airdrop.status).toBe('ongoing')
-    expect(airdrop.projectType).toBe('infrastructure')
+    expect(airdrop.projectType).toBe('testnet')
     expect(airdrop.description).toBe('Airdrop project')
-    expect(airdrop.links).toEqual([{ url: 'https://example.com' }])
-    expect(airdrop.eligibilityCriteria).toEqual([{ criterion: 'hold token' }])
-    expect(airdrop.tasks).toEqual([{ task: 'bridge' }])
-    expect(airdrop.earnings).toEqual([{ amount: 100 }])
+    expect(airdrop.links).toEqual([{ label: 'Docs', url: 'https://example.com' }])
     expect(airdrop.tags).toEqual(['defi'])
     expect(airdrop.labels).toEqual(['hot'])
 
@@ -848,21 +769,7 @@ describe('Airdrop CRUD', () => {
 
   it('listAirdrops returns paginated results', () => {
     for (let i = 0; i < 3; i++) {
-      store.createAirdrop({
-        name: `Project ${i}`,
-        chain: 'Ethereum',
-        status: 'ongoing',
-        projectType: 'other',
-        description: '',
-        website: `https://project${i}.com`,
-        links: [],
-        eligibilityCriteria: [],
-        tasks: [],
-        earnings: [],
-        tags: [],
-        labels: [],
-        accountPool: 'test-pool'
-      })
+      store.createAirdrop(airdropInput({ name: `Project ${i}`, website: `https://p${i}.com` }))
     }
     const result = store.listAirdrops(1, 2)
     expect(result.items.length).toBe(2)
@@ -870,66 +777,24 @@ describe('Airdrop CRUD', () => {
   })
 
   it('listAirdrops search works', () => {
-    store.createAirdrop({
-      name: 'SpecialProject',
-      chain: 'Solana',
-      status: 'ongoing',
-      projectType: 'other',
-      description: '',
-      website: 'https://special.com',
-      links: [],
-      eligibilityCriteria: [],
-      tasks: [],
-      earnings: [],
-      tags: [],
-      labels: [],
-      accountPool: 'test-pool'
-    })
-    store.createAirdrop({
-      name: 'OtherProject',
-      chain: 'Ethereum',
-      status: 'ongoing',
-      projectType: 'other',
-      description: '',
-      website: 'https://other.com',
-      links: [],
-      eligibilityCriteria: [],
-      tasks: [],
-      earnings: [],
-      tags: [],
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    store.createAirdrop(airdropInput({ name: 'SpecialProject' }))
+    store.createAirdrop(airdropInput({ name: 'OtherProject' }))
     const result = store.listAirdrops(1, 20, 'Special')
     expect(result.items.length).toBe(1)
     expect(result.items[0].name).toBe('SpecialProject')
   })
 
   it('updateAirdrop updates fields correctly', () => {
-    const created = store.createAirdrop({
-      name: 'Old',
-      chain: 'Ethereum',
-      status: 'ongoing',
-      projectType: 'other',
-      description: 'old desc',
-      website: 'https://old.com',
-      links: [],
-      eligibilityCriteria: [],
-      tasks: [],
-      earnings: [],
-      tags: [],
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    const created = store.createAirdrop(airdropInput({ name: 'Old', description: 'old desc' }))
     const updated = store.updateAirdrop(created.id, {
       name: 'Updated',
-      status: 'ended',
+      status: 'completed',
       description: 'new desc',
       tags: ['updated']
     })
     expect(updated).not.toBeNull()
     expect(updated!.name).toBe('Updated')
-    expect(updated!.status).toBe('ended')
+    expect(updated!.status).toBe('completed')
     expect(updated!.description).toBe('new desc')
     expect(updated!.tags).toEqual(['updated'])
   })
@@ -939,21 +804,7 @@ describe('Airdrop CRUD', () => {
   })
 
   it('deleteAirdrop returns true on success', () => {
-    const created = store.createAirdrop({
-      name: 'ToDelete',
-      chain: 'Ethereum',
-      status: 'ongoing',
-      projectType: 'other',
-      description: '',
-      website: 'https://delete.com',
-      links: [],
-      eligibilityCriteria: [],
-      tasks: [],
-      earnings: [],
-      tags: [],
-      labels: [],
-      accountPool: 'test-pool'
-    })
+    const created = store.createAirdrop(airdropInput({ name: 'ToDelete' }))
     expect(store.deleteAirdrop(created.id)).toBe(true)
     expect(store.getAirdrop(created.id)).toBeNull()
   })

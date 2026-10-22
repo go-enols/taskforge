@@ -8,7 +8,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { executeHandler, handlerMap, registerIpcHandlers } from '../../../src/main/ipc'
 import { StoreService } from '../../../src/main/services/store'
-import { WalletService } from '../../../src/main/services/wallet'
 import { TaskService } from '../../../src/main/services/task'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -17,13 +16,21 @@ import { mkdtempSync, rmSync } from 'fs'
 /** 模拟 Electron 模块，避免真实环境依赖 */
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
-  app: { getVersion: () => '0.0.1', getPath: () => '/tmp' }
+  app: {
+    getVersion: () => '0.0.1',
+    getPath: () => '/tmp',
+    getAppPath: () => process.cwd()
+  },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+    encryptString: (plaintext: string) => Buffer.from(plaintext),
+    decryptString: (cipher: Buffer) => cipher.toString()
+  }
 }))
 
 // describe: IPC Handler 集成测试
 describe('IPC Handler Integration', () => {
   let store: StoreService
-  let walletService: WalletService
   let taskService: TaskService
   let tmpDir: string
 
@@ -33,11 +40,9 @@ describe('IPC Handler Integration', () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'ipc-test-'))
     const dbPath = join(tmpDir, 'test.db')
     store = new StoreService(dbPath)
-    walletService = new WalletService(store)
     taskService = new TaskService(store)
     registerIpcHandlers({
       store,
-      walletService,
       taskService,
       scriptFetcher: null as unknown as import('../../../src/main/services/script-fetcher').ScriptFetcher,
       walletRepo: store.walletRepo,
@@ -67,6 +72,29 @@ describe('IPC Handler Integration', () => {
       pageSize: 20,
       totalPages: 1
     })
+  })
+
+  it('wallet:list redacts privateKey/mnemonic (keys stay in main process)', async () => {
+    // 用例：列表接口脱敏，私钥/助记词不应进入渲染进程
+    await executeHandler('wallet:create', [
+      {
+        address: '0xredacted',
+        privateKey: '0xsecret',
+        mnemonic: 'word1 word2',
+        walletType: 'evm',
+        labels: []
+      }
+    ])
+    const listResult = await executeHandler('wallet:list', [])
+    const items = (listResult.data as { items: Array<Record<string, unknown>> }).items
+    expect(items).toHaveLength(1)
+    expect(items[0].address).toBe('0xredacted')
+    expect(items[0].privateKey).toBeNull()
+    expect(items[0].mnemonic).toBeNull()
+
+    // wallet:get 仍返回完整数据，供导出/签名等明确动作使用
+    const getResult = await executeHandler('wallet:get', [items[0].id])
+    expect((getResult.data as Record<string, unknown>).privateKey).toBe('0xsecret')
   })
 
   it('wallet:create + wallet:get creates and retrieves a wallet', async () => {

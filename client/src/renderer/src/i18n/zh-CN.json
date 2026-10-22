@@ -20,6 +20,7 @@
     "success": "成功",
     "retry": "重试",
     "refresh": "刷新",
+    "loadFailed": "加载失败，请检查网络或稍后重试",
     "close": "关闭",
     "selected": "已选择",
     "clearSelection": "清除选择",
@@ -138,6 +139,7 @@
   },
   "dashboard": {
     "title": "仪表盘",
+    "greeting": "{{name}}，欢迎回来",
     "stats": {
       "wallets": "钱包数",
       "scriptParams": "参数数",
@@ -351,7 +353,10 @@
     "scriptPermissions": "脚本权限: ",
     "batchSuccess": "批量执行成功，共 {{count}} 个任务",
     "batchPartial": "部分成功：{{succeeded}} 个成功，{{failed}} 个失败",
-    "batchFailed": "批量执行失败，共 {{count}} 个任务失败"
+    "batchFailed": "批量执行失败，共 {{count}} 个任务失败",
+    "confirmDelete": "确定要删除该任务吗？任务配置与日志将一并删除，且不可恢复。",
+    "confirmBatchDelete": "确定要删除选中的 {{count}} 个任务吗？任务配置与日志将一并删除，且不可恢复。",
+    "deleteSuccess": "任务已删除"
   },
   "dataRequirement": {
     "title": "需要的数据",
@@ -886,8 +891,8 @@
     "passwordSetupPlaceholder": "至少6位密码",
     "confirmPassword": "确认密码",
     "confirmPasswordPlaceholder": "再次输入密码",
-    "passwordTooShort": "密码至少需要4个字符",
-    "adminPasswordTooShort": "管理员密码至少需要6个字符",
+    "passwordTooShort": "密码至少需要 8 个字符",
+    "adminPasswordTooShort": "管理员密码至少需要 8 个字符",
     "passwordMismatch": "两次密码不一致",
     "requiredUsername": "请输入用户名",
     "requiredPassword": "请输入密码",

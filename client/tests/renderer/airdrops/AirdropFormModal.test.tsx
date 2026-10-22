@@ -10,7 +10,7 @@ import { renderToString } from 'react-dom/server'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import AirdropFormModal from '../../../src/renderer/src/components/airdrops/AirdropFormModal'
-import type { TaskTemplate } from '../../../../src/shared/types'
+import type { TaskTemplate } from '../../../src/shared/types'
 
 // 模拟 react-i18next，返回 key 作为翻译结果
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }))

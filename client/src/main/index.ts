@@ -5,8 +5,10 @@
  *              并在退出时有序清理所有资源。
  * @module main
  */
-import { app, shell, BrowserWindow, dialog } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain, session } from 'electron'
 import { join } from 'path'
+import { existsSync } from 'fs'
+import { pathToFileURL } from 'url'
 import { randomBytes } from 'crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -42,11 +44,10 @@ autoUpdater.autoInstallOnAppQuit = false
 /**
  * 创建并显示主窗口
  *
- * 根据当前平台（macOS / Windows / Linux）配置窗口样式（macOS 使用隐藏标题栏 + 交通灯），
- * 注入 HTTP API 端口和令牌到渲染进程，以支持 IPC 与 HTTP 双传输层降级。
- * @param httpPort - HTTP API 服务端口，注入渲染进程用于传输层降级
- * @param httpApiToken - HTTP API 认证令牌，用于渲染进程安全调用 */
-function createWindow(httpPort: number, httpApiToken: string): void {
+ * 根据当前平台（macOS / Windows / Linux）配置窗口样式（macOS 使用隐藏标题栏 + 交通灯）。
+ * 窗口使用 sandbox + contextIsolation，渲染层只能通过 preload 暴露的白名单 IPC 与主进程通信。
+ */
+function createWindow(): void {
   const isDarwin = process.platform === 'darwin'
   const mainWindow = new BrowserWindow({
     width: 1280,
@@ -61,18 +62,59 @@ function createWindow(httpPort: number, httpApiToken: string): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      additionalArguments: [`--http-port=${httpPort}`, `--http-token=${httpApiToken}`]
+      // 硬化配置：preload 只使用 electron 模块，可在 sandbox 中运行；
+      // 渲染层无法直接访问 Node/Electron API，只能走白名单 IPC。
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false
     }
   })
   if (store.getSetting('devtools_enabled') === 'true') {
     mainWindow.webContents.openDevTools()
   }
 
-  /** 拦截外部链接打开请求，使用系统默认浏览器打开 */
+  /** 允许内部导航的页面前缀（打包后的 renderer 目录 / 开发 dev server） */
+  const rendererBaseUrl = pathToFileURL(join(__dirname, '../renderer')).href
+  const devRendererUrl = process.env['ELECTRON_RENDERER_URL']
+  /** 判断目标 URL 是否属于应用自身页面 */
+  const isInternalUrl = (target: string): boolean => {
+    if (devRendererUrl && target.startsWith(devRendererUrl)) return true
+    return target === rendererBaseUrl || target.startsWith(rendererBaseUrl + '/')
+  }
+
+  /**
+   * 拦截外部链接打开请求：只允许 http/https 交给系统浏览器打开。
+   * 其余 scheme（file://、smb://、自定义协议等）一律拒绝，避免打开本地文件或泄露凭据。
+   */
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    try {
+      const target = new URL(details.url)
+      if (target.protocol === 'http:' || target.protocol === 'https:') {
+        void shell.openExternal(details.url)
+      } else {
+        console.warn('[security] Blocked openExternal for scheme:', target.protocol)
+      }
+    } catch {
+      console.warn('[security] Blocked malformed external URL')
+    }
     return { action: 'deny' }
+  })
+
+  /**
+   * 阻止主窗口被导航到外部页面（否则远端页面会继承 preload 的 electronAPI）。
+   * 仅允许应用自身页面（整页刷新/路由 hash 变化不触发 will-navigate）。
+   */
+  mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+    if (!isInternalUrl(targetUrl)) {
+      event.preventDefault()
+      console.warn('[security] Blocked navigation to external URL:', targetUrl)
+    }
+  })
+  // 新窗口/嵌入 webview 一律拒绝；外部链接走上面的 openExternal 白名单
+  mainWindow.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault()
   })
 
   /**
@@ -149,20 +191,42 @@ app.whenReady().then(async () => {
   await httpServer.start()
   const httpPort = httpServer.getPort()
 
+  // preload 通过同步 IPC 获取 HTTP 端口/令牌（sandbox 下不再通过 argv 传递）
+  ipcMain.on('app:getHttpInfo', (event) => {
+    event.returnValue = { port: httpPort, token: httpApiToken }
+  })
+
+  // 拒绝所有渲染层权限申请（摄像头/麦克风/通知/地理位置等均不需要）
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => {
+    callback(false)
+  })
+  session.defaultSession.setPermissionCheckHandler(() => false)
+
+  // macOS：关闭窗口后重新激活时恢复定时调度器（否则 cron 任务永久停摆）
+  app.on('activate', function () {
+    schedulerService.start()
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+
   // 为每个新创建的窗口注入快捷键优化
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  createWindow(httpPort, httpApiToken)
+  createWindow()
 
+  // 自动更新检查：仅在「打包且存在 app-update.yml」的环境执行；dev / 解包目录
+  // （electron-builder --dir 不会生成 app-update.yml）直接跳过，避免无意义的 ENOENT。
   setTimeout(() => {
-    autoUpdater.checkForUpdates()
+    const updateConfigPath = join(process.resourcesPath, 'app-update.yml')
+    if (!app.isPackaged || !existsSync(updateConfigPath)) {
+      console.info('[updater] skipped: missing app-update.yml (dev or unpacked build)')
+      return
+    }
+    autoUpdater.checkForUpdates().catch((err: unknown) => {
+      console.warn('[updater] checkForUpdates failed:', err instanceof Error ? err.message : String(err))
+    })
   }, 3000)
-
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(httpPort, httpApiToken)
-  })
 }).catch((err) => {
   console.error('Failed to initialize app:', err)
   dialog.showErrorBox('Initialization Error', `Failed to start: ${err.message}`)
@@ -170,7 +234,7 @@ app.whenReady().then(async () => {
 })
 
 /**
- * 窗口全部关闭时：macOS 平台直接退出，macOS 保留调度器但关闭窗口
+ * 窗口全部关闭时：非 macOS 直接退出；macOS 保留进程但停止调度器
  */
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

@@ -44,7 +44,7 @@ describe('useApi — stable execute (flicker regression)', () => {
     function Harness(): React.ReactElement {
       const [, force] = useState(0)
       // Inline arrow: brand-new function on every render
-      const { execute } = useApi(async (n: number) => n + 1)
+      const { execute } = useApi(async (...args: unknown[]) => Number(args[0] ?? 0) + 1)
       seen.push(execute)
       useEffect(() => {
         // expose to test scope

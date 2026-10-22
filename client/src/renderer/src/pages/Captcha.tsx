@@ -39,7 +39,11 @@ const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode 
   </label>
 )
 
-export default function CaptchaPage(): React.ReactElement {
+export default function CaptchaPage({
+  embedded = false
+}: {
+  embedded?: boolean
+}): React.ReactElement {
   const { t } = useTranslation()
   const [keys, setKeys] = useState<ListResponse<CaptchaKey> | null>(null)
   const [loading, setLoading] = useState(true)
@@ -156,10 +160,16 @@ export default function CaptchaPage(): React.ReactElement {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* 页面标题 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">{t('settings.captchaKeys')}</h1>
-          <p className="text-text-muted mt-1 text-sm">{t('settings.captchaEmptyHint')}</p>
+          {embedded ? (
+            <span className="section-eyebrow">{t('settings.captchaKeys')}</span>
+          ) : (
+            <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+              {t('settings.captchaKeys')}
+            </h1>
+          )}
+          <p className="mt-1 text-sm text-text-muted">{t('settings.captchaEmptyHint')}</p>
         </div>
         <button
           onClick={openAdd}

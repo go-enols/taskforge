@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file ScriptParams — 脚本参数管理页
  * @description 管理参数池中的脚本参数（任务脚本的输入数据），支持创建（基于模板动态表单）、编辑、
  *              批量 JSON 导入、文件导入、导出和删除操作。
@@ -26,7 +26,7 @@ const PAGE_SIZE = 10
  *
  * 提供分页列表、搜索、按模板动态表单创建脚本参数、批量 JSON 导入、文件导入和导出功能。
  */
-const ScriptParams: React.FC = () => {
+const ScriptParams: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation()
   const { templates } = useTemplateList()
   const {
@@ -310,8 +310,12 @@ const ScriptParams: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t('scriptParams.title')}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {embedded ? (
+          <span className="section-eyebrow">{t('scriptParams.title')}</span>
+        ) : (
+          <h1 className="text-2xl font-bold tracking-tight">{t('scriptParams.title')}</h1>
+        )}
         <div className="flex items-center gap-3">
           <SearchInput
             value={search}

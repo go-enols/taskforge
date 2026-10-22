@@ -12,16 +12,27 @@
  * @module renderer/pages
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../hooks/useTheme'
 import { getMarketplaceUrl, setMarketplaceUrl, marketplaceApi, appApi } from '../api'
 import { toast } from '../utils/toast'
 import TitleBar from '../components/TitleBar'
-import { ParticlegroundBg } from '../components/ParticlegroundBg'
 import BrandMark from '../components/BrandMark'
 import { Loader2, ArrowUpRight, ChevronDown } from 'lucide-react'
+
+/**
+ * three.js WebGL 背景按需加载：未登录首屏先渲染纯 CSS 渐变占位，
+ * 避免 three.js（约 600KB）阻塞登录表单出现。
+ */
+const ParticlegroundBg = lazy(() =>
+  import('../components/ParticlegroundBg').then((m) => ({ default: m.ParticlegroundBg }))
+)
+
+/** 背景加载中的 CSS 渐变占位（与 WebGL 背景色调接近，避免闪白） */
+const PARTICLES_FALLBACK = <div className="forge-bg-fallback" />
+
 
 /** 鉴权模式：登录 / 注册 / 初始化管理员 */
 type AuthMode = 'login' | 'register' | 'setup'
@@ -194,11 +205,11 @@ const LoginPage: React.FC = () => {
       toast.error(t('login.passwordMismatch'))
       return
     }
-    if (mode === 'register' && password.length < 4) {
+    if (mode === 'register' && password.length < 8) {
       toast.error(t('login.passwordTooShort'))
       return
     }
-    if (mode === 'setup' && password.length < 6) {
+    if (mode === 'setup' && password.length < 8) {
       toast.error(t('login.adminPasswordTooShort'))
       return
     }
@@ -235,7 +246,9 @@ const LoginPage: React.FC = () => {
       <div className="forge-page" data-theme={theme}>
         <style>{FORGE_CSS}</style>
         <div className="forge-bg">
-          <ParticlegroundBg theme={theme} />
+          <Suspense fallback={PARTICLES_FALLBACK}>
+            <ParticlegroundBg theme={theme} />
+          </Suspense>
         </div>
         <div className="relative z-50">
           <TitleBar dark={theme === 'dark'} />
@@ -254,7 +267,9 @@ const LoginPage: React.FC = () => {
     <div className="forge-page" data-theme={theme}>
       <style>{FORGE_CSS}</style>
       <div className="forge-bg">
-        <ParticlegroundBg theme={theme} />
+        <Suspense fallback={PARTICLES_FALLBACK}>
+          <ParticlegroundBg theme={theme} />
+        </Suspense>
       </div>
 
       <div className="relative z-50">
@@ -380,7 +395,7 @@ const LoginPage: React.FC = () => {
         {/* 脚注 */}
         <footer className="forge-foot">
           <div className="forge-foot__left">
-            <span className="forge-foot__version">v{appVersion || '...'}</span>
+            <span className="forge-foot__version">v{appVersion || __APP_VERSION__}</span>
             <span className="forge-foot__sep">·</span>
             <span>{t('login.welcomeBack')}</span>
           </div>
@@ -467,7 +482,7 @@ const FORGE_CSS = `
   --forge-brand-1-soft: rgba(167, 139, 250, 0.5);
   --forge-brand-2: #fbbf24;          /* 暖琥珀金 */
   --forge-brand-2-soft: rgba(251, 191, 36, 0.3);
-  --forge-button-gradient: linear-gradient(90deg, rgba(167, 139, 250, 0.2), rgba(167, 139, 250, 0.5), rgba(251, 191, 36, 0.3));
+  --forge-button-gradient: linear-gradient(135deg, #6d28d9 0%, #7c3aed 38%, #a78bfa 72%, #d97706 100%);
   --forge-button-loading-gradient: linear-gradient(90deg, #a78bfa 0%, #fbbf24 50%, #a78bfa 100%);
   --forge-button-text: #f5f3ff;
   --forge-autofill-bg: rgba(15, 13, 22, 0.8);
@@ -525,6 +540,22 @@ const FORGE_CSS = `
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
+}
+
+/* three.js 按需加载期间的 CSS 渐变占位（避免白屏闪烁） */
+.forge-bg-fallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 50% at 15% 10%, rgba(167, 139, 250, 0.28), transparent 70%),
+    radial-gradient(55% 45% at 85% 90%, rgba(251, 191, 36, 0.18), transparent 70%),
+    var(--forge-canvas);
+}
+.forge-page[data-theme="light"] .forge-bg-fallback {
+  background:
+    radial-gradient(60% 50% at 15% 10%, rgba(124, 58, 237, 0.12), transparent 70%),
+    radial-gradient(55% 45% at 85% 90%, rgba(217, 119, 6, 0.1), transparent 70%),
+    var(--forge-canvas);
 }
 
 /* ---------- 居中容器 ---------- */
@@ -696,11 +727,16 @@ const FORGE_CSS = `
   background: var(--forge-button-gradient);
   border-radius: 8px;
   transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s;
-  box-shadow: 0 0 0 0 rgba(167, 139, 250, 0);
+  box-shadow:
+    0 0 0 0 rgba(167, 139, 250, 0),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
 }
 .energy-button:hover:not(:disabled) .energy-button__bar {
-  box-shadow: 0 6px 20px -4px rgba(167, 139, 250, 0.5);
-  filter: brightness(1.1);
+  box-shadow:
+    0 8px 26px -6px rgba(167, 139, 250, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  filter: brightness(1.08) saturate(1.05);
 }
 .energy-button[data-loading="true"] .energy-button__bar {
   background: var(--forge-button-loading-gradient);

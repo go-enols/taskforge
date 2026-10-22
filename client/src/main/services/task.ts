@@ -8,6 +8,8 @@ import { createLogger } from '../utils/logger'
 import { LogBuffer } from '../utils/log-buffer'
 import type { LogEntry } from '../utils/log-buffer'
 import { SdkLineParser, type DataView } from './sdk-protocol'
+import { assertNodeEntryExtension, resolveScriptEntryPoint } from './script-entry'
+import { buildTaskConfigEnv } from './task-env'
 import type { StoreService } from './store'
 import type { TaskOutput, TaskLogBatch, PermissionSet, DataSnapshot } from '../../shared/types'
 import { estimateSize, MAX_SNAPSHOT_SIZE } from '../../shared/utils/type-guards'
@@ -75,7 +77,10 @@ export class TaskService {
     }
 
     try {
-      await execAsync('npm install --omit=dev --no-audit --no-fund', {
+      // --ignore-scripts：依赖的 preinstall/install/postinstall 生命周期脚本会在
+      // 沙箱之外执行，等同于把脚本包变成任意代码执行入口。任务依赖不应需要构建脚本；
+      // 确实需要时由用户在受控环境手动安装。
+      await execAsync('npm install --omit=dev --ignore-scripts --no-audit --no-fund', {
         cwd,
         timeout: 180000
       })
@@ -108,6 +113,35 @@ export class TaskService {
       // If we can't read/parse package.json, assume deps are missing (safer)
       return false
     }
+  }
+
+  /**
+   * 解析 sandbox-enforcer.cjs 的运行时路径
+   *
+   * 覆盖三种部署形态：
+   * 1. 打包后：electron-builder extraResources 拷贝到 `process.resourcesPath`
+   * 2. 构建产物：electron.vite.config.ts 的 copy 插件拷贝到 `out/main`
+   * 3. 开发回退：直接运行 main 源码时的 `src/main/services`
+   *
+   * @returns 找到的第一个存在路径；全部缺失时返回 null（调用方必须 fail-closed）
+   */
+  private resolveSandboxEnforcerPath(): string | null {
+    const candidates: string[] = []
+    if (process.resourcesPath) {
+      candidates.push(join(process.resourcesPath, 'sandbox-enforcer.cjs'))
+    }
+    candidates.push(join(__dirname, 'sandbox-enforcer.cjs'))
+    candidates.push(
+      join(__dirname, 'sandbox-enforcer.cjs').replace('app.asar', 'app.asar.unpacked')
+    )
+    const appPath = app.getAppPath()
+    candidates.push(join(appPath, 'out', 'main', 'sandbox-enforcer.cjs'))
+    candidates.push(join(appPath, 'src', 'main', 'services', 'sandbox-enforcer.cjs'))
+
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) return candidate
+    }
+    return null
   }
 
   async startTask(id: string): Promise<void> {
@@ -161,18 +195,22 @@ export class TaskService {
       if (isDirectory) {
         cwd = resolvedPath
         const metaPath = join(resolvedPath, 'meta.json')
+        let rawEntryPoint: unknown = undefined
         if (existsSync(metaPath)) {
-          const meta = JSON.parse(readFileSync(metaPath, 'utf-8'))
-          entryPoint = meta.entryPoint
-            ? join(resolvedPath, meta.entryPoint)
-            : join(resolvedPath, 'index.js')
+          const meta = JSON.parse(readFileSync(metaPath, 'utf-8')) as Record<string, unknown>
+          rawEntryPoint = meta.entryPoint
           // 读取脚本声明的运行时权限（向后兼容：旧版 meta.json 无此字段）
           if (meta.permissions) {
             scriptPermissions = meta.permissions as PermissionSet
           }
-        } else {
-          entryPoint = join(resolvedPath, 'index.js')
         }
+        // 安全关键：entryPoint 来自远端 manifest，必须收敛在脚本目录内且是 Node 脚本，
+        // 否则可指向任意 exe（绕过 NODE_OPTIONS 沙箱）或越出目录。
+        entryPoint = resolveScriptEntryPoint(resolvedPath, rawEntryPoint)
+      } else {
+        // 兼容历史：scriptFolder 直接指向单个脚本文件
+        assertNodeEntryExtension(resolvedPath)
+        entryPoint = resolvedPath
       }
 
       if (!existsSync(entryPoint)) {
@@ -195,38 +233,10 @@ export class TaskService {
         ? { network: false, filesystem: false }
         : scriptPermissions
 
-      // Layer 3: 系统关键变量白名单（配置中的这些键会被阻止）
-      const SYSTEM_PROTECTED_KEYS = new Set([
-        'PATH',
-        'HOME',
-        'USERPROFILE',
-        'APPDATA',
-        'TEMP',
-        'TMP',
-        'SHELL',
-        'USER',
-        'LOGNAME',
-        'LANG',
-        'TERM',
-        'LD_LIBRARY_PATH',
-        'LD_PRELOAD',
-        'DYLD_LIBRARY_PATH',
-        'PYTHONPATH',
-        'CLASSPATH'
-      ])
-
-      // 构建子进程环境变量
-      const env: Record<string, string> = {}
-
-      // ① 注入 task.config 中的自定义配置（受白名单限制）
-      for (const [key, value] of Object.entries(task.config)) {
-        if (value === undefined || value === null) continue
-        if (key === 'args' || key === '_command') continue
-        if (key.startsWith('_data_')) continue
-        const envKey = `TASK_${key.toUpperCase()}`
-        if (SYSTEM_PROTECTED_KEYS.has(envKey)) continue
-        env[envKey] = typeof value === 'object' ? JSON.stringify(value) : String(value)
-      }
+      // Layer 3: 构建子进程 env 的第一部分 —— task.config 自定义配置。
+      // buildTaskConfigEnv 内部已过滤系统关键变量与主进程保留键（perm_bypass /
+      // cwd_resolved 等），防止脚本通过 manifest schema 默认值自行解除沙箱。
+      const env: Record<string, string> = buildTaskConfigEnv(task.config)
 
       // ② 继承系统基础设施变量（安全值来自父进程，不可被 config 覆盖）
       env['PATH'] = process.env.PATH ?? ''
@@ -242,6 +252,9 @@ export class TaskService {
       env['TASK_PERM_NETWORK'] = effectivePermissions.network ? '1' : '0'
       env['TASK_PERM_FILESYSTEM'] = effectivePermissions.filesystem ? '1' : '0'
       env['TASK_SANDBOX'] = task.isSandbox ? '1' : '0'
+      // 由主进程计算的文件系统白名单根目录（不接受脚本/配置输入）。
+      // sandbox-enforcer 用它把 fs.* 限制在脚本目录内。
+      env['TASK_CWD_RESOLVED'] = resolvePath(cwd)
 
       // ④ 注入钱包数据（仅在有网络权限且非沙箱时注入，防止敏感数据泄露）
       if (!task.isSandbox && effectivePermissions.network) {
@@ -267,48 +280,37 @@ export class TaskService {
         }
       }
 
-      // ⑤ 注入账户数据（仅在有网络权限且非沙箱时注入）
-      let command = entryPoint
-      const args: string[] = []
+      // ⑤ 构造启动命令：统一用 node 解释器执行入口脚本。
+      //    入口已由 resolveScriptEntryPoint 限制为 .js/.cjs/.mjs 且位于脚本目录内，
+      //    因此不存在“非 JS 入口被直接 spawn 为可执行文件”的绕过路径。
+      const command = 'node'
+      const args: string[] = [entryPoint]
 
-      const isNodeFile =
-        entryPoint.endsWith('.js') || entryPoint.endsWith('.mjs') || entryPoint.endsWith('.cjs')
-
-      if (isNodeFile) {
-        command = 'node'
-        args.push(entryPoint)
-      } else if (entryPoint.endsWith('.ts')) {
-        command = 'npx'
-        args.push('tsx', entryPoint)
-      }
-
-      if (task.config.args && Array.isArray(task.config.args)) {
-        args.push(...(task.config.args as string[]))
+      if (Array.isArray(task.config.args)) {
+        for (const arg of task.config.args as unknown[]) {
+          if (typeof arg === 'string') args.push(arg)
+        }
       }
 
       // Root-level sandbox enforcement: load sandbox-enforcer.cjs via
-      // NODE_OPTIONS=--require so it runs BEFORE the user's script. This
-      // patches http/https/net/tls/dgram/dns/fetch/child_process/worker_threads
-      // and chroots fs.* to the script's cwd + system temp dirs.
+      // NODE_OPTIONS=--require so it runs BEFORE the user's script. It patches
+      // http/https/net/tls/dgram/dns/fetch/child_process/worker_threads and
+      // chroots fs.* to the script's cwd + system temp dirs.
       //
-      // The enforcer reads TASK_PERM_NETWORK / TASK_PERM_FILESYSTEM from
-      // the env and enforces accordingly. If the script author declares
-      // `permissions: ["network"]` in their manifest, the env var is set
-      // to "1" and the patches are skipped. If is_sandbox=true, both are
-      // set to "0" and the patches deny every operation.
-      //
-      // Skip the enforcer when the entry point is a tsx runner (npx tsx)
-      // because NODE_OPTIONS=--require doesn't work cleanly with tsx's
-      // own pre-loads; in that case the user is running their own
-      // TypeScript dev script and should be in control.
-      const enforcerPath = resolvePath(__dirname, 'sandbox-enforcer.cjs')
-
-      if (existsSync(enforcerPath)) {
-        const existingOpts = env.NODE_OPTIONS || ''
-        env.NODE_OPTIONS = `--require ${enforcerPath}${existingOpts ? ' ' + existingOpts : ''}`
-      } else {
-        createLogger('task').warn('Sandbox enforcer not found at ' + enforcerPath)
+      // 安全关键：enforcer 缺失时必须 fail-closed（拒绝启动），否则四层权限模型
+      // 会静默退化为“零层”。路径解析覆盖 dev（out/main）、packaged（extraResources
+      // 于 process.resourcesPath）以及 asar 解包回退。
+      const enforcerPath = this.resolveSandboxEnforcerPath()
+      if (!enforcerPath) {
+        throw new Error(
+          'Sandbox enforcer (sandbox-enforcer.cjs) not found; refusing to start the task ' +
+            'because the permission layer would be silently disabled. Reinstall the application.'
+        )
       }
+      // Windows 下 NODE_OPTIONS 解析会把反斜杠当转义符，统一转正斜杠；
+      // 路径可能含空格（如 Program Files），因此加引号。
+      const enforcerArg = `"${enforcerPath.replace(/\\/g, '/')}"`
+      env.NODE_OPTIONS = `--require ${enforcerArg}`
 
       const proc = spawn(command, args, {
         cwd,

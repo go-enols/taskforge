@@ -66,12 +66,22 @@ export default function Data(): React.ReactElement {
     return PATH_TAB_MAP[location.pathname] ?? 'scriptParams'
   })
 
+  /**
+   * 已访问过的 Tab 集合：Tab 首次激活时才挂载子页面，
+   * 避免一进页面就同时挂载 4 个子模块（每个都会发请求），首次加载更快。
+   * 已挂载的 Tab 保持 hidden 以保留内部状态。
+   */
+  const [visitedTabs, setVisitedTabs] = useState<Set<DataTab>>(
+    () => new Set([PATH_TAB_MAP[location.pathname] ?? 'scriptParams'])
+  )
+
   /* ── URL → activeTab 同步 ── */
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const tab = PATH_TAB_MAP[location.pathname]
     if (tab) {
       setActiveTab(tab)
+      setVisitedTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)))
     }
   }, [location.pathname])
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -79,6 +89,7 @@ export default function Data(): React.ReactElement {
   /* ── Tab 切换 ── */
   const handleTabChange = useCallback((tab: DataTab) => {
     setActiveTab(tab)
+    setVisitedTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)))
 
     const path = TAB_PATH_MAP[tab]
     window.history.replaceState(null, '', `#${path}`)
@@ -116,30 +127,38 @@ export default function Data(): React.ReactElement {
       {/* ══════════════════════════════════════════
           Tab 1: 脚本参数
           ══════════════════════════════════════════ */}
-      <div className={activeTab === 'scriptParams' ? '' : 'hidden'}>
-        <ScriptParams />
-      </div>
+      {visitedTabs.has('scriptParams') && (
+        <div className={activeTab === 'scriptParams' ? '' : 'hidden'}>
+          <ScriptParams embedded />
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════
           Tab 2: 代理
           ══════════════════════════════════════════ */}
-      <div className={activeTab === 'proxies' ? '' : 'hidden'}>
-        <Proxies />
-      </div>
+      {visitedTabs.has('proxies') && (
+        <div className={activeTab === 'proxies' ? '' : 'hidden'}>
+          <Proxies embedded />
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════
           Tab 3: 验证码
           ══════════════════════════════════════════ */}
-      <div className={activeTab === 'captcha' ? '' : 'hidden'}>
-        <CaptchaPage />
-      </div>
+      {visitedTabs.has('captcha') && (
+        <div className={activeTab === 'captcha' ? '' : 'hidden'}>
+          <CaptchaPage embedded />
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════
           Tab 4: 导入中心
           ══════════════════════════════════════════ */}
-      <div className={activeTab === 'import' ? '' : 'hidden'}>
-        <ImportCenter />
-      </div>
+      {visitedTabs.has('import') && (
+        <div className={activeTab === 'import' ? '' : 'hidden'}>
+          <ImportCenter />
+        </div>
+      )}
     </div>
   )
 }

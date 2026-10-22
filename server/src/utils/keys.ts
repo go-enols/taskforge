@@ -2,7 +2,8 @@ import { randomBytes, createHash } from "crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 
-const ENV_PATH = join(process.cwd(), ".env");
+/** .env 路径：默认 cwd/.env，可用 MARKETPLACE_DATA_DIR 隔离（测试/自定义部署） */
+const ENV_PATH = join(process.env.MARKETPLACE_DATA_DIR || process.cwd(), ".env");
 
 interface KeyConfig {
   jwtSecret: string;
@@ -45,7 +46,8 @@ function parseEnvFile(content: string): Record<string, string> {
 
 function writeEnvFile(env: Record<string, string>): void {
   const lines = Object.entries(env).map(([key, value]) => `${key}=${value}`);
-  writeFileSync(ENV_PATH, lines.join("\n") + "\n", "utf-8");
+  // 权限 0600：密钥文件只允许当前用户读写（POSIX 生效；Windows 由 ACL 控制）
+  writeFileSync(ENV_PATH, lines.join("\n") + "\n", { encoding: "utf-8", mode: 0o600 });
 }
 
 export function ensureKeys(): KeyConfig {

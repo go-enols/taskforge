@@ -71,32 +71,6 @@ const ALLOWED_DIRS = (() => {
   return dirs;
 })();
 
-function isPathAllowed(p) {
-  if (!ALLOW_FILESYSTEM) return false;
-  if (typeof p !== 'string') return false;
-  const path = require('path');
-  let resolved;
-  try {
-    resolved = path.resolve(p);
-  } catch {
-    return false;
-  }
-  for (const dir of ALLOWED_DIRS) {
-    if (!dir) continue;
-    const dirResolved = path.resolve(dir);
-    if (resolved === dirResolved) return true;
-    if (resolved.startsWith(dirResolved + path.sep)) return true;
-    // Windows is case-insensitive
-    if (process.platform === 'win32') {
-      const lower = resolved.toLowerCase();
-      const dirLower = dirResolved.toLowerCase();
-      if (lower === dirLower) return true;
-      if (lower.startsWith(dirLower + path.sep)) return true;
-    }
-  }
-  return false;
-}
-
 function denyFs(op) {
   const err = new Error(PERMISSION_DENIED_MSG(op));
   err.code = PERMISSION_DENIED;
@@ -186,14 +160,77 @@ function patchNetwork() {
 
 // ---------- 3. Filesystem patcher ----------
 
+/**
+ * 判断路径是否位于「脚本目录 / 系统临时目录」白名单内（只做路径判定，不看权限位）。
+ * @param {unknown} p - 待判定路径
+ * @returns {boolean}
+ */
+function isPathWithinAllowedDirs(p) {
+  if (typeof p !== 'string') return false;
+  const path = require('path');
+  let resolved;
+  try {
+    resolved = path.resolve(p);
+  } catch {
+    return false;
+  }
+  for (const dir of ALLOWED_DIRS) {
+    if (!dir) continue;
+    const dirResolved = path.resolve(dir);
+    if (resolved === dirResolved) return true;
+    if (resolved.startsWith(dirResolved + path.sep)) return true;
+    // Windows is case-insensitive
+    if (process.platform === 'win32') {
+      const lower = resolved.toLowerCase();
+      const dirLower = dirResolved.toLowerCase();
+      if (lower === dirLower) return true;
+      if (lower.startsWith(dirLower + path.sep)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 旧接口：white-list + 权限位。保留给仍然按“整个 fs 禁用”判断的逻辑使用。
+ * @param {unknown} p - 待判定路径
+ * @returns {boolean}
+ */
 function patchFs() {
-  // Always patch fs to enforce chroot. Even if ALLOW_FILESYSTEM, paths
-  // outside the allowed dirs are rejected.
   const fs = require('fs');
+
+  // ---------- 操作分类 ----------
+  // 读：脚本目录 / TEMP 内始终允许。这里的放行不是给脚本“开后门”，而是因为
+  // Node 的 CommonJS/ESM 模块加载器在读取入口脚本和每个 require 时走的是公开
+  // fs API（fs.readFileSync / fs.realpathSync 等）。如果无 filesystem 权限时
+  // 一并拒绝，任何任务都会在启动阶段直接崩溃（Batch 0 实测）。
+  // 读目录外路径仍被拒绝；写操作仍然只在声明 filesystem 权限时允许。
+  const READ_OPS = new Set([
+    'readFile', 'createReadStream',
+    'readdir', 'opendir',
+    'readlink'
+  ]);
+  // 元数据操作：任何路径都放行。模块解析需要 stat 祖先目录（例如向上查找
+  // node_modules），且这些操作只泄露“路径是否存在”，不泄露文件内容。
+  const METADATA_OPS = new Set([
+    'stat', 'lstat', 'access', 'exists', 'realpath'
+  ]);
+
+  /**
+   * @param {string} baseName - 去掉 Sync 后缀的操作名
+   * @param {unknown} p - 目标路径
+   * @returns {boolean} 是否允许
+   */
+  function checkAllowed(baseName, p) {
+    if (METADATA_OPS.has(baseName)) return true;
+    const inside = isPathWithinAllowedDirs(p);
+    if (READ_OPS.has(baseName)) return inside;
+    // 写 / 修改类操作：必须声明 filesystem 权限，且仍限制在白名单内
+    return ALLOW_FILESYSTEM && inside;
+  }
 
   function wrapSync(name, fn) {
     return function (p) {
-      if (!isPathAllowed(p)) {
+      if (!checkAllowed(name.endsWith('Sync') ? name.slice(0, -4) : name, p)) {
         throw denyFs(`fs.${name}(${typeof p === 'string' ? p : '<non-string>'})`);
       }
       return Reflect.apply(fn, this, arguments);
@@ -202,7 +239,7 @@ function patchFs() {
 
   function wrapAsync(name, fn) {
     return function (p) {
-      if (!isPathAllowed(p)) {
+      if (!checkAllowed(name, p)) {
         throw denyFs(`fs.${name}(${typeof p === 'string' ? p : '<non-string>'})`);
       }
       return Reflect.apply(fn, this, arguments);
@@ -211,7 +248,7 @@ function patchFs() {
 
   function wrapPromise(name, fn) {
     return function (p) {
-      if (!isPathAllowed(p)) {
+      if (!checkAllowed(name, p)) {
         return Promise.reject(denyFs(`fs.${name}(${typeof p === 'string' ? p : '<non-string>'})`));
       }
       return Reflect.apply(fn, this, arguments);
@@ -248,16 +285,11 @@ function patchFs() {
     }
   }
 
-  // fs.promises
+  // fs.promises（方法名没有 Sync 后缀）
   if (fs.promises) {
     const promises = fs.promises;
-    for (const op of SYNC_OPS) {
-      const promiseName = op.endsWith('Sync') ? op.slice(0, -4) : op;
-      if (typeof promises[promiseName] === 'function') {
-        promises[promiseName] = wrapPromise(promiseName, promises[promiseName]);
-      }
-    }
-    for (const op of ASYNC_OPS) {
+    const PROMISE_OPS = new Set([...SYNC_OPS, ...ASYNC_OPS].map((op) => (op.endsWith('Sync') ? op.slice(0, -4) : op)));
+    for (const op of PROMISE_OPS) {
       if (typeof promises[op] === 'function') {
         promises[op] = wrapPromise(op, promises[op]);
       }

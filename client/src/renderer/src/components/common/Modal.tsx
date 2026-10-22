@@ -8,6 +8,8 @@
  */
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface ModalProps {
   /** 是否打开模态框 */
@@ -47,6 +49,7 @@ const Modal: React.FC<ModalProps> = ({
   scrollable = true
 }) => {
   const ref = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation()
 
   useEffect(() => {
     if (open) {
@@ -71,16 +74,26 @@ const Modal: React.FC<ModalProps> = ({
     >
       {/* 半透明背景遮罩：使用 z-0 让其位于面板之下、fixed 容器之内 */}
       <div
-        className="absolute inset-0 z-0 bg-black/60"
+        className="absolute inset-0 z-0 bg-black/55 backdrop-blur-[2px]"
         onClick={onClose}
         aria-hidden="true"
       />
       {/* 模态框面板：z-10 位于遮罩之上 */}
       <div
-        className={`modal-panel relative z-10 bg-bg-card rounded-xl shadow-xl ring-1 ring-border-light p-6 w-full ${maxWidth} ${scrollable ? 'max-h-[90vh] overflow-y-auto' : ''}`}
+        className={`modal-panel surface-card relative z-10 w-full p-6 shadow-xl ${maxWidth} ${scrollable ? 'max-h-[90vh] overflow-y-auto' : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold text-text-primary mb-4">{title}</h2>
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <h2 className="text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-tertiary hover:text-text-primary focus-ring"
+          >
+            <X size={16} />
+          </button>
+        </div>
         {children}
       </div>
     </div>
