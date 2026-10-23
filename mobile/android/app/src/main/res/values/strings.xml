@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TaskForge</string>
+    <string name="title_activity_main">TaskForge</string>
+    <string name="package_name">top.likecloud.taskforge</string>
+    <string name="custom_url_scheme">top.likecloud.taskforge</string>
+</resources>

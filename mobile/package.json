@@ -1,7 +1,7 @@
 {
   "name": "taskforge-mobile",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TaskForge 移动端：Android App（Capacitor + 内嵌 Node.js 运行时执行脚本）+ 可安装 PWA",
   "type": "module",
   "scripts": {

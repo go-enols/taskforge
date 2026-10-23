@@ -1,8 +1,10 @@
 /**
  * @file TaskForge 移动端 API 客户端
- * @description 与 Marketplace Server（Express）通信；生产环境为同源 /api，开发环境由 Vite 代理。
+ * @description 与 Marketplace Server（Express）通信；支持自定义服务器地址（见 config.ts），
+ *              Web 默认同源，App 默认官方服务器。
  * @module mobile/src/api
  */
+import { apiUrl } from './config'
 
 /** 登录用户 */
 export interface User {
@@ -178,7 +180,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   let response: Response
   try {
-    response = await fetch(path, {
+    response = await fetch(apiUrl(path), {
       method: options.method ?? 'GET',
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -254,7 +256,7 @@ export const scriptApi = {
   /** 下载脚本 zip 为 Blob（App 安装到本机时使用） */
   fetchZip: async (id: string): Promise<Blob> => {
     const token = getToken()
-    const response = await fetch(`/api/scripts/${encodeURIComponent(id)}/download`, {
+    const response = await fetch(apiUrl(`/api/scripts/${encodeURIComponent(id)}/download`), {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
     if (!response.ok) {

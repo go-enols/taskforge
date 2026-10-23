@@ -152,3 +152,22 @@ location = /download/TaskForge.apk {
 - 下载地址：<https://task.likecloud.top/download/TaskForge.apk>
 - 服务器路径：`/home/ubuntu/taskforge/mobile/TaskForge.apk`（更新 APK 时覆盖该文件即可，无需 reload nginx）
 - 当前为 debug 签名（可侧载安装）；上架/长期分发建议配置正式签名
+
+## App 更新清单（latest.json）
+
+APK 更新由静态文件驱动（nginx）：
+
+```nginx
+location = /download/latest.json {
+    alias /home/ubuntu/taskforge/mobile/latest.json;
+    default_type application/json;
+    add_header Cache-Control "no-store";
+    add_header Access-Control-Allow-Origin "*";
+}
+```
+
+- 地址：<https://task.likecloud.top/download/latest.json>
+- 文件：`/home/ubuntu/taskforge/mobile/latest.json`（与 TaskForge.apk 同目录）
+- App 启动时读取，比较 `versionCode`；高版本时下载 APK（校验 `sha256`）并调起系统安装器
+- 发布新版本：更新 APK、重算 `size`/`sha256`、更新 latest.json，覆盖两个文件即可（无需重启服务/nginx）
+- 注意：更新源固定为官方域名（不受 App 内 Marketplace 服务器地址影响），保证自建服务器的用户也能收到官方更新

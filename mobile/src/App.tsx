@@ -24,6 +24,16 @@ import {
 } from './api'
 import { isNativeApp, onNodeEvent, pingNodeRuntime, type RuntimePing } from './native'
 import {
+  getDefaultServer,
+  getServerBase,
+  getServerDisplay,
+  normalizeServerUrl,
+  OFFICIAL_SERVER,
+  setServerBase
+} from './config'
+import { checkForUpdate, installUpdate, type UpdateInfo } from './update'
+import { APP_VERSION } from './version'
+import {
   deleteInstalledTask,
   installScriptToDevice,
   listInstalledTasks,
@@ -241,16 +251,91 @@ function InstallBanner({
 
 type AuthMode = 'login' | 'register' | 'setup'
 
+/** 服务器地址设置表单（登录页与个人中心共用） */
+function ServerForm({
+  onSaved,
+  notify
+}: {
+  onSaved: (base: string) => void
+  notify: (text: string, type?: ToastType) => void
+}): React.JSX.Element {
+  const [value, setValue] = useState(() => getServerBase() || OFFICIAL_SERVER)
+  const [busy, setBusy] = useState(false)
+
+  const save = async (): Promise<void> => {
+    let base: string
+    try {
+      base = normalizeServerUrl(value)
+    } catch (err) {
+      notify(err instanceof Error ? err.message : '服务器地址不正确', 'error')
+      return
+    }
+    setBusy(true)
+    try {
+      const response = await fetch(`${base}/api/health`, { headers: { Accept: 'application/json' } })
+      if (!response.ok) throw new Error(`服务器返回 ${response.status}`)
+      const info = (await response.json()) as HealthInfo
+      if (!info || info.status !== 'ok') throw new Error('健康检查未通过')
+      setServerBase(base)
+      setValue(base)
+      onSaved(base)
+    } catch (err) {
+      notify(`无法连接该服务器：${err instanceof Error ? err.message : String(err)}`, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reset = (): void => {
+    setServerBase(null)
+    const fallback = getDefaultServer()
+    setValue(fallback || OFFICIAL_SERVER)
+    onSaved(fallback)
+  }
+
+  return (
+    <div className="server-form">
+      <label className="field">
+        <span className="field__label">Marketplace 服务器地址</span>
+        <input
+          className="field__input"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={OFFICIAL_SERVER}
+          autoCapitalize="none"
+          spellCheck={false}
+          inputMode="url"
+        />
+      </label>
+      <p className="muted-text">保存前会请求 /api/health 验证连通性；切换服务器后需要重新登录。</p>
+      <div className="field__row">
+        <button type="button" className="btn btn--small btn--primary" onClick={() => void save()} disabled={busy}>
+          {busy ? <Spinner size={14} /> : null}
+          保存并使用
+        </button>
+        <button type="button" className="btn btn--small btn--ghost" onClick={reset} disabled={busy}>
+          恢复默认
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function AuthScreen({
   health,
   onAuthed,
-  notify
+  notify,
+  serverLabel,
+  onServerChanged
 }: {
   health: HealthInfo | null
   onAuthed: (user: User, token: string) => void
   notify: (text: string, type?: ToastType) => void
+  serverLabel: string
+  onServerChanged: (base: string) => void
 }): React.JSX.Element {
   const needsSetup = health?.needsSetup === true
+  const [showServer, setShowServer] = useState(false)
   const [mode, setMode] = useState<AuthMode>(needsSetup ? 'setup' : 'login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -410,9 +495,15 @@ function AuthScreen({
         </form>
 
         <p className="auth-footnote">
-          服务器：{typeof window !== 'undefined' ? window.location.origin : ''}
+          服务器：{serverLabel}
           {health ? (health.db === 'connected' ? ' · 服务正常' : ' · 服务异常') : ''}
+          {' · '}
+          <button type="button" className="link-button" onClick={() => setShowServer((value) => !value)}>
+            {showServer ? '收起' : '更换服务器'}
+          </button>
         </p>
+
+        {showServer ? <ServerForm onSaved={onServerChanged} notify={notify} /> : null}
       </div>
     </div>
   )
@@ -1435,13 +1526,19 @@ function ProfilePage({
   health,
   onUserChange,
   onLogout,
-  notify
+  notify,
+  onServerChanged,
+  onCheckUpdate,
+  checkingUpdate
 }: {
   user: User
   health: HealthInfo | null
   onUserChange: (user: User) => void
   onLogout: () => void
   notify: (text: string, type?: ToastType) => void
+  onServerChanged: (base: string) => void
+  onCheckUpdate: () => void
+  checkingUpdate: boolean
 }): React.JSX.Element {
   const [displayName, setDisplayName] = useState(user.displayName || '')
   const [savingName, setSavingName] = useState(false)
@@ -1621,11 +1718,17 @@ function ProfilePage({
       </section>
 
       <section className="section-card">
+        <h2 className="section-title">服务器</h2>
+        <p className="muted-text">当前：{getServerDisplay()}</p>
+        <ServerForm onSaved={onServerChanged} notify={notify} />
+      </section>
+
+      <section className="section-card">
         <h2 className="section-title">关于</h2>
         <dl className="info-list">
           <div className="info-list__row">
             <dt>服务端</dt>
-            <dd className="mono">{window.location.origin}</dd>
+            <dd className="mono">{getServerDisplay()}</dd>
           </div>
           <div className="info-list__row">
             <dt>服务状态</dt>
@@ -1641,7 +1744,22 @@ function ProfilePage({
           </div>
           <div className="info-list__row">
             <dt>客户端</dt>
-            <dd>TaskForge Mobile PWA v1.0.0</dd>
+            <dd>
+              TaskForge Mobile {isNativeApp ? 'App' : 'PWA'} v{APP_VERSION}
+              {isNativeApp ? (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={onCheckUpdate}
+                    disabled={checkingUpdate}
+                  >
+                    {checkingUpdate ? '检查中…' : '检查更新'}
+                  </button>
+                </>
+              ) : null}
+            </dd>
           </div>
         </dl>
       </section>
@@ -1673,6 +1791,82 @@ function ProfilePage({
         </Sheet>
       ) : null}
     </div>
+  )
+}
+
+/* ────────────────────────── 版本更新 ────────────────────────── */
+
+/** 新版本提示：下载 APK 并调起系统安装器 */
+function UpdateSheet({
+  info,
+  onClose,
+  notify
+}: {
+  info: UpdateInfo
+  onClose: () => void
+  notify: (text: string, type?: ToastType) => void
+}): React.JSX.Element {
+  const [updating, setUpdating] = useState(false)
+  const [percent, setPercent] = useState(0)
+  const [error, setError] = useState('')
+  const sizeText = info.size ? `${(info.size / 1024 / 1024).toFixed(1)} MB` : ''
+
+  const start = async (): Promise<void> => {
+    setUpdating(true)
+    setError('')
+    setPercent(0)
+    try {
+      await installUpdate(info, (event) => setPercent(event.percent))
+      notify('安装包已下载，请在系统安装界面完成更新', 'success')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '更新失败')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  return (
+    <Sheet
+      title={`发现新版本 v${info.versionName}`}
+      subtitle={`当前 v${APP_VERSION}${sizeText ? ` · 安装包 ${sizeText}` : ''}`}
+      onClose={updating ? () => undefined : onClose}
+      footer={
+        <div className="footer-actions">
+          <button type="button" className="btn btn--primary btn--block" onClick={() => void start()} disabled={updating}>
+            {updating ? <Spinner /> : null}
+            {updating ? `下载中 ${percent}%` : '立即更新'}
+          </button>
+          {!updating ? (
+            <button type="button" className="btn btn--ghost btn--block" onClick={onClose}>
+              稍后再说
+            </button>
+          ) : null}
+        </div>
+      }
+    >
+      {info.changelog ? (
+        <p className="sheet-paragraph">{info.changelog}</p>
+      ) : (
+        <p className="muted-text">本次更新包含功能改进与问题修复。</p>
+      )}
+
+      {updating ? (
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${percent}%` }} />
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="form-error">
+          {error}
+          {error.includes('未知来源') || error.includes('安装未知') ? '（已尝试打开系统设置页，开启后返回重试）' : ''}
+        </p>
+      ) : null}
+
+      <p className="muted-text">
+        Android 不允许应用静默安装：下载完成后会调起系统安装器，点「安装」即可覆盖更新，数据（登录态、已安装脚本）保留。
+      </p>
+    </Sheet>
   )
 }
 
@@ -1735,6 +1929,10 @@ export default function App(): React.JSX.Element {
   const [online, setOnline] = useState<boolean>(() => navigator.onLine)
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
   const [showInstall, setShowInstall] = useState(true)
+  const [serverBase, setServerBaseState] = useState<string>(() => getServerBase())
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [showUpdate, setShowUpdate] = useState(false)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
   const toastTimer = useRef<number | null>(null)
 
   const notify = useCallback((text: string, type: ToastType = 'info'): void => {
@@ -1759,6 +1957,21 @@ export default function App(): React.JSX.Element {
       .catch(() => {
         if (!cancelled) setHealth(null)
       })
+    return () => {
+      cancelled = true
+    }
+  }, [serverBase])
+
+  // App 启动时自动检查更新（Android）
+  useEffect(() => {
+    if (!isNativeApp) return
+    let cancelled = false
+    void checkForUpdate().then((info) => {
+      if (!cancelled && info) {
+        setUpdateInfo(info)
+        setShowUpdate(true)
+      }
+    })
     return () => {
       cancelled = true
     }
@@ -1807,8 +2020,52 @@ export default function App(): React.JSX.Element {
     notify('已退出登录', 'info')
   }, [notify])
 
+  const handleServerChanged = useCallback(
+    (base: string): void => {
+      setServerBaseState(base)
+      setToken(null)
+      setCachedUser(null)
+      setUser(null)
+      setHealth(null)
+      setTab('market')
+      notify('服务器地址已更新，请重新登录', 'success')
+    },
+    [notify]
+  )
+
+  const handleCheckUpdate = useCallback((): void => {
+    if (!isNativeApp) {
+      notify('浏览器版本会随页面自动更新', 'info')
+      return
+    }
+    setCheckingUpdate(true)
+    void checkForUpdate()
+      .then((info) => {
+        if (info) {
+          setUpdateInfo(info)
+          setShowUpdate(true)
+        } else {
+          notify('已是最新版本', 'success')
+        }
+      })
+      .finally(() => setCheckingUpdate(false))
+  }, [notify])
+
   if (!user) {
-    return <AuthScreen health={health} onAuthed={handleAuthed} notify={notify} />
+    return (
+      <>
+        <AuthScreen
+          health={health}
+          onAuthed={handleAuthed}
+          notify={notify}
+          serverLabel={getServerDisplay()}
+          onServerChanged={handleServerChanged}
+        />
+        {showUpdate && updateInfo ? (
+          <UpdateSheet info={updateInfo} onClose={() => setShowUpdate(false)} notify={notify} />
+        ) : null}
+      </>
+    )
   }
 
   const banner =
@@ -1829,6 +2086,10 @@ export default function App(): React.JSX.Element {
       ) : null}
 
       {!online ? <div className="offline-banner">当前离线，部分功能不可用</div> : null}
+
+      {showUpdate && updateInfo ? (
+        <UpdateSheet info={updateInfo} onClose={() => setShowUpdate(false)} notify={notify} />
+      ) : null}
 
       <header className="app-header">
         <div className="app-header__brand">
@@ -1861,6 +2122,9 @@ export default function App(): React.JSX.Element {
             onUserChange={handleUserChange}
             onLogout={handleLogout}
             notify={notify}
+            onServerChanged={handleServerChanged}
+            onCheckUpdate={handleCheckUpdate}
+            checkingUpdate={checkingUpdate}
           />
         )}
       </main>
